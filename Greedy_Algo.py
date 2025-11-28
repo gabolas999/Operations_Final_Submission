@@ -6,6 +6,9 @@ This module provides a unified class-based implementation of the greedy algorith
 for container-to-barge allocation optimization.
 
 This file does work #+#+# Gabo
+
+TODO: Implement a re-run verification tool - and include the video in the report -> instant 10. 
+
 """
 
 import random
@@ -48,27 +51,43 @@ class GreedyOptimizer:
         self.Handling_time = handling_time  # hours
         
         # Instance data - will be populated by generate_instance()
-        self.C_dict = {}
-        self.C = 0
-        self.N = 0
-        self.T_matrix = []  # Travel time matrix (N x N)
-        self.Barges = []
-        self.C_ordered = []
-        self.master_route = []
+        self.C_dict = {}        # Container information dictionary
+                                # Contains following keys per container:
+                                # Rc: ready time
+                                # Dc: closing time
+                                # Oc: opening time
+                                # Wc: weight in TEU (either 1 or 2)
+                                # In_or_Out: import (1) or export (2)
+                                # Terminal: assigned terminal
+
+        self.C = 0              # Number of containers
+        self.N = 0              # Number of terminals
+        self.T_matrix = []      # Travel time matrix (N x N)
+        self.Barges = []        # Barge capacities
+        self.C_ordered = []     # Ordered containers
+        self.master_route = []  # Master route
         
         # Results storage
-        self.f_ck_init = None
+        self.f_ck_init = None   # It is not a swear word, it uses the same nomenclature as the paper
         self.route_list = []
         self.barge_departure_delay = []
         self.trucked_containers = {}
-        self.total_cost = 0
-        self.truck_cost = 0
-        self.barge_cost = 0
-        self.xijk = None
+        self.total_cost = 0     # Total cost of the solution
+        self.truck_cost = 0     # Total trucking cost
+        self.barge_cost = 0     # Total barge cost
+        self.xijk = None        # Barge routing matrix
         
         # Generate instance automatically
         self.generate_instance()
-    
+
+    def generate_instance(self):
+        """Generate complete problem instance"""
+        self.generate_container_info()
+        self.generate_travel_times()
+        self.generate_master_route()
+        self.generate_ordered_containers()
+        self.Barges = self.Qk.copy()  # Set barge capacities
+
     def generate_container_info(self):
         """Generate container information based on seed and reduced flag"""
         random.seed(self.seed)
@@ -103,14 +122,13 @@ class GreedyOptimizer:
                 Terminal = random.randint(1, self.N-1)  # assigned pickup terminal location
             
             self.C_dict[i] = {
-                "Rc": Rc,
-                "Dc": Dc,
-                "Oc": Oc,
-                "Wc": Wc,
-                "In_or_Out": In_or_Out,
-                "Terminal": Terminal
+                "Rc": Rc,                   # ready time    
+                "Dc": Dc,                   # closing time
+                "Oc": Oc,                   # opening time
+                "Wc": Wc,                   # weight in TEU (either 1 or 2)
+                "In_or_Out": In_or_Out,     # import or export
+                "Terminal": Terminal        # assigned terminal
             }
-    
     def generate_travel_times(self):
         """Generate travel time matrix T_matrix"""
         self.T_matrix = np.zeros((self.N, self.N), dtype=int)
@@ -145,7 +163,6 @@ class GreedyOptimizer:
                     self.T_matrix[i][j] = 4
                 else:
                     self.T_matrix[i][j] = 666
-    
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
         n = len(self.T_matrix)
@@ -158,7 +175,6 @@ class GreedyOptimizer:
 
         # Find approximate TSP cycle (returns to start)
         self.master_route = nx.approximation.traveling_salesman_problem(G, cycle=True, weight='weight')
-    
     def generate_ordered_containers(self):
         """Generate ordered list of containers based on master route"""
         self.C_ordered = []
@@ -168,13 +184,6 @@ class GreedyOptimizer:
                 if self.C_dict[j]["Terminal"] == i:
                     self.C_ordered.append(j)
     
-    def generate_instance(self):
-        """Generate complete problem instance"""
-        self.generate_container_info()
-        self.generate_travel_times()
-        self.generate_master_route()
-        self.generate_ordered_containers()
-        self.Barges = self.Qk.copy()  # Set barge capacities
     
     def get_route(self, L_current):
         """
@@ -344,7 +353,7 @@ class GreedyOptimizer:
                 # 1) Tentatively assign c to this barge
                 self.f_ck_init[c, barge_idx] = 1
 
-                # 2) Build the current load
+                # 2) Build the current load 
                 L_current = {
                     cont: self.C_dict[cont]
                     for cont in self.C_ordered
