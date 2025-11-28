@@ -24,7 +24,7 @@ class GreedyOptimizer:
             self,
             qk,
             h_b,
-            seed=1,
+            seed=0,
             reduced=False,
             h_t_40=200,                     # 40ft container trucking cost in euros
             h_t_20=140,                     # 20ft container trucking cost in euros
@@ -549,19 +549,23 @@ class GreedyOptimizer:
     
     def print_results(self):
         """Print detailed results of the optimization"""
-        print(f"Total cost: {self.total_cost:.0f} Euros")
-        print(f"Barge cost: {self.barge_cost:.0f} Euros           ({self.barge_cost / self.total_cost * 100:.1f}%)")
-        print(f"Truck cost: {self.truck_cost:.0f} Euros           ({self.truck_cost / self.total_cost * 100:.1f}%)")
-        print(f"Containers: {self.C}")
-        print(f"Terminals: {self.N}")
-        print(f"Trucked containers: {len(self.trucked_containers)}           ({len(self.trucked_containers) / self.C * 100:.1f}%)")
+        print(f"Total cost: {self.total_cost:>10.0f} Euros")
+        print(f"Barge cost: {self.barge_cost:>10.0f} Euros             ({self.barge_cost / self.total_cost * 100:>5.1f}% )")
+        print(f"Truck cost: {self.truck_cost:>10.0f} Euros             ({self.truck_cost / self.total_cost * 100:>5.1f}% )")
+        print(f"Containers: {self.C:>10d}")
+        print(f"Terminals: {self.N:>10d}")
+        print(f"Trucked containers: {len(self.trucked_containers):>10d}           ({len(self.trucked_containers) / self.C * 100:>5.1f}% )")
         
         # Print barge utilization
         for k, route in enumerate(self.route_list):
             if len(route) > 1:  # Only print if barge is used
                 containers_on_barge = sum(1 for c in range(self.C) if self.f_ck_init[c][k] == 1)
                 teu_on_barge = sum(self.C_dict[c]["Wc"] for c in range(self.C) if self.f_ck_init[c][k] == 1)
-                print(f"Barge {k}: {containers_on_barge} containers, {teu_on_barge}/{self.Barges[k]} TEU")
+                print(
+                        f"Barge {k:>3d}: "
+                        f"{containers_on_barge:>4d} containers, "
+                        f"{teu_on_barge:>4d}/{self.Barges[k]:<4d} TEU"
+                        )
 
     @property
     def T_ij_list(self):
@@ -576,16 +580,32 @@ qk = [     # Barge capacities in TEU
         52,         # Barge 3
         28,         # Barge 4
 
-        # 0,         # Extensive Barges 5 
-        # 1,         # Extensive Barges 6 
-        # 2,         # Extensive Barges 7 
-        # 3,         # Extensive Barges 8 
-        # 4,         # Extensive Barges 9 
-        # 5,         # Extensive Barges 10
-        # 6,         # Extensive Barges 11
-        # 7,         # Extensive Barges 12
-        # 8,         # Extensive Barges 13
-        # 9,         # Extensive Barges 14
+        10,         # Extensive Barges 5 
+        11,         # Extensive Barges 6 
+        12,         # Extensive Barges 7 
+        13,         # Extensive Barges 8 
+        14,         # Extensive Barges 9 
+        15,         # Extensive Barges 10
+        16,         # Extensive Barges 11
+        17,         # Extensive Barges 12
+        18,         # Extensive Barges 13
+        19,         # Extensive Barges 14
+        110,         # Extensive Barges 15
+        111,         # Extensive Barges 16
+        112,         # Extensive Barges 17
+        113,         # Extensive Barges 18
+        114,         # Extensive Barges 19
+        115,         # Extensive Barges 20
+        116,         # Extensive Barges 21
+        117,         # Extensive Barges 22
+        118,         # Extensive Barges 23
+        119,         # Extensive Barges 24
+        120,         # Extensive Barges 25
+        121,         # Extensive Barges 26
+        122,         # Extensive Barges 27
+        123,         # Extensive Barges 28
+        124,         # Extensive Barges 29
+        125,         # Extensive Barges 30
     ]
 
 
@@ -596,16 +616,33 @@ h_b = [     # Barge fixed costs in euros
         2800,      # Barge 3
         1800,      # Barge 4
 
-        # 10,         # Extensive Barges 5 
-        # 10,         # Extensive Barges 6 
-        # 10,         # Extensive Barges 7 
-        # 10,         # Extensive Barges 8 
-        # 10,         # Extensive Barges 9 
-        # 10,         # Extensive Barges 10
-        # 10,         # Extensive Barges 11  
-        # 10,         # Extensive Barges 12
-        # 10,         # Extensive Barges 13
-        # 10,         # Extensive Barges 14
+        1,         # Extensive Barges 5 
+        1,         # Extensive Barges 6 
+        1,         # Extensive Barges 7 
+        1,         # Extensive Barges 8 
+        1,         # Extensive Barges 9 
+        1,         # Extensive Barges 10
+        1,         # Extensive Barges 11  
+        1,         # Extensive Barges 12
+        1,         # Extensive Barges 13
+        1,         # Extensive Barges 14
+        1,         # Extensive Barges 15
+        1,         # Extensive Barges 16
+        1,         # Extensive Barges 17
+        1,         # Extensive Barges 18
+        1,         # Extensive Barges 19
+        1,         # Extensive Barges 20
+        1,         # Extensive Barges 21
+        1,         # Extensive Barges 22
+        1,         # Extensive Barges 23
+        1,         # Extensive Barges 24
+        1,         # Extensive Barges 25
+        1,         # Extensive Barges 26
+        1,         # Extensive Barges 27
+        1,         # Extensive Barges 28
+        1,         # Extensive Barges 29
+        1,         # Extensive Barges 30
+
     ]
 
 
