@@ -6,3 +6,4 @@ I copied the simplest files, in order to get the algorithm working.
 We will need to dive into the workings and if it is implemented correctly. 
 For now I will focus on plotting the results for verification. 
 #+#+# Gabo
+Esta es mi branch. 
