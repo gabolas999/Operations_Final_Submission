@@ -17,20 +17,20 @@ import numpy as np
 class GreedyOptimizer:
     """Unified greedy algorithm class for container allocation optimization"""
     
-    def __init__(self, seed=100, reduced=False, qk=None, h_b=None, h_t_40=200, h_t_20=140, handling_time=1/6):
+    def __init__(self, qk, h_b, seed=0, reduced=False, h_t_40=200, h_t_20=140, handling_time=1/6):
         """
         Initialize the greedy optimizer
         
         Parameters:
         -----------
-        seed : int
-            Random seed for instance generation
-        reduced : bool
-            If True, generate smaller instances for testing
         qk : list
             Barge capacities in TEU
         h_b : list
             Barge fixed costs in euros
+        seed : int
+            Random seed for instance generation
+        reduced : bool
+            If True, generate smaller instances for testing
         h_t_40 : float
             40ft container trucking cost in euros
         h_t_20 : float
@@ -41,8 +41,8 @@ class GreedyOptimizer:
         # Parameters
         self.seed = seed
         self.reduced = reduced
-        self.Qk = qk if qk is not None else [104, 99, 81, 52, 28]  # TEU
-        self.H_b = h_b if h_b is not None else [3700, 3600, 3400, 2800, 1800]  # euros
+        self.Qk = qk #if qk is not None else [104, 99, 81, 52, 28]  # TEU
+        self.H_b = h_b #if h_b is not None else [3700, 3600, 3400, 2800, 1800]  # euros
         self.H_t_40 = h_t_40  # euros
         self.H_t_20 = h_t_20  # euros
         self.Handling_time = handling_time  # hours
@@ -478,12 +478,12 @@ class GreedyOptimizer:
     
     def print_results(self):
         """Print detailed results of the optimization"""
-        print(f"Total cost: {self.total_cost:.0f}")
-        print(f"Barge cost: {self.barge_cost:.0f}")
-        print(f"Truck cost: {self.truck_cost:.0f}")
+        print(f"Total cost: {self.total_cost:.0f} Euros")
+        print(f"Barge cost: {self.barge_cost:.0f} Euros           ({self.barge_cost / self.total_cost * 100:.1f}%)")
+        print(f"Truck cost: {self.truck_cost:.0f} Euros           ({self.truck_cost / self.total_cost * 100:.1f}%)")
         print(f"Containers: {self.C}")
         print(f"Terminals: {self.N}")
-        print(f"Trucked containers: {len(self.trucked_containers)}")
+        print(f"Trucked containers: {len(self.trucked_containers)}           ({len(self.trucked_containers) / self.C * 100:.1f}%)")
         
         # Print barge utilization
         for k, route in enumerate(self.route_list):
@@ -497,8 +497,28 @@ class GreedyOptimizer:
         """Alias for T_matrix for backward compatibility"""
         return self.T_matrix
 
+
+qk = [     # Barge capacities in TEU
+        104,        # Barge 0
+        99,         # Barge 1
+        81,         # Barge 2
+        52,         # Barge 3
+        28,         # Barge 4
+    ]
+
+
+h_b = [     # Barge fixed costs in euros
+    3700,      # Barge 0
+    3600,      # Barge 1
+    3400,      # Barge 2
+    2800,      # Barge 3
+    1800,      # Barge 4
+]
+
+
+
 # Create global instance for backward compatibility
-_global_optimizer = GreedyOptimizer()
+_global_optimizer = GreedyOptimizer(qk, h_b)
 
 # Global variables for backward compatibility
 C_dict = _global_optimizer.C_dict
@@ -540,6 +560,6 @@ def delay_window(container, D_terminal, route, terminal, handling_time):
 
 # Run the algorithm and print results if this file is executed directly
 if __name__ == "__main__":
-    optimizer = GreedyOptimizer()
+    optimizer = GreedyOptimizer(qk, h_b)
     results = optimizer.solve_greedy()
     optimizer.print_results()
