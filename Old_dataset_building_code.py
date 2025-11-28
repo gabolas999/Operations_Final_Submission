@@ -1,3 +1,10 @@
+"""
+I am pretty sure we do not need to use this file anymore, but rather its features have been integrated into Greedy_Algo.py
+
+
+"""
+
+
 # build dataset for each instance
 import random
 import math

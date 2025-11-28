@@ -69,11 +69,6 @@ class GreedyOptimizer:
         # Generate instance automatically
         self.generate_instance()
     
-    @property
-    def T_ij_list(self):
-        """Alias for T_matrix for backward compatibility"""
-        return self.T_matrix
-    
     def generate_container_info(self):
         """Generate container information based on seed and reduced flag"""
         random.seed(self.seed)
@@ -497,6 +492,10 @@ class GreedyOptimizer:
                 teu_on_barge = sum(self.C_dict[c]["Wc"] for c in range(self.C) if self.f_ck_init[c][k] == 1)
                 print(f"Barge {k}: {containers_on_barge} containers, {teu_on_barge}/{self.Barges[k]} TEU")
 
+    @property
+    def T_ij_list(self):
+        """Alias for T_matrix for backward compatibility"""
+        return self.T_matrix
 
 # Create global instance for backward compatibility
 _global_optimizer = GreedyOptimizer()
