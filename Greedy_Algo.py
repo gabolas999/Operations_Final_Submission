@@ -20,7 +20,25 @@ import numpy as np
 class GreedyOptimizer:
     """Unified greedy algorithm class for container allocation optimization"""
     
-    def __init__(self, qk, h_b, seed=0, reduced=False, h_t_40=200, h_t_20=140, handling_time=1/6):
+    def __init__(
+            self,
+            qk,
+            h_b,
+            seed=1,
+            reduced=False,
+            h_t_40=200,                     # 40ft container trucking cost in euros
+            h_t_20=140,                     # 20ft container trucking cost in euros
+            handling_time=1/6,              # Container handling time in hours
+            C_range=(100, 600),             # (min, max) number of containers
+            N_range=(10, 20),               # (min, max) number of terminals
+            Dc_range=(24, 196),             # (min, max) closing time in hours
+            Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that        # Oc is drawn in [Dc - max_offset, Dc - min_offset]
+            P40_range=(0.75, 0.9),          # (min, max) for uniform draw of probability of 40ft container
+            PExport_range=(0.05, 0.7),      # (min, max) for uniform draw of probability of export 
+
+            C_range_reduced=(33, 200),      # (min, max) number of containers when reduced=True
+            N_range_reduced=(4, 8),         # (min, max) number of terminals when reduced=True
+        ):
         """
         Initialize the greedy optimizer
         
@@ -40,16 +58,46 @@ class GreedyOptimizer:
             20ft container trucking cost in euros
         handling_time : float
             Container handling time in hours
+        C_range : tuple(int, int)
+            (min, max) number of containers when reduced=False
+        N_range : tuple(int, int)
+            (min, max) number of terminals when reduced=False
+        Dc_range : tuple(int, int)
+            (min, max) closing time in hours
+        Oc_offset_range : tuple(int, int)
+            (min_offset, max_offset) such that
+            Oc is drawn in [Dc - max_offset, Dc - min_offset]
+        P40_range : tuple(float, float)
+            (min, max) for uniform draw of probability of 40ft container
+        PExport_range : tuple(float, float)
+            (min, max) for uniform draw of probability of export
+
+        C_range_reduced : tuple(int, int)
+            (min, max) number of containers when reduced=True
+        N_range_reduced : tuple(int, int)
+            (min, max) number of terminals when reduced=True
         """
         # Parameters
         self.seed = seed
         self.reduced = reduced
-        self.Qk = qk #if qk is not None else [104, 99, 81, 52, 28]  # TEU
-        self.H_b = h_b #if h_b is not None else [3700, 3600, 3400, 2800, 1800]  # euros
+        self.Qk = qk  # TEU
+        self.H_b = h_b  # euros
         self.H_t_40 = h_t_40  # euros
         self.H_t_20 = h_t_20  # euros
         self.Handling_time = handling_time  # hours
+
+        # New parameter ranges
+        self.C_range = C_range
+        self.N_range = N_range
+        self.Dc_range = Dc_range
+        self.Oc_offset_range = Oc_offset_range
+        self.P40_range = P40_range
+        self.PExport_range = PExport_range
         
+        self.C_range_reduced = C_range_reduced
+        self.N_range_reduced = N_range_reduced
+
+
         # Instance data - will be populated by generate_instance()
         self.C_dict = {}        # Container information dictionary
                                 # Contains following keys per container:
@@ -80,6 +128,7 @@ class GreedyOptimizer:
         # Generate instance automatically
         self.generate_instance()
 
+
     def generate_instance(self):
         """Generate complete problem instance"""
         self.generate_container_info()
@@ -91,21 +140,31 @@ class GreedyOptimizer:
     def generate_container_info(self):
         """Generate container information based on seed and reduced flag"""
         random.seed(self.seed)
-
+        # Choose ranges based on reduced flag
         if self.reduced:
-            self.C = random.randint(33, 200)  # number of containers
-            self.N = random.randint(4, 8)     # number of terminals
+            C_min, C_max = self.C_range_reduced
+            N_min, N_max = self.N_range_reduced
         else:
-            self.C = random.randint(100, 600)  # number of containers
-            self.N = random.randint(10, 20)    # number of terminals
+            C_min, C_max = self.C_range
+            N_min, N_max = self.N_range
+
+        self.C = random.randint(C_min, C_max)  # number of containers
+        self.N = random.randint(N_min, N_max)  # number of terminals
+
+        Dc_min, Dc_max = self.Dc_range
+        Oc_min_offset, Oc_max_offset = self.Oc_offset_range
+        P40_min, P40_max = self.P40_range
+        PExport_min, PExport_max = self.PExport_range
 
         self.C_dict = {}
 
         for i in range(self.C):
-            Dc = random.randint(24, 196)  # closing hours
-            Oc = random.randint(Dc-120, Dc-24)  # opening hours
-            P_40 = random.uniform(0.75, 0.9)  # probability of 40ft container
-            P_Export = random.uniform(0.05, 0.7)  # probability of export
+            Dc = random.randint(Dc_min, Dc_max)  # closing hours
+            # Oc is drawn some time before Dc, using configurable offsets
+            Oc = random.randint(Dc - Oc_max_offset, Dc - Oc_min_offset)
+
+            P_40 = random.uniform(P40_min, P40_max)  # probability of 40ft container
+            P_Export = random.uniform(PExport_min, PExport_max)  # probability of export
 
             if random.random() < P_40:
                 Wc = 2  # 40ft container
@@ -115,11 +174,11 @@ class GreedyOptimizer:
             if random.random() < P_Export:
                 In_or_Out = 2  # Export
                 Rc = random.randint(0, 24)
-                Terminal = random.randint(1, self.N-1)  # assigned delivery terminal location
+                Terminal = random.randint(1, self.N - 1)  # assigned delivery terminal location
             else:
                 In_or_Out = 1  # Import
                 Rc = 0
-                Terminal = random.randint(1, self.N-1)  # assigned pickup terminal location
+                Terminal = random.randint(1, self.N - 1)  # assigned pickup terminal location
             
             self.C_dict[i] = {
                 "Rc": Rc,                   # ready time    
@@ -129,6 +188,9 @@ class GreedyOptimizer:
                 "In_or_Out": In_or_Out,     # import or export
                 "Terminal": Terminal        # assigned terminal
             }
+
+
+
     def generate_travel_times(self):
         """Generate travel time matrix T_matrix"""
         self.T_matrix = np.zeros((self.N, self.N), dtype=int)
@@ -513,16 +575,38 @@ qk = [     # Barge capacities in TEU
         81,         # Barge 2
         52,         # Barge 3
         28,         # Barge 4
+
+        # 0,         # Extensive Barges 5 
+        # 1,         # Extensive Barges 6 
+        # 2,         # Extensive Barges 7 
+        # 3,         # Extensive Barges 8 
+        # 4,         # Extensive Barges 9 
+        # 5,         # Extensive Barges 10
+        # 6,         # Extensive Barges 11
+        # 7,         # Extensive Barges 12
+        # 8,         # Extensive Barges 13
+        # 9,         # Extensive Barges 14
     ]
 
 
 h_b = [     # Barge fixed costs in euros
-    3700,      # Barge 0
-    3600,      # Barge 1
-    3400,      # Barge 2
-    2800,      # Barge 3
-    1800,      # Barge 4
-]
+        3700,      # Barge 0
+        3600,      # Barge 1
+        3400,      # Barge 2
+        2800,      # Barge 3
+        1800,      # Barge 4
+
+        # 10,         # Extensive Barges 5 
+        # 10,         # Extensive Barges 6 
+        # 10,         # Extensive Barges 7 
+        # 10,         # Extensive Barges 8 
+        # 10,         # Extensive Barges 9 
+        # 10,         # Extensive Barges 10
+        # 10,         # Extensive Barges 11  
+        # 10,         # Extensive Barges 12
+        # 10,         # Extensive Barges 13
+        # 10,         # Extensive Barges 14
+    ]
 
 
 

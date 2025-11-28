@@ -622,7 +622,7 @@ if __name__ == "__main__":
     mh.initial_solution()
     print("greedy cost:", mh.evaluate()[0])
     mh.local_search()
-    print("meta‐heuristic cost:", mh.best_cost)
+    print("meta-heuristic cost:", mh.best_cost)
 
     # Display final allocations
     mh.display_final_allocations()

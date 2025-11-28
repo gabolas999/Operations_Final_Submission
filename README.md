@@ -21,7 +21,7 @@ The process consists of the following steps:
 
 - 2. Then, the .generate_instance() method, creates the specific random scenario. So it produces, using a seed, the number of containers, the number of terminals, the travel time matrix (NxN) between specific terminals, and for each container a dictionary with its properties (opening time, closing time, weight, import or export, and assigned terminal.).
 
-- 3. Then, the Greedy algorithm solves the problem, obtaining an initial feasible solution. #[I think the outputs of get_route, and Barge routing matrix xijk might be very useful for verification.] This solution is obtained in seconds, and is printed out to the terminal.
+- 3. Then, the Greedy algorithm solves the problem,   using some imported module that solves the traveling salesman problem,   obtaining an initial feasible solution. #[I think the outputs of get_route, and Barge routing matrix xijk might be very useful for verification.] This solution is obtained in seconds, and is printed out to the terminal.
 
 
 - 4. Then, the Meta-Heuristic algorithm does some magic and improves it. -> Figure out what is doing. 
