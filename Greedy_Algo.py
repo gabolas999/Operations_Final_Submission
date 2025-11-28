@@ -22,9 +22,78 @@ class GreedyOptimizer:
     
     def __init__(
             self,
-            qk,
-            h_b,
-            seed=0,
+            qk = [# Barge capacities in TEU
+
+                    104,        # Barge 0
+                    99,         # Barge 1
+                    81,         # Barge 2
+                    52,         # Barge 3
+                    28,         # Barge 4
+
+                    # 1,         # Extensive Barges 5 
+                    # 1,         # Extensive Barges 6 
+                    # 2,         # Extensive Barges 7 
+                    # 3,         # Extensive Barges 8 
+                    # 4,         # Extensive Barges 9 
+                    # 5,         # Extensive Barges 10
+                    # 6,         # Extensive Barges 11
+                    # 7,         # Extensive Barges 12
+                    # 8,         # Extensive Barges 13
+                    # 9,         # Extensive Barges 14
+                    # 10,         # Extensive Barges 15
+                    # 11,         # Extensive Barges 16
+                    # 12,         # Extensive Barges 17
+                    # 13,         # Extensive Barges 18
+                    # 14,         # Extensive Barges 19
+                    # 15,         # Extensive Barges 20
+                    # 16,         # Extensive Barges 21
+                    # 17,         # Extensive Barges 22
+                    # 18,         # Extensive Barges 23
+                    # 19,         # Extensive Barges 24
+                    # 20,         # Extensive Barges 25
+                    # 21,         # Extensive Barges 26
+                    # 22,         # Extensive Barges 27
+                    # 23,         # Extensive Barges 28
+                    # 24,         # Extensive Barges 29
+                    # 25,         # Extensive Barges 30
+                    ],
+
+            h_b = [# Barge fixed costs in euros
+
+                    3700,      # Barge 0
+                    3600,      # Barge 1
+                    3400,      # Barge 2
+                    2800,      # Barge 3
+                    1800,      # Barge 4
+
+                    # 10,         # Extensive Barges 5 
+                    # 10,         # Extensive Barges 6 
+                    # 10,         # Extensive Barges 7 
+                    # 10,         # Extensive Barges 8 
+                    # 10,         # Extensive Barges 9 
+                    # 10,         # Extensive Barges 10
+                    # 10,         # Extensive Barges 11  
+                    # 10,         # Extensive Barges 12
+                    # 10,         # Extensive Barges 13
+                    # 10,         # Extensive Barges 14
+                    # 10,         # Extensive Barges 15
+                    # 10,         # Extensive Barges 16
+                    # 10,         # Extensive Barges 17
+                    # 10,         # Extensive Barges 18
+                    # 10,         # Extensive Barges 19
+                    # 10,         # Extensive Barges 20
+                    # 10,         # Extensive Barges 21
+                    # 10,         # Extensive Barges 22
+                    # 10,         # Extensive Barges 23
+                    # 10,         # Extensive Barges 24
+                    # 10,         # Extensive Barges 25
+                    # 10,         # Extensive Barges 26
+                    # 10,         # Extensive Barges 27
+                    # 10,         # Extensive Barges 28
+                    # 10,         # Extensive Barges 29
+                    # 10,         # Extensive Barges 30
+                    ],
+            seed=100,
             reduced=False,
             h_t_40=200,                     # 40ft container trucking cost in euros
             h_t_20=140,                     # 20ft container trucking cost in euros
@@ -573,82 +642,11 @@ class GreedyOptimizer:
         return self.T_matrix
 
 
-qk = [     # Barge capacities in TEU
-        104,        # Barge 0
-        99,         # Barge 1
-        81,         # Barge 2
-        52,         # Barge 3
-        28,         # Barge 4
-
-        1,         # Extensive Barges 5 
-        1,         # Extensive Barges 6 
-        2,         # Extensive Barges 7 
-        3,         # Extensive Barges 8 
-        4,         # Extensive Barges 9 
-        5,         # Extensive Barges 10
-        6,         # Extensive Barges 11
-        7,         # Extensive Barges 12
-        8,         # Extensive Barges 13
-        9,         # Extensive Barges 14
-        10,         # Extensive Barges 15
-        11,         # Extensive Barges 16
-        12,         # Extensive Barges 17
-        13,         # Extensive Barges 18
-        14,         # Extensive Barges 19
-        15,         # Extensive Barges 20
-        16,         # Extensive Barges 21
-        17,         # Extensive Barges 22
-        18,         # Extensive Barges 23
-        19,         # Extensive Barges 24
-        20,         # Extensive Barges 25
-        21,         # Extensive Barges 26
-        22,         # Extensive Barges 27
-        23,         # Extensive Barges 28
-        24,         # Extensive Barges 29
-        25,         # Extensive Barges 30
-    ]
-
-
-h_b = [     # Barge fixed costs in euros
-        3700,      # Barge 0
-        3600,      # Barge 1
-        3400,      # Barge 2
-        2800,      # Barge 3
-        1800,      # Barge 4
-
-        10,         # Extensive Barges 5 
-        10,         # Extensive Barges 6 
-        10,         # Extensive Barges 7 
-        10,         # Extensive Barges 8 
-        10,         # Extensive Barges 9 
-        10,         # Extensive Barges 10
-        10,         # Extensive Barges 11  
-        10,         # Extensive Barges 12
-        10,         # Extensive Barges 13
-        10,         # Extensive Barges 14
-        10,         # Extensive Barges 15
-        10,         # Extensive Barges 16
-        10,         # Extensive Barges 17
-        10,         # Extensive Barges 18
-        10,         # Extensive Barges 19
-        10,         # Extensive Barges 20
-        10,         # Extensive Barges 21
-        10,         # Extensive Barges 22
-        10,         # Extensive Barges 23
-        10,         # Extensive Barges 24
-        10,         # Extensive Barges 25
-        10,         # Extensive Barges 26
-        10,         # Extensive Barges 27
-        10,         # Extensive Barges 28
-        10,         # Extensive Barges 29
-        10,         # Extensive Barges 30
-
-    ]
 
 
 
 # Create global instance for backward compatibility
-_global_optimizer = GreedyOptimizer(qk, h_b)
+_global_optimizer = GreedyOptimizer()
 
 # Global variables for backward compatibility
 C_dict = _global_optimizer.C_dict
@@ -690,6 +688,6 @@ def delay_window(container, D_terminal, route, terminal, handling_time):
 
 # Run the algorithm and print results if this file is executed directly
 if __name__ == "__main__":
-    optimizer = GreedyOptimizer(qk, h_b)
+    optimizer = GreedyOptimizer()
     results = optimizer.solve_greedy()
     optimizer.print_results()

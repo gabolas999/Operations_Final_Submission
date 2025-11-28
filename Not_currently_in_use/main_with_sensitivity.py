@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import our modules
 from Meta_Heuristics import MetaHeuristic
-from sensitivity_analysis import SensitivityAnalyzer
+from Not_currently_in_use.sensitivity_analysis import SensitivityAnalyzer
 from Greedy_Algo import (
     C_ordered, C_dict, Barges, H_b, H_t_20, H_t_40, 
     T_ij_list, Handling_time
