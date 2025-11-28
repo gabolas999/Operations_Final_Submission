@@ -145,7 +145,7 @@ def run_sensitivity_analysis():
 
 def main():
     """Main function to run both analyses"""
-    print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+    
     print("🏗️  Container Allocation Optimization Project")
     print("=" * 60)
     print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -164,9 +164,8 @@ def main():
     
     # Ask if user wants to continue to sensitivity analysis
     print("\n" + "="*60)
-    # continue_choice = input("📈 Continue to sensitivity analysis? (y/n): ").strip().lower()
-    continue_choice = 'no'          #+#+# Disabled for now, because we don't have that template. 
-
+    continue_choice = input("📈 Continue to sensitivity analysis? (y/n): ").strip().lower()
+    
     if continue_choice == 'y':
         # 2. Run sensitivity analysis  
         try:

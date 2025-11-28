@@ -36,7 +36,7 @@ class NumpyEncoder(json.JSONEncoder):
 from mpl_toolkits.mplot3d import Axes3D
 from Meta_Heuristics import MetaHeuristic
 from Greedy_Algo import GreedyOptimizer, C_dict, Barges, T_ij_list, Handling_time, H_b, H_t_20, H_t_40, Qk
-from plotting_templates import PlottingTemplates
+# from plotting_templates import PlottingTemplates
 
 # Import optimization modules (imported when needed to avoid dependency issues)
 
@@ -70,7 +70,7 @@ class SensitivityAnalyzer:
         self.results = []
         
         # Initialize plotting templates
-        self.plotter = PlottingTemplates()
+        # self.plotter = PlottingTemplates()
         
     def create_optimizer_with_params(self, custom_containers=None, custom_N=None, **params):
         """Create a GreedyOptimizer instance with modified parameters and optionally custom containers"""
