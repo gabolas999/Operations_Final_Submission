@@ -580,32 +580,32 @@ qk = [     # Barge capacities in TEU
         52,         # Barge 3
         28,         # Barge 4
 
-        10,         # Extensive Barges 5 
-        11,         # Extensive Barges 6 
-        12,         # Extensive Barges 7 
-        13,         # Extensive Barges 8 
-        14,         # Extensive Barges 9 
-        15,         # Extensive Barges 10
-        16,         # Extensive Barges 11
-        17,         # Extensive Barges 12
-        18,         # Extensive Barges 13
-        19,         # Extensive Barges 14
-        110,         # Extensive Barges 15
-        111,         # Extensive Barges 16
-        112,         # Extensive Barges 17
-        113,         # Extensive Barges 18
-        114,         # Extensive Barges 19
-        115,         # Extensive Barges 20
-        116,         # Extensive Barges 21
-        117,         # Extensive Barges 22
-        118,         # Extensive Barges 23
-        119,         # Extensive Barges 24
-        120,         # Extensive Barges 25
-        121,         # Extensive Barges 26
-        122,         # Extensive Barges 27
-        123,         # Extensive Barges 28
-        124,         # Extensive Barges 29
-        125,         # Extensive Barges 30
+        1,         # Extensive Barges 5 
+        1,         # Extensive Barges 6 
+        2,         # Extensive Barges 7 
+        3,         # Extensive Barges 8 
+        4,         # Extensive Barges 9 
+        5,         # Extensive Barges 10
+        6,         # Extensive Barges 11
+        7,         # Extensive Barges 12
+        8,         # Extensive Barges 13
+        9,         # Extensive Barges 14
+        10,         # Extensive Barges 15
+        11,         # Extensive Barges 16
+        12,         # Extensive Barges 17
+        13,         # Extensive Barges 18
+        14,         # Extensive Barges 19
+        15,         # Extensive Barges 20
+        16,         # Extensive Barges 21
+        17,         # Extensive Barges 22
+        18,         # Extensive Barges 23
+        19,         # Extensive Barges 24
+        20,         # Extensive Barges 25
+        21,         # Extensive Barges 26
+        22,         # Extensive Barges 27
+        23,         # Extensive Barges 28
+        24,         # Extensive Barges 29
+        25,         # Extensive Barges 30
     ]
 
 
@@ -616,32 +616,32 @@ h_b = [     # Barge fixed costs in euros
         2800,      # Barge 3
         1800,      # Barge 4
 
-        1,         # Extensive Barges 5 
-        1,         # Extensive Barges 6 
-        1,         # Extensive Barges 7 
-        1,         # Extensive Barges 8 
-        1,         # Extensive Barges 9 
-        1,         # Extensive Barges 10
-        1,         # Extensive Barges 11  
-        1,         # Extensive Barges 12
-        1,         # Extensive Barges 13
-        1,         # Extensive Barges 14
-        1,         # Extensive Barges 15
-        1,         # Extensive Barges 16
-        1,         # Extensive Barges 17
-        1,         # Extensive Barges 18
-        1,         # Extensive Barges 19
-        1,         # Extensive Barges 20
-        1,         # Extensive Barges 21
-        1,         # Extensive Barges 22
-        1,         # Extensive Barges 23
-        1,         # Extensive Barges 24
-        1,         # Extensive Barges 25
-        1,         # Extensive Barges 26
-        1,         # Extensive Barges 27
-        1,         # Extensive Barges 28
-        1,         # Extensive Barges 29
-        1,         # Extensive Barges 30
+        10,         # Extensive Barges 5 
+        10,         # Extensive Barges 6 
+        10,         # Extensive Barges 7 
+        10,         # Extensive Barges 8 
+        10,         # Extensive Barges 9 
+        10,         # Extensive Barges 10
+        10,         # Extensive Barges 11  
+        10,         # Extensive Barges 12
+        10,         # Extensive Barges 13
+        10,         # Extensive Barges 14
+        10,         # Extensive Barges 15
+        10,         # Extensive Barges 16
+        10,         # Extensive Barges 17
+        10,         # Extensive Barges 18
+        10,         # Extensive Barges 19
+        10,         # Extensive Barges 20
+        10,         # Extensive Barges 21
+        10,         # Extensive Barges 22
+        10,         # Extensive Barges 23
+        10,         # Extensive Barges 24
+        10,         # Extensive Barges 25
+        10,         # Extensive Barges 26
+        10,         # Extensive Barges 27
+        10,         # Extensive Barges 28
+        10,         # Extensive Barges 29
+        10,         # Extensive Barges 30
 
     ]
 
