@@ -1922,9 +1922,13 @@ class MILP_Algo:
         # --------------------------
         # Draw curved barge paths
         # --------------------------
-        multiplier = 1.7
+        multiplier = 1.3
         # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier, 0.40*multiplier, -0.40*multiplier]
-        curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier]
+        # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier]
+        # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier,
+        #                     0.32*multiplier, 0.25*multiplier, -0.32*multiplier,  0.18*multiplier, 0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.25*multiplier,-0.18*multiplier, -0.40*multiplier,  ]
+
+        curvature_values = [0.1*multiplier, 0.2*multiplier, 0.3*multiplier, 0.4*multiplier, 0.5*multiplier, 0.6*multiplier, -0.1*multiplier, -0.2*multiplier, -0.3*multiplier, -0.4*multiplier, -0.5*multiplier, -0.6*multiplier,]
 
         legend_lines = []
         legend_labels = []
@@ -1936,7 +1940,6 @@ class MILP_Algo:
             arcs = barge_arcs_ordered[k]
             S = max(1, len(arcs))  # number of segments
 
-            # alpha schedule from 0.25 → 1.0
             alphas = np.linspace(1.0, 0.25, S)
 
             for s, ((i, j), alpha) in enumerate(zip(arcs, alphas)):
