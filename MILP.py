@@ -21,13 +21,13 @@ class MILP_Algo:
     def __init__(
             self,
             qk=[  # Barge capacities in TEU
-                100,        # Barge 0
-                100,         # Barge 1
-                100,         # Barge 2
-                100,         # Barge 3
-                100,         # Barge 4
-                100,         # Barge 5
-                100,         # Barge 6
+                30,        # Barge 0
+                30,         # Barge 1
+                30,         # Barge 2
+                30,         # Barge 3
+                30,         # Barge 4
+                30,         # Barge 5
+                30,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
                 3700,      # Barge 0
@@ -43,8 +43,8 @@ class MILP_Algo:
             h_t_40=200,                     # 40ft container trucking cost in euros
             h_t_20=140,                     # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
-            C_range=(100, 600),             # (min, max) number of containers when reduced=False
-            N_range=(6, 9),                 # (min, max) number of terminals when reduced=False
+            C_range=(100, 200),             # (min, max) number of containers when reduced=False
+            N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
 
             Oc_range=(24, 196),             # (min, max) opening time in hours
             Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
@@ -56,7 +56,7 @@ class MILP_Algo:
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.7),      # (min, max) probability of export
             C_range_reduced=(60, 100),      # (min, max) containers when reduced=True
-            N_range_reduced=(2, 3),         # (min, max) terminals when reduced=True
+            N_range_reduced=(4, 4),         # (min, max) terminals when reduced=True
             gamma=100,                      # penalty per sea terminal visit [euros]
             big_m=1_000_000                 # big-M
     ):
@@ -625,93 +625,6 @@ class MILP_Algo:
         print("Summary complete.\n--\n\n\n\n")
 
 
-
-    # print_results is not being used currently. 
-    def print_results(self):
-        """
-        Print detailed results in the same style as GreedyAlgo.print_results.
-        Computes cost decomposition and barge utilization from the MILP solution.
-        """
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution found. Status:", m.status if m is not None else "No model")
-            return
-
-        C = self.C_list
-        N = self.N_list
-        K_b = self.K_b
-        K_t = self.K_t
-
-        # Data
-        H_T = self.H_T
-        H_b = self.H_b
-        T = self.T_ij_matrix
-        Gamma = self.Gamma
-        Qk = self.Qk
-        W_c = self.W_c
-
-        # Variables
-        f_ck = self.f_ck
-        x_ijk = self.x_ijk
-
-        # Cost decomposition
-        truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
-        barge_fixed_cost = sum(
-            H_b[k] * x_ijk[0, j, k].X for k in K_b for j in N if j != 0
-        )
-        travel_cost = sum(
-            T[i][j] * x_ijk[i, j, k].X
-            for k in K_b for i in N for j in N if i != j
-        )
-        terminal_penalty_cost = sum(
-            Gamma * x_ijk[i, j, k].X
-            for k in K_b for i in N for j in N if j != 0
-        )
-
-        barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
-        total_cost = truck_cost + barge_cost  # should match m.objVal
-
-        # Trucked containers
-        trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
-
-        # Header-style summary
-        print("\n\nResults Table")
-        print(    "=============")
-        print(f"Total containers: {self.C}")
-        print(f"K_b (barges): {self.K_b}")
-        print(f"K_t (truck): {self.K_t}")
-        print(f"Total cost: {total_cost:>10.0f} Euros")
-        print(
-            f"Barge cost: {barge_cost:>10.0f} Euros             "
-            f"({barge_cost / total_cost * 100:>5.1f}% )"
-        )
-        print(
-            f"Truck cost: {truck_cost:>10.0f} Euros             "
-            f"({truck_cost / total_cost * 100:>5.1f}% )"
-        )
-        print(f"Containers: {self.C:>10d}")
-        print(f"Terminals: {self.N:>10d}")
-        print(
-            f"Trucked containers: {trucked_containers:>10d}           "
-            f"({trucked_containers / self.C * 100:>5.1f}% )"
-        )
-
-        # Barge utilization (same spirit as Greedy version)
-        for k in K_b:
-            # Count containers assigned to barge k
-            containers_on_barge = sum(1 for c in C if f_ck[c, k].X > 0.5)
-            if containers_on_barge == 0:
-                continue  # barge unused
-
-            # TEU on barge k (W_c is in TEU units)
-            teu_on_barge = sum(W_c[c] for c in C if f_ck[c, k].X > 0.5)
-
-            print(
-                f"Barge {k:>3d}: "
-                f"{containers_on_barge:>4d} containers, "
-                f"{teu_on_barge:>4d}/{Qk[k]:<4d} TEU"
-            )
-
     def print_results_2(self):
         """
         Print detailed results in the same style as GreedyAlgo.print_results,
@@ -871,8 +784,6 @@ class MILP_Algo:
                 )
         else:
             print("No barges were used in the optimal solution.")
-
-
 
     def print_node_table(self):
         """
@@ -1461,7 +1372,7 @@ class MILP_Algo:
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
     print("\n\n\n\n\n\n\n\n\n\n\n")
-    milp = MILP_Algo(reduced=False)   # e.g. smaller instances
+    milp = MILP_Algo(reduced=True)   # e.g. smaller instances
     milp.run(with_plots=True)
 
 
@@ -1472,3 +1383,126 @@ if __name__ == "__main__":
 
 
 # continuing with the development. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # print_results is not being used currently. 
+# def print_results(self):
+#     """
+#     Print detailed results in the same style as GreedyAlgo.print_results.
+#     Computes cost decomposition and barge utilization from the MILP solution.
+#     """
+#     m = self.model
+#     if m is None or m.status != GRB.OPTIMAL:
+#         print("No optimal solution found. Status:", m.status if m is not None else "No model")
+#         return
+
+#     C = self.C_list
+#     N = self.N_list
+#     K_b = self.K_b
+#     K_t = self.K_t
+
+#     # Data
+#     H_T = self.H_T
+#     H_b = self.H_b
+#     T = self.T_ij_matrix
+#     Gamma = self.Gamma
+#     Qk = self.Qk
+#     W_c = self.W_c
+
+#     # Variables
+#     f_ck = self.f_ck
+#     x_ijk = self.x_ijk
+
+#     # Cost decomposition
+#     truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
+#     barge_fixed_cost = sum(
+#         H_b[k] * x_ijk[0, j, k].X for k in K_b for j in N if j != 0
+#     )
+#     travel_cost = sum(
+#         T[i][j] * x_ijk[i, j, k].X
+#         for k in K_b for i in N for j in N if i != j
+#     )
+#     terminal_penalty_cost = sum(
+#         Gamma * x_ijk[i, j, k].X
+#         for k in K_b for i in N for j in N if j != 0
+#     )
+
+#     barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
+#     total_cost = truck_cost + barge_cost  # should match m.objVal
+
+#     # Trucked containers
+#     trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
+
+#     # Header-style summary
+#     print("\n\nResults Table")
+#     print(    "=============")
+#     print(f"Total containers: {self.C}")
+#     print(f"K_b (barges): {self.K_b}")
+#     print(f"K_t (truck): {self.K_t}")
+#     print(f"Total cost: {total_cost:>10.0f} Euros")
+#     print(
+#         f"Barge cost: {barge_cost:>10.0f} Euros             "
+#         f"({barge_cost / total_cost * 100:>5.1f}% )"
+#     )
+#     print(
+#         f"Truck cost: {truck_cost:>10.0f} Euros             "
+#         f"({truck_cost / total_cost * 100:>5.1f}% )"
+#     )
+#     print(f"Containers: {self.C:>10d}")
+#     print(f"Terminals: {self.N:>10d}")
+#     print(
+#         f"Trucked containers: {trucked_containers:>10d}           "
+#         f"({trucked_containers / self.C * 100:>5.1f}% )"
+#     )
+
+#     # Barge utilization (same spirit as Greedy version)
+#     for k in K_b:
+#         # Count containers assigned to barge k
+#         containers_on_barge = sum(1 for c in C if f_ck[c, k].X > 0.5)
+#         if containers_on_barge == 0:
+#             continue  # barge unused
+
+#         # TEU on barge k (W_c is in TEU units)
+#         teu_on_barge = sum(W_c[c] for c in C if f_ck[c, k].X > 0.5)
+
+#         print(
+#             f"Barge {k:>3d}: "
+#             f"{containers_on_barge:>4d} containers, "
+#             f"{teu_on_barge:>4d}/{Qk[k]:<4d} TEU"
+#         )
+
