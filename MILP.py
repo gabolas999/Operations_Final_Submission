@@ -45,6 +45,10 @@ class MILP_Algo:
             Oc_range=(24, 196),             # (min, max) opening time in hours
             Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
+
+            Travel_time_long_range=(5, 5),   # (min, max) travel time between dryport and sea terminals in hours
+            Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
+
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.7),      # (min, max) probability of export
             C_range_reduced=(60, 100),      # (min, max) containers when reduced=True
@@ -75,6 +79,9 @@ class MILP_Algo:
         self.Oc_offset_range = Oc_offset_range
         self.P40_range = P40_range
         self.PExport_range = PExport_range
+
+        self.travel_time_long_range = Travel_time_long_range
+        self.travel_time_short_range = Travel_time_short_range
 
         self.C_range_reduced = C_range_reduced
         self.N_range_reduced = N_range_reduced
@@ -231,7 +238,7 @@ class MILP_Algo:
     # Travel time matrix
     # -----------------------
 
-    def generate_travel_times(self, long=5, short=1, aleatorio=False):
+    def generate_travel_times(self, aleatorio=False):
         """
         Build travel time matrix T_ij [hours].
 
@@ -244,6 +251,9 @@ class MILP_Algo:
         num_nodes = self.N
         rng = random.Random(self.seed + 1)
 
+        long_time_min, long_time_max = self.travel_time_long_range
+        short_time_min, short_time_max = self.travel_time_short_range
+
         T_ij_matrix = [[0 for _ in range(num_nodes)] for _ in range(num_nodes)]
 
         for i in range(num_nodes):
@@ -252,9 +262,9 @@ class MILP_Algo:
                     T_ij = 0
                 elif i == 0 or j == 0:
                     # From/to dryport (0)
-                    T_ij = long
+                    T_ij = rng.randint(long_time_min, long_time_max)
                 else:
-                    T_ij = short
+                    T_ij = rng.randint(short_time_min, short_time_max)
                 T_ij_matrix[i][j] = T_ij    # T_ij in hours
 
         if aleatorio:
