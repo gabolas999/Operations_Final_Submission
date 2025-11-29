@@ -25,14 +25,18 @@ class MILP_Algo:
                 100,         # Barge 1
                 100,         # Barge 2
                 100,         # Barge 3
-                # 28,         # Barge 4
+                100,         # Barge 4
+                100,         # Barge 5
+                100,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
                 3700,      # Barge 0
                 3600,      # Barge 1
                 3400,      # Barge 2
                 2800,      # Barge 3
-                # 1800,      # Barg
+                1800,      # Barge 4
+                3000,      # Barge 5
+                3000,      # Barge 6
             ],
             seed=100,
             reduced=False,
@@ -40,10 +44,10 @@ class MILP_Algo:
             h_t_20=140,                     # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
             C_range=(100, 600),             # (min, max) number of containers when reduced=False
-            N_range=(10, 20),               # (min, max) number of terminals when reduced=False
+            N_range=(6, 9),                 # (min, max) number of terminals when reduced=False
 
             Oc_range=(24, 196),             # (min, max) opening time in hours
-            Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that
+            Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
             Travel_time_long_range=(5, 5),   # (min, max) travel time between dryport and sea terminals in hours
@@ -1457,7 +1461,7 @@ class MILP_Algo:
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
     print("\n\n\n\n\n\n\n\n\n\n\n")
-    milp = MILP_Algo(reduced=True)   # e.g. smaller instances
+    milp = MILP_Algo(reduced=False)   # e.g. smaller instances
     milp.run(with_plots=True)
 
 
