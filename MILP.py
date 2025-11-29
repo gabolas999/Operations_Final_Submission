@@ -46,7 +46,7 @@ class MILP_Algo:
                                             # Oc is drawn in [Dc - max_offset, Dc - min_offset]
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.7),      # (min, max) probability of export
-            C_range_reduced=(60, 200),      # (min, max) containers when reduced=True
+            C_range_reduced=(60, 100),      # (min, max) containers when reduced=True
             N_range_reduced=(2, 3),         # (min, max) terminals when reduced=True
             gamma=100,                      # penalty per sea terminal visit [euros]
             big_m=1_000_000                 # big-M
@@ -564,6 +564,49 @@ class MILP_Algo:
     # -----------------------
     # Result printing helpers
     # -----------------------
+    def print_pre_run_results(self):
+        """
+        Prints a concise summary of the generated instance before optimization starts.
+        Provides an overview of model size: nodes, containers, barges, and key stats.
+        """
+        print("\nPre-Run Instance Summary")
+        print("========================")
+
+        # Basic counts
+        num_nodes = len(self.N_list)
+        num_containers = len(self.C_list)
+        num_barges = len(self.K_b)
+        num_vehicles = len(self.K_list)
+
+        # Container type counts
+        num_imports = len(self.I)
+        num_exports = len(self.E)
+
+        # TEU totals
+        total_teu = sum(self.W_c)
+        import_teu = sum(self.W_c[c] for c in self.I)
+        export_teu = sum(self.W_c[c] for c in self.E)
+
+        # Time-window statistics (in hours)
+        earliest_open = min(self.O_c) / 60 if self.O_c else None
+        latest_close = max(self.D_c) / 60 if self.D_c else None
+
+        print(f"Nodes (terminals):         {num_nodes}")
+        print(f"Containers:                {num_containers}  "
+              f"(Imports: {num_imports}, Exports: {num_exports})")
+        print(f"Barges available:          {num_barges}")
+        print(f"Total vehicles (incl. truck): {num_vehicles}")
+        print(f"Total TEU:                 {total_teu}  "
+              f"(Import TEU: {import_teu}, Export TEU: {export_teu})")
+
+        print(f"Container time windows:     earliest open = {earliest_open:.1f} h, latest close = {latest_close:.1f} h")
+        print(f"Handling time per container: {self.Handling_time:.2f} hours")
+        print(f"Closing time range (param): {self.Dc_range} hours")
+        print(f"Opening offset range:        {self.Oc_offset_range} hours")
+
+        print("Summary complete.\n\n\n--\n")
+
+
 
     # print_results is not being used currently. 
     def print_results(self):
@@ -1375,9 +1418,13 @@ class MILP_Algo:
         - print node/container/barge tables
         - plot displacements (optional)
         """
+        self.print_pre_run_results()   
+        
         self.setup_model()
         self.set_objective()
         self.add_constraints()
+
+        # Solve
         self.solve()
 
 
