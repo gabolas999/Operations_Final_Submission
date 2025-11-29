@@ -4,12 +4,10 @@ Mixed-Integer Linear Programming (MILP) model for container allocation optimizat
 Implemented as the MILP_Algo class, structurally aligned with GreedyAlgo.
 Requires Gurobi (gurobipy) with a valid license.
 
-NOT CURRENTLY IN USE
 
+TODO: - Check units throughout the document. 
 """
 
-import os
-from datetime import datetime
 import random
 from gurobipy import Model, GRB, quicksum
 import matplotlib.pyplot as plt
@@ -34,7 +32,7 @@ class MILP_Algo:
                 3600,      # Barge 1
                 3400,      # Barge 2
                 2800,      # Barge 3
-                # 1800,      # Barg
+                # 1800,      # Barge 4
             ],
             seed=100,
             reduced=False,
@@ -274,27 +272,6 @@ class MILP_Algo:
         """Create Gurobi model and decision variables."""
         self.model = Model("BargeScheduling")
 
-
-        # --------------- Gurobi configuration ---------------
-        os.makedirs("Logs", exist_ok=True)
-
-        # Log file with timestamp to avoid overwriting
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.model.Params.LogFile = f"Logs/gurobi_log_{timestamp}.log"
-
-        # Stopping criterion: 1% relative MIP gap
-        self.model.Params.MIPGap = 0.01
-
-        # Re-enable Gurobi's own console log
-        self.model.Params.OutputFlag = 1
-
-        # (Optional) If you want fewer log lines, uncomment this:
-        # self.model.Params.DisplayInterval = 5  # print progress every 5 seconds
-        # ----------------------------------------------------
-
-
-
-
         C = self.C_list
         N = self.N_list
         K = self.K_list
@@ -532,37 +509,18 @@ class MILP_Algo:
     # -----------------------
     # Solve
     # -----------------------
+
     def solve(self):
-        """Run the optimization (standard Gurobi log) and print a short completion banner."""
+        """Run the optimization."""
         if self.model is None:
-            raise RuntimeError(
-                "Model not set up. Call setup_model(), set_objective(), add_constraints() first."
-            )
-
-        # Optional: briefly explain Gurobi's MIP progress table columns
-        print("\nGurobi MIP progress table columns:")
-        print("  Expl Unexpl : explored / unexplored nodes in the search tree")
-        print("  Obj         : objective of the current node's LP relaxation")
-        print("  Depth       : depth of the current node in the search tree")
-        print("  IntInf      : integer infeasibilities at the current node")
-        print("  Incumbent   : best feasible (integer) objective found so far")
-        print("  BestBd      : best bound on the optimal objective (minimization)")
-        print("  Gap         : relative gap between Incumbent and BestBd")
-        print("  It/Node     : average LP iterations per processed node")
-        print("  Time        : elapsed wall-clock time (seconds)\n")
-
-        # Standard Gurobi optimization with built-in log
+            raise RuntimeError("Model not set up. Call setup_model(), set_objective(), add_constraints() first.")
         self.model.optimize()
-
-
 
         print("\n#######################################################################################################################################################")
         print("#######################################################################################################################################################")
         print("################################################################## Optimization Complete ##############################################################")
         print("#######################################################################################################################################################")
         print("#######################################################################################################################################################")
-
-
     # -----------------------
     # Result printing helpers
     # -----------------------
