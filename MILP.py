@@ -15,7 +15,7 @@ from sklearn.manifold import MDS
 import numpy as np
 import pandas as pd
 from tabulate import tabulate
-
+from matplotlib.patches import FancyArrowPatch
 
 class MILP_Algo:
     def __init__(
@@ -592,8 +592,8 @@ class MILP_Algo:
         export_teu = sum(self.W_c[c] for c in self.E)
 
         # Time-window statistics (in hours)
-        earliest_open = min(self.O_c) / 60 if self.O_c else None
-        latest_close = max(self.D_c) / 60 if self.D_c else None
+        earliest_open = min(self.O_c)  if self.O_c else None
+        latest_close = max(self.D_c)   if self.D_c else None
 
         print(f"Nodes (terminals):         {num_nodes}")
         print(f"Containers:                {num_containers}  "
@@ -1176,7 +1176,6 @@ class MILP_Algo:
             print("No optimal solution available for plotting.")
             return
 
-        from matplotlib.patches import FancyArrowPatch
 
         # Data / sets
         T_ij_matrix = np.array(self.T_ij_matrix)
