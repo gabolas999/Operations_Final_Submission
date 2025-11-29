@@ -21,22 +21,22 @@ class MILP_Algo:
     def __init__(
             self,
             qk=[  # Barge capacities in TEU
-                30,        # Barge 0
-                30,         # Barge 1
-                30,         # Barge 2
-                30,         # Barge 3
-                30,         # Barge 4
-                30,         # Barge 5
-                30,         # Barge 6
+                20,        # Barge 0
+                20,         # Barge 1
+                20,         # Barge 2
+                20,         # Barge 3
+                20,         # Barge 4
+                20,         # Barge 5
+                20,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
-                3700,      # Barge 0
-                3600,      # Barge 1
-                3400,      # Barge 2
-                2800,      # Barge 3
-                1800,      # Barge 4
-                3000,      # Barge 5
-                3000,      # Barge 6
+                1400,      # Barge 0
+                1500,      # Barge 1
+                1600,      # Barge 2
+                3000,      # Barge 3
+                3000,      # Barge 4
+                5000,      # Barge 5
+                5000,      # Barge 6
             ],
             seed=100,
             reduced=False,
@@ -624,7 +624,6 @@ class MILP_Algo:
 
         print("Summary complete.\n--\n\n\n\n")
 
-
     def print_results_2(self):
         """
         Print detailed results in the same style as GreedyAlgo.print_results,
@@ -881,9 +880,6 @@ class MILP_Algo:
                 print("==============================")
                 print(tabulate(df, headers="keys", tablefmt="grid"))
 
-
-
-
     def print_container_table(self):
         """
         Prints a table summarizing container properties and assigned barge/truck.
@@ -951,81 +947,6 @@ class MILP_Algo:
         print("\n\nContainer Table (Grouped by Node and Type)")
         print("==========================================")
         print(tabulate(df, headers="keys", tablefmt="grid"))
-
-    def print_results_old_format(self):
-        """Print basic optimization results."""
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution found. Status:", m.status if m is not None else "No model")
-            return
-
-        C = self.C_list
-        N = self.N_list
-        K = self.K_list
-        K_b = self.K_b
-        K_t = self.K_t
-        Qk = self.Qk
-
-        f_ck = self.f_ck
-        x_ijk = self.x_ijk
-        y_ijk = self.y_ijk
-        z_ijk = self.z_ijk
-
-        print("\n\nOptimal solution found!")
-        print(f"Optimal objective value: {m.objVal:.2f}")
-
-        # Container -> vehicle assignment
-        print("\nContainer to Vehicle Assignments (f_ck)")
-        print("========================================")
-        print(f"Number of containers: {len(C)}")
-
-        for c in C:
-            for k in K:
-                if f_ck[c, k].X > 0.5:
-                    if k == K_t:
-                        print(f"Container {c} is assigned to TRUCK (k={k})")
-                    else:
-                        print(f"Container {c} is assigned to BARGE {k}")
-
-        # Barge routes
-        print("\nBarge Travel Decisions (x_ijk)")
-        print("================================")
-        for k in K_b:
-            for i in N:
-                for j in N:
-                    if i != j and x_ijk[i, j, k].X > 0.5:
-                        print(f"Barge {k} travels from Terminal {i} to Terminal {j}")
-
-        # Capacity use on arcs involving node 0
-        print("\nCapacity usage on arcs involving node 0")
-        print("========================================")
-        for k in K_b:
-            for j in N:
-                if j == 0:
-                    continue
-
-                # j -> 0 (imports)
-                if y_ijk[j, 0, k].X > 0.5:
-                    assigned_quant = y_ijk[j, 0, k].X
-                    available_quant = Qk[k]
-                    print(
-                        f"Barge {k}, arc {j} -> 0: "
-                        f"{assigned_quant}/{available_quant} "
-                        f"({assigned_quant / available_quant * 100:.2f}%)"
-                    )
-
-                # 0 -> j (exports)
-                if z_ijk[0, j, k].X > 0.5:
-                    assigned_quant = z_ijk[0, j, k].X
-                    available_quant = Qk[k]
-                    print(
-                        f"Barge {k}, arc 0 -> {j}: "
-                        f"{assigned_quant}/{available_quant} "
-                        f"({assigned_quant / available_quant * 100:.2f}%)"
-                    )
-
-
-
 
 
     def plot_barge_displacements(self):
@@ -1505,4 +1426,84 @@ if __name__ == "__main__":
 #             f"{containers_on_barge:>4d} containers, "
 #             f"{teu_on_barge:>4d}/{Qk[k]:<4d} TEU"
 #         )
+
+
+
+
+
+
+
+# def print_results_old_format(self):
+#     """Print basic optimization results."""
+#     m = self.model
+#     if m is None or m.status != GRB.OPTIMAL:
+#         print("No optimal solution found. Status:", m.status if m is not None else "No model")
+#         return
+
+#     C = self.C_list
+#     N = self.N_list
+#     K = self.K_list
+#     K_b = self.K_b
+#     K_t = self.K_t
+#     Qk = self.Qk
+
+#     f_ck = self.f_ck
+#     x_ijk = self.x_ijk
+#     y_ijk = self.y_ijk
+#     z_ijk = self.z_ijk
+
+#     print("\n\nOptimal solution found!")
+#     print(f"Optimal objective value: {m.objVal:.2f}")
+
+#     # Container -> vehicle assignment
+#     print("\nContainer to Vehicle Assignments (f_ck)")
+#     print("========================================")
+#     print(f"Number of containers: {len(C)}")
+
+#     for c in C:
+#         for k in K:
+#             if f_ck[c, k].X > 0.5:
+#                 if k == K_t:
+#                     print(f"Container {c} is assigned to TRUCK (k={k})")
+#                 else:
+#                     print(f"Container {c} is assigned to BARGE {k}")
+
+#     # Barge routes
+#     print("\nBarge Travel Decisions (x_ijk)")
+#     print("================================")
+#     for k in K_b:
+#         for i in N:
+#             for j in N:
+#                 if i != j and x_ijk[i, j, k].X > 0.5:
+#                     print(f"Barge {k} travels from Terminal {i} to Terminal {j}")
+
+#     # Capacity use on arcs involving node 0
+#     print("\nCapacity usage on arcs involving node 0")
+#     print("========================================")
+#     for k in K_b:
+#         for j in N:
+#             if j == 0:
+#                 continue
+
+#             # j -> 0 (imports)
+#             if y_ijk[j, 0, k].X > 0.5:
+#                 assigned_quant = y_ijk[j, 0, k].X
+#                 available_quant = Qk[k]
+#                 print(
+#                     f"Barge {k}, arc {j} -> 0: "
+#                     f"{assigned_quant}/{available_quant} "
+#                     f"({assigned_quant / available_quant * 100:.2f}%)"
+#                 )
+
+#             # 0 -> j (exports)
+#             if z_ijk[0, j, k].X > 0.5:
+#                 assigned_quant = z_ijk[0, j, k].X
+#                 available_quant = Qk[k]
+#                 print(
+#                     f"Barge {k}, arc 0 -> {j}: "
+#                     f"{assigned_quant}/{available_quant} "
+#                     f"({assigned_quant / available_quant * 100:.2f}%)"
+#                 )
+
+
 
