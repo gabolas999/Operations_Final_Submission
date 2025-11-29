@@ -7,6 +7,7 @@ Requires Gurobi (gurobipy) with a valid license.
 """
 
 import os
+import toml
 from datetime import datetime
 import random
 from gurobipy import Model, GRB, quicksum
@@ -24,13 +25,13 @@ class MILP_Algo:
             self,
             run_name="MILP_Run",
             qk=[  # Barge capacities in TEU
-                20,        # Barge 0
-                20,         # Barge 1
-                20,         # Barge 2
-                20,         # Barge 3
-                20,         # Barge 4
-                20,         # Barge 5
-                20,         # Barge 6
+                30,        # Barge 0
+                30,         # Barge 1
+                30,         # Barge 2
+                30,         # Barge 3
+                30,         # Barge 4
+                30,         # Barge 5
+                30,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
                 1400,      # Barge 0
@@ -41,7 +42,7 @@ class MILP_Algo:
                 5000,      # Barge 5
                 5000,      # Barge 6
             ],
-            seed=100,
+            seed=101,
             reduced=False,
             h_t_40=200_0000,                     # 40ft container trucking cost in euros
             h_t_20=140_0000,                     # 20ft container trucking cost in euros
@@ -53,7 +54,7 @@ class MILP_Algo:
             Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            Travel_time_long_range=(2, 3),   # (min, max) travel time between dryport and sea terminals in hours
+            Travel_time_long_range=(2, 4),   # (min, max) travel time between dryport and sea terminals in hours
             # Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
 
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
@@ -74,8 +75,33 @@ class MILP_Algo:
 
         os.makedirs("Logs", exist_ok=True)
         os.makedirs("Solutions", exist_ok=True)
+        os.makedirs("Settings", exist_ok=True)
 
-        # Parameters
+        dict_settings = {
+            "run_name": run_name,
+            "qk": qk,
+            "h_b": h_b,
+            "seed": seed,
+            "reduced": reduced,
+            "h_t_40": h_t_40,
+            "h_t_20": h_t_20,
+            "handling_time": handling_time,
+            "C_range": C_range,
+            "N_range": N_range,
+            "Oc_range": Oc_range,
+            "Oc_offset_range": Oc_offset_range,
+            "Travel_time_long_range": Travel_time_long_range,
+            "P40_range": P40_range,
+            "PExport_range": PExport_range,
+            "C_range_reduced": C_range_reduced,
+            "N_range_reduced": N_range_reduced,
+            "gamma": gamma,
+            "big_m": big_m
+        }
+        with open(f"Settings/settings_{self.file_name}.toml", "w") as f:
+            toml.dump(dict_settings, f)
+
+        # Parameters 
         self.seed = seed
         self.reduced = reduced
         self.Qk = qk          # barge capacities in TEU
@@ -316,12 +342,18 @@ class MILP_Algo:
         """Create Gurobi model and decision variables."""
         self.model = Model("BargeScheduling")
 
+        self.model.Params.MIPFocus = 1   # focus on improving feasible solutions quickly
+        # Options:
+        # 0 = balanced (default)
+        # 1 = feasibility
+        # 2 = optimality
+        # 3 = bound improvement
 
         # --------------- Gurobi configuration ---------------
 
 
         # Log file with timestamp to avoid overwriting
-        self.model.Params.LogFile = f"Logs/log____{self.file_name}.log"
+        self.model.Params.LogFile = f"Logs/log______{self.file_name}.log"
 
         # Stopping criterion: 1% relative MIP gap
         self.model.Params.MIPGap = 0.01
