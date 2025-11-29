@@ -4,8 +4,6 @@ Mixed-Integer Linear Programming (MILP) model for container allocation optimizat
 Implemented as the MILP_Algo class, structurally aligned with GreedyAlgo.
 Requires Gurobi (gurobipy) with a valid license.
 
-NOT CURRENTLY IN USE
-
 """
 
 import os
