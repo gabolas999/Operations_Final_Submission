@@ -41,9 +41,10 @@ class MILP_Algo:
             handling_time=1/6,              # Container handling time in hours
             C_range=(100, 600),             # (min, max) number of containers when reduced=False
             N_range=(10, 20),               # (min, max) number of terminals when reduced=False
-            Dc_range=(24, 196),             # (min, max) closing time in hours
+
+            Oc_range=(24, 196),             # (min, max) opening time in hours
             Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that
-                                            # Oc is drawn in [Dc - max_offset, Dc - min_offset]
+                                            # Dc is drawn in [Oc + min_offset, Oc + max_offset]
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.7),      # (min, max) probability of export
             C_range_reduced=(60, 100),      # (min, max) containers when reduced=True
@@ -70,7 +71,7 @@ class MILP_Algo:
         # Ranges (hours / probabilities)
         self.C_range = C_range
         self.N_range = N_range
-        self.Dc_range = Dc_range
+        self.Oc_range = Oc_range
         self.Oc_offset_range = Oc_offset_range
         self.P40_range = P40_range
         self.PExport_range = PExport_range
@@ -152,7 +153,7 @@ class MILP_Algo:
         self.K_t = self.K_list[-1]
 
         # Prepare containers
-        Dc_minim_hr, Dc_max_hr = self.Dc_range
+        Oc_minim_hr, Oc_max_hr = self.Oc_range
         Oc_off_min_hr, Oc_off_max_hr = self.Oc_offset_range
         P40_min, P40_max = self.P40_range
         PExp_min, PExp_max = self.PExport_range
@@ -168,10 +169,13 @@ class MILP_Algo:
         self.C_dict = {}
 
         for c in self.C_list:
+
+            # Opening time in hours
+            Oc_hr = rng.randint(Oc_minim_hr, Oc_max_hr)
+
             # Closing time in hours
-            Dc_hr = rng.randint(Dc_minim_hr, Dc_max_hr)
-            # Opening time in hours (before closing, within offsets)
-            Oc_hr = rng.randint(Dc_hr - Oc_off_max_hr, Dc_hr - Oc_off_min_hr)
+            Dc_hr = rng.randint(Oc_hr + Oc_off_min_hr, Oc_hr + Oc_off_max_hr)
+
 
             # Probabilities
             P_40 = rng.uniform(P40_min, P40_max)
@@ -601,10 +605,10 @@ class MILP_Algo:
 
         print(f"Container time windows:     earliest open = {earliest_open:.1f} h, latest close = {latest_close:.1f} h")
         print(f"Handling time per container: {self.Handling_time:.2f} hours")
-        print(f"Closing time range (param): {self.Dc_range} hours")
+        print(f"Opening time range (param): {self.Oc_range} hours")
         print(f"Opening offset range:        {self.Oc_offset_range} hours")
 
-        print("Summary complete.\n\n\n--\n")
+        print("Summary complete.\n--\n\n\n\n")
 
 
 

@@ -100,8 +100,10 @@ class GreedyOptimizer:
             handling_time=1/6,              # Container handling time in hours
             C_range=(100, 600),             # (min, max) number of containers
             N_range=(10, 20),               # (min, max) number of terminals
-            Dc_range=(24, 196),             # (min, max) closing time in hours
-            Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that        # Oc is drawn in [Dc - max_offset, Dc - min_offset]
+            
+            Oc_range=(24, 196),             # (min, max) opening time in hours
+            Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that        # Dc is drawn in [Oc + min_offset, Oc + max_offset]
+            
             P40_range=(0.75, 0.9),          # (min, max) for uniform draw of probability of 40ft container
             PExport_range=(0.05, 0.7),      # (min, max) for uniform draw of probability of export 
 
@@ -131,11 +133,11 @@ class GreedyOptimizer:
             (min, max) number of containers when reduced=False
         N_range : tuple(int, int)
             (min, max) number of terminals when reduced=False
-        Dc_range : tuple(int, int)
-            (min, max) closing time in hours
+        Oc_range : tuple(int, int)
+            (min, max) opening time in hours
         Oc_offset_range : tuple(int, int)
             (min_offset, max_offset) such that
-            Oc is drawn in [Dc - max_offset, Dc - min_offset]
+            Dc is drawn in [Oc + min_offset, Oc + max_offset]
         P40_range : tuple(float, float)
             (min, max) for uniform draw of probability of 40ft container
         PExport_range : tuple(float, float)
@@ -158,7 +160,7 @@ class GreedyOptimizer:
         # New parameter ranges
         self.C_range = C_range
         self.N_range = N_range
-        self.Dc_range = Dc_range
+        self.Oc_range = Oc_range
         self.Oc_offset_range = Oc_offset_range
         self.P40_range = P40_range
         self.PExport_range = PExport_range
@@ -220,7 +222,7 @@ class GreedyOptimizer:
         self.C = random.randint(C_min, C_max)  # number of containers
         self.N = random.randint(N_min, N_max)  # number of terminals
 
-        Dc_min, Dc_max = self.Dc_range
+        Oc_min, Oc_max = self.Oc_range
         Oc_min_offset, Oc_max_offset = self.Oc_offset_range
         P40_min, P40_max = self.P40_range
         PExport_min, PExport_max = self.PExport_range
@@ -228,9 +230,9 @@ class GreedyOptimizer:
         self.C_dict = {}
 
         for i in range(self.C):
-            Dc = random.randint(Dc_min, Dc_max)  # closing hours
-            # Oc is drawn some time before Dc, using configurable offsets
-            Oc = random.randint(Dc - Oc_max_offset, Dc - Oc_min_offset)
+            Oc = random.randint(Oc_min, Oc_max)  # opening hours
+            # Dc is drawn some time after Oc, using configurable offsets
+            Dc = random.randint(Oc + Oc_min_offset, Oc + Oc_max_offset)
 
             P_40 = random.uniform(P40_min, P40_max)  # probability of 40ft container
             P_Export = random.uniform(PExport_min, PExport_max)  # probability of export
