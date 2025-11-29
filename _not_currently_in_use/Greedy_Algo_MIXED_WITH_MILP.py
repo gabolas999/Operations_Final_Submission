@@ -9,6 +9,14 @@ This file does work #+#+# Gabo
 
 TODO: Implement a re-run verification tool - and include the video in the report -> instant 10. 
 
+
+THIS FILE DID NOT MANAGE TO WORK; SPECIFICALLY, THE two lines:
+
+    # greedy.print_results_2()
+    # greedy.plot_barge_solution_map()
+
+broke the code
+
 """
 
 import random
@@ -1205,4 +1213,4 @@ if __name__ == "__main__":
     res = greedy.solve_greedy()
     greedy.print_results()
     # greedy.print_results_2()
-    greedy.plot_barge_solution_map()
+    # greedy.plot_barge_solution_map()
