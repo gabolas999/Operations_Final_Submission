@@ -54,7 +54,7 @@ class MILP_Algo:
             Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            Travel_time_long_range=(2, 4),   # (min, max) travel time between dryport and sea terminals in hours
+            Travel_time_long_range=(3, 6),   # (min, max) travel time between dryport and sea terminals in hours
             # Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
 
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
@@ -1922,8 +1922,9 @@ class MILP_Algo:
         # --------------------------
         # Draw curved barge paths
         # --------------------------
-        multiplier = 2.2
-        curvature_values = [0.12*multiplier, -0.12*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier]
+        multiplier = 1.7
+        # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier, 0.40*multiplier, -0.40*multiplier]
+        curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier]
 
         legend_lines = []
         legend_labels = []
