@@ -1904,7 +1904,7 @@ class MILP_Algo:
             S = max(1, len(arcs))  # number of segments
 
             # alpha schedule from 0.25 → 1.0
-            alphas = np.linspace(0.25, 1.0, S)
+            alphas = np.linspace(1.0, 0.25, S)
 
             for s, ((i, j), alpha) in enumerate(zip(arcs, alphas)):
                 x1, y1 = node_xy[i]
@@ -1975,7 +1975,7 @@ class MILP_Algo:
 
 
         plt.tight_layout()
-        plt.savefig("Figures/barge_solution_map_report_3.png", dpi=400)
+        plt.savefig(f"Figures/solution_map{self.file_name}.png", dpi=400)
 
 
 
