@@ -39,22 +39,23 @@ class MILP_Algo:
                 1600,      # Barge 2
                 1700,      # Barge 3
                 3000,      # Barge 4
-                5000,      # Barge 5
-                5000,      # Barge 6
+                6000,      # Barge 5
+                6000,      # Barge 6
             ],
-            seed=101,
+            seed=100,
             reduced=False,
-            h_t_40=200_0000,                     # 40ft container trucking cost in euros
-            h_t_20=140_0000,                     # 20ft container trucking cost in euros
+            h_t_40=200_000,                     # 40ft container trucking cost in euros
+            h_t_20=140_000,                     # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
-            C_range=(100, 200),             # (min, max) number of containers when reduced=False
-            N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
+            C_range=(150, 200),             # (min, max) number of containers when reduced=False
+            N_range=(6, 6),                 # (min, max) number of terminals when reduced=False
 
             Oc_range=(24, 196),             # (min, max) opening time in hours
             Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
             Travel_time_long_range=(3, 6),   # (min, max) travel time between dryport and sea terminals in hours
+            travel_angle = math.pi * 1/4,          # angle sector for terminal placement
             # Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
 
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
@@ -76,6 +77,7 @@ class MILP_Algo:
         os.makedirs("Logs", exist_ok=True)
         os.makedirs("Solutions", exist_ok=True)
         os.makedirs("Settings", exist_ok=True)
+        os.makedirs("Figures", exist_ok=True)
 
         dict_settings = {
             "run_name": run_name,
@@ -91,6 +93,7 @@ class MILP_Algo:
             "Oc_range": Oc_range,
             "Oc_offset_range": Oc_offset_range,
             "Travel_time_long_range": Travel_time_long_range,
+            "travel_angle": travel_angle,
             "P40_range": P40_range,
             "PExport_range": PExport_range,
             "C_range_reduced": C_range_reduced,
@@ -120,6 +123,7 @@ class MILP_Algo:
         self.PExport_range = PExport_range
 
         self.travel_time_long_range = Travel_time_long_range
+        self.travel_angle = travel_angle
         # self.travel_time_short_range = Travel_time_short_range
 
         self.C_range_reduced = C_range_reduced
@@ -308,6 +312,7 @@ class MILP_Algo:
             # Random angle
             # theta = rng.uniform(0, 2 * math.pi)
             theta = rng.uniform(math.pi*3/4, math.pi*5/4)
+            theta = rng.uniform(math.pi - self.travel_angle, math.pi + self.travel_angle)
 
             # Cartesian coordinates
             x = r * math.cos(theta)
@@ -1851,7 +1856,7 @@ class MILP_Algo:
             if j == 0:
                 # Dryport = solid square
                 ax.scatter(
-                    x, y, s=650, marker="s",
+                    x, y, s=700, marker="s",
                     facecolor="white", edgecolor="black",
                     zorder=4,
                 )
