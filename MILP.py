@@ -516,14 +516,262 @@ class MILP_Algo:
             raise RuntimeError("Model not set up. Call setup_model(), set_objective(), add_constraints() first.")
         self.model.optimize()
 
-        print("\n###################################################################################################################################################")
-        print("###################################################################################################################################################")
-        print("######################################################## Optimization Complete ####################################################################")
-        print("###################################################################################################################################################")
-        print("###################################################################################################################################################")
+        print("\n#######################################################################################################################################################")
+        print("#######################################################################################################################################################")
+        print("################################################################## Optimization Complete ##############################################################")
+        print("#######################################################################################################################################################")
+        print("#######################################################################################################################################################")
     # -----------------------
     # Result printing helpers
     # -----------------------
+
+    # print_results is not being used currently. 
+    def print_results(self):
+        """
+        Print detailed results in the same style as GreedyAlgo.print_results.
+        Computes cost decomposition and barge utilization from the MILP solution.
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution found. Status:", m.status if m is not None else "No model")
+            return
+
+        C = self.C_list
+        N = self.N_list
+        K_b = self.K_b
+        K_t = self.K_t
+
+        # Data
+        H_T = self.H_T
+        H_b = self.H_b
+        T = self.T_ij_matrix
+        Gamma = self.Gamma
+        Qk = self.Qk
+        W_c = self.W_c
+
+        # Variables
+        f_ck = self.f_ck
+        x_ijk = self.x_ijk
+
+        # Cost decomposition
+        truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
+        barge_fixed_cost = sum(
+            H_b[k] * x_ijk[0, j, k].X for k in K_b for j in N if j != 0
+        )
+        travel_cost = sum(
+            T[i][j] * x_ijk[i, j, k].X
+            for k in K_b for i in N for j in N if i != j
+        )
+        terminal_penalty_cost = sum(
+            Gamma * x_ijk[i, j, k].X
+            for k in K_b for i in N for j in N if j != 0
+        )
+
+        barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
+        total_cost = truck_cost + barge_cost  # should match m.objVal
+
+        # Trucked containers
+        trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
+
+        # Header-style summary
+        print("\n\nResults Table")
+        print(    "=============")
+        print(f"Total containers: {self.C}")
+        print(f"K_b (barges): {self.K_b}")
+        print(f"K_t (truck): {self.K_t}")
+        print(f"Total cost: {total_cost:>10.0f} Euros")
+        print(
+            f"Barge cost: {barge_cost:>10.0f} Euros             "
+            f"({barge_cost / total_cost * 100:>5.1f}% )"
+        )
+        print(
+            f"Truck cost: {truck_cost:>10.0f} Euros             "
+            f"({truck_cost / total_cost * 100:>5.1f}% )"
+        )
+        print(f"Containers: {self.C:>10d}")
+        print(f"Terminals: {self.N:>10d}")
+        print(
+            f"Trucked containers: {trucked_containers:>10d}           "
+            f"({trucked_containers / self.C * 100:>5.1f}% )"
+        )
+
+        # Barge utilization (same spirit as Greedy version)
+        for k in K_b:
+            # Count containers assigned to barge k
+            containers_on_barge = sum(1 for c in C if f_ck[c, k].X > 0.5)
+            if containers_on_barge == 0:
+                continue  # barge unused
+
+            # TEU on barge k (W_c is in TEU units)
+            teu_on_barge = sum(W_c[c] for c in C if f_ck[c, k].X > 0.5)
+
+            print(
+                f"Barge {k:>3d}: "
+                f"{containers_on_barge:>4d} containers, "
+                f"{teu_on_barge:>4d}/{Qk[k]:<4d} TEU"
+            )
+
+    def print_results_2(self):
+        """
+        Print detailed results in the same style as GreedyAlgo.print_results,
+        with additional global metrics and a compact barge summary table.
+
+        Computes:
+        - Cost decomposition (truck, barge fixed, travel, terminal penalty)
+        - Container and TEU breakdown (truck vs barge)
+        - Barge usage and capacity utilization
+        - Per-barge utilization (containers and TEU)
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution found. Status:", m.status if m is not None else "No model")
+            return
+
+        C    = self.C_list
+        N    = self.N_list
+        K_b  = self.K_b
+        K_t  = self.K_t
+
+        # Data
+        H_T  = self.H_T
+        H_b  = self.H_b
+        T    = self.T_ij_matrix
+        Gamma = self.Gamma
+        Qk   = self.Qk
+        W_c  = self.W_c
+
+        # Variables
+        f_ck  = self.f_ck
+        x_ijk = self.x_ijk
+
+        # -------------------------
+        # Cost decomposition
+        # -------------------------
+        truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
+
+        barge_fixed_cost = sum(
+            H_b[k] * x_ijk[0, j, k].X
+            for k in K_b for j in N if j != 0
+        )
+
+        travel_cost = sum(
+            T[i][j] * x_ijk[i, j, k].X
+            for k in K_b for i in N for j in N if i != j
+        )
+
+        terminal_penalty_cost = sum(
+            Gamma * x_ijk[i, j, k].X
+            for k in K_b for i in N for j in N if j != 0
+        )
+
+        barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
+        total_cost = truck_cost + barge_cost  # should match m.objVal
+
+        # Guard against division by zero
+        total_cost_safe = total_cost if total_cost != 0 else 1.0
+        barge_cost_safe = barge_cost if barge_cost != 0 else 1.0
+
+        # -------------------------
+        # Container / TEU breakdown
+        # -------------------------
+        total_containers = self.C
+        total_terminals  = self.N
+
+        trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
+        barge_containers   = total_containers - trucked_containers
+
+        total_teu = sum(W_c[c] for c in C)
+        truck_teu = sum(W_c[c] for c in C if f_ck[c, K_t].X > 0.5)
+        barge_teu = total_teu - truck_teu
+
+        trucked_ratio = trucked_containers / total_containers * 100 if total_containers > 0 else 0.0
+
+        # -------------------------
+        # Barge usage / capacity
+        # -------------------------
+        barge_rows = []
+        barge_teu_check = 0
+        used_barges = []
+
+        for k in K_b:
+            containers_on_barge = sum(1 for c in C if f_ck[c, k].X > 0.5)
+            if containers_on_barge == 0:
+                continue  # barge unused
+
+            used_barges.append(k)
+            teu_on_barge = sum(W_c[c] for c in C if f_ck[c, k].X > 0.5)
+            barge_teu_check += teu_on_barge
+
+            utilization = teu_on_barge / Qk[k] * 100 if Qk[k] > 0 else 0.0
+
+            barge_rows.append({
+                "Barge": k,
+                "Containers": containers_on_barge,
+                "TEU used": teu_on_barge,
+                "Capacity (TEU)": Qk[k],
+                "Utilization [%]": f"{utilization:5.1f}",
+            })
+
+        # (barge_teu_check should equal barge_teu if everything is consistent)
+        num_barges_total = len(K_b)
+        num_barges_used  = len(used_barges)
+
+        total_barge_capacity = sum(Qk[k] for k in K_b)
+        overall_capacity_util = (
+            barge_teu / total_barge_capacity * 100
+            if total_barge_capacity > 0 else 0.0
+        )
+
+        # -------------------------
+        # Print summary
+        # -------------------------
+        print("\n\nResults Table")
+        print("=============")
+        print(f"Total containers:               {total_containers:>10d}")
+        print(f"Total terminals:                {total_terminals:>10d}")
+        print(f"Total TEU demand:               {total_teu:>10d}")
+        print()
+        print(f"Available barges (K_b):         {num_barges_total:>10d}  {self.K_b}")
+        print(f"Used barges:                    {num_barges_used:>10d}")
+        print(f"Total barge capacity [TEU]:     {total_barge_capacity:>10d}")
+        print(f"TEU on barges (model):          {barge_teu:>10d}")
+        print(f"Overall barge utilization:      {overall_capacity_util:>9.1f} %")
+        print()
+        print(f"Trucked containers:             {trucked_containers:>10d}  "
+              f"({trucked_ratio:>5.1f} % of all containers)")
+        print(f"TEU on trucks:                  {truck_teu:>10d}")
+        print(f"TEU on barges (via rows):       {barge_teu_check:>10d}")
+        print()
+        print(f"Total cost:                     {total_cost:>10.0f} Euros")
+        print(f"  ├─ Truck cost:                {truck_cost:>10.0f} Euros  "
+              f"({truck_cost / total_cost_safe * 100:>5.1f} % of total)")
+        print(f"  └─ Barge cost:                {barge_cost:>10.0f} Euros  "
+              f"({barge_cost / total_cost_safe * 100:>5.1f} % of total)")
+        print()
+        print(f"     Barge fixed cost:          {barge_fixed_cost:>10.0f} Euros  "
+              f"({barge_fixed_cost / barge_cost_safe * 100:>5.1f} % of barge)")
+        print(f"     Travel term:               {travel_cost:>10.0f} Euros  "
+              f"({travel_cost / barge_cost_safe * 100:>5.1f} % of barge)")
+        print(f"     Terminal penalty term:     {terminal_penalty_cost:>10.0f} Euros  "
+              f"({terminal_penalty_cost / barge_cost_safe * 100:>5.1f} % of barge)")
+
+        # -------------------------
+        # Per-barge utilization summary (no table)
+        # -------------------------
+        print("\nBarge Utilization Summary")
+
+        if barge_rows:
+            for row in barge_rows:
+                print(
+                    f"Barge {row['Barge']:>2d}:  "
+                    f"{row['Containers']:>3d} containers   |  "
+                    f"TEU used: {row['TEU used']:>4d}/{row['Capacity (TEU)']:<4d}   "
+                    f"({row['Utilization [%]']:>5s} %)"
+                )
+        else:
+            print("No barges were used in the optimal solution.")
+
+
 
     def print_node_table(self):
         """
@@ -575,94 +823,8 @@ class MILP_Algo:
 
         df = pd.DataFrame(distance_data)
         print("\n\nDistance Table (Unique Node Pairs)")
-        print("===================================")
+        print(    "==================================")
         print(tabulate(df, headers="keys", tablefmt="grid"))
-
-
-    def print_results(self):
-        """
-        Print detailed results in the same style as GreedyAlgo.print_results.
-        Computes cost decomposition and barge utilization from the MILP solution.
-        """
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution found. Status:", m.status if m is not None else "No model")
-            return
-
-        C = self.C_list
-        N = self.N_list
-        K_b = self.K_b
-        K_t = self.K_t
-
-        # Data
-        H_T = self.H_T
-        H_b = self.H_b
-        T = self.T_ij_matrix
-        Gamma = self.Gamma
-        Qk = self.Qk
-        W_c = self.W_c
-
-        # Variables
-        f_ck = self.f_ck
-        x_ijk = self.x_ijk
-
-        # Cost decomposition
-        truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
-        barge_fixed_cost = sum(
-            H_b[k] * x_ijk[0, j, k].X for k in K_b for j in N if j != 0
-        )
-        travel_cost = sum(
-            T[i][j] * x_ijk[i, j, k].X
-            for k in K_b for i in N for j in N if i != j
-        )
-        terminal_penalty_cost = sum(
-            Gamma * x_ijk[i, j, k].X
-            for k in K_b for i in N for j in N if j != 0
-        )
-
-        barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
-        total_cost = truck_cost + barge_cost  # should match m.objVal
-
-        # Trucked containers
-        trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
-
-        # Header-style summary
-        print("\n\nResults Table")
-        print("==========")
-        print(f"Total containers: {self.C}")
-        print(f"K_b (barges): {self.K_b}")
-        print(f"K_t (truck): {self.K_t}")
-        print(f"Total cost: {total_cost:>10.0f} Euros")
-        print(
-            f"Barge cost: {barge_cost:>10.0f} Euros             "
-            f"({barge_cost / total_cost * 100:>5.1f}% )"
-        )
-        print(
-            f"Truck cost: {truck_cost:>10.0f} Euros             "
-            f"({truck_cost / total_cost * 100:>5.1f}% )"
-        )
-        print(f"Containers: {self.C:>10d}")
-        print(f"Terminals: {self.N:>10d}")
-        print(
-            f"Trucked containers: {trucked_containers:>10d}           "
-            f"({trucked_containers / self.C * 100:>5.1f}% )"
-        )
-
-        # Barge utilization (same spirit as Greedy version)
-        for k in K_b:
-            # Count containers assigned to barge k
-            containers_on_barge = sum(1 for c in C if f_ck[c, k].X > 0.5)
-            if containers_on_barge == 0:
-                continue  # barge unused
-
-            # TEU on barge k (W_c is in TEU units)
-            teu_on_barge = sum(W_c[c] for c in C if f_ck[c, k].X > 0.5)
-
-            print(
-                f"Barge {k:>3d}: "
-                f"{containers_on_barge:>4d} containers, "
-                f"{teu_on_barge:>4d}/{Qk[k]:<4d} TEU"
-            )
 
     def print_barge_table(self):
         """
@@ -680,7 +842,9 @@ class MILP_Algo:
         x_ijk = self.x_ijk
         y_ijk = self.y_ijk
         z_ijk = self.z_ijk
-
+        print("\n\n================")
+        print(   f"All Barge tables")
+        print(    "================")
         for k in K_b:
             total_capacity = Qk[k]
             routes = []
@@ -696,13 +860,13 @@ class MILP_Algo:
                             "Route": f"Node {i} -> Node {j}",
                             "Capacity Used (TEU)": capacity_used,
                             "Capacity (TEU)": total_capacity,
-                            "Utilization (%)": f"{utilization_percent:.2f}",
+                            "Utilization (%)": f"{utilization_percent:.0f}",
                         })
 
             if routes:
                 df = pd.DataFrame(routes)
                 print(f"\nBarge {k} Route & Capacity Usage")
-                print("================================")
+                print("==============================")
                 print(tabulate(df, headers="keys", tablefmt="grid"))
 
 
@@ -772,7 +936,7 @@ class MILP_Algo:
         df = pd.DataFrame(container_data)
         df = df.sort_values(by=["Sort Node", "Sort Type"]).drop(columns=["Sort Node", "Sort Type"])
 
-        print("\nContainer Table (Grouped by Node and Type)")
+        print("\n\nContainer Table (Grouped by Node and Type)")
         print("==========================================")
         print(tabulate(df, headers="keys", tablefmt="grid"))
 
@@ -903,6 +1067,699 @@ class MILP_Algo:
         plt.savefig(f"Figures/barge_displacements.png")
         # plt.show()
 
+    def plot_barge_solution_map(self):
+        """
+        Plots a 2D map of terminals and barge routes for the final solution.
+
+        - Nodes (terminals) are positioned using MDS on the travel-time matrix.
+        - Node size reflects total number of containers at that terminal.
+        - Node annotations show:
+            * node index
+            * number of import containers (I)
+            * number of export containers (E)
+        - Barge paths are drawn as colored lines:
+            * one color per barge
+            * line width proportional to TEU flow on that arc (imports + exports)
+            * slight lateral offset per barge so overlapping arcs remain visible.
+
+        The figure is saved as 'Figures/barge_solution_map.png'.
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available for plotting.")
+            return
+
+        from matplotlib.patches import FancyArrowPatch
+
+        # Data / sets
+        T_ij_matrix = np.array(self.T_ij_matrix)
+        N = self.N_list
+        K_b = self.K_b
+        C = self.C_list
+        E = self.E
+        I = self.I
+        Z_cj = self.Z_cj
+        W_c = self.W_c
+        x_ijk = self.x_ijk
+        y_ijk = self.y_ijk
+        z_ijk = self.z_ijk
+
+        # -----------------------------
+        # Compute 2D node positions via MDS
+        # -----------------------------
+        mds = MDS(n_components=2, dissimilarity="precomputed", random_state=1)
+        node_positions = mds.fit_transform(T_ij_matrix)  # shape (N, 2)
+
+        # -----------------------------
+        # Node-level container stats
+        # -----------------------------
+        import_counts = {j: 0 for j in N}
+        export_counts = {j: 0 for j in N}
+        total_counts = {j: 0 for j in N}
+
+        for c in C:
+            for j in N:
+                if Z_cj[c][j] == 1:
+                    if c in I:
+                        import_counts[j] += 1
+                    elif c in E:
+                        export_counts[j] += 1
+                    total_counts[j] += 1
+                    break
+
+        # Determine node marker sizes based on total containers
+        max_containers = max(total_counts.values()) if total_counts else 1
+        base_size = 100.0
+        size_scale = 300.0  # controls how much size grows with containers
+
+        node_sizes = {}
+        for j in N:
+            if max_containers > 0:
+                node_sizes[j] = base_size + size_scale * (total_counts[j] / max_containers)
+            else:
+                node_sizes[j] = base_size
+
+        # -----------------------------
+        # Arc-level TEU flows (for line widths)
+        # -----------------------------
+        arc_flows = {}  # (i, j, k) -> TEU on arc i->j for barge k
+        max_flow = 0.0
+        for k in K_b:
+            for i in N:
+                for j in N:
+                    if i == j:
+                        continue
+                    if x_ijk[i, j, k].X > 0.5:
+                        flow_teu = y_ijk[i, j, k].X + z_ijk[i, j, k].X
+                        arc_flows[(i, j, k)] = flow_teu
+                        if flow_teu > max_flow:
+                            max_flow = flow_teu
+
+        if max_flow == 0:
+            max_flow = 1.0  # avoids division by zero; all arcs get minimal width
+
+        # Line width mapping
+        min_lw = 0.8
+        max_lw = 3.5
+
+        def flow_to_lw(flow):
+            return min_lw + (max_lw - min_lw) * (flow / max_flow)
+
+        # -----------------------------
+        # Plotting
+        # -----------------------------
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # Plot nodes
+        for j in N:
+            x, y = node_positions[j]
+            size = node_sizes[j]
+
+            # Dryport (0) visually distinct
+            if j == 0:
+                ax.scatter(x, y, s=size, edgecolor="black", facecolor="white", linewidth=1.5, zorder=3)
+            else:
+                ax.scatter(x, y, s=size, edgecolor="black", facecolor="lightgray", linewidth=1.0, zorder=3)
+
+            # Label with node id and I/E counts
+            imp = import_counts[j]
+            exp = export_counts[j]
+            ax.text(
+                x, y,
+                f"{j}\nI:{imp}  E:{exp}",
+                ha="center", va="center",
+                fontsize=8, zorder=4
+            )
+
+        # -----------------------------
+        # Plot barge paths
+        # -----------------------------
+        cmap = plt.get_cmap("tab10")
+        barge_index_map = {k: idx for idx, k in enumerate(K_b)}
+        offset_scale = 0.02  # distance for lateral offsets
+
+        for k in K_b:
+            color = cmap(barge_index_map[k] % 10)
+            idx_k = barge_index_map[k]
+
+            for i in N:
+                for j in N:
+                    if i == j:
+                        continue
+                    if x_ijk[i, j, k].X <= 0.5:
+                        continue
+
+                    x1, y1 = node_positions[i]
+                    x2, y2 = node_positions[j]
+
+                    # Direction vector
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    length = (dx**2 + dy**2) ** 0.5
+                    if length == 0:
+                        continue
+
+                    # Unit perpendicular vector (for lateral offset)
+                    nx = -dy / length
+                    ny = dx / length
+
+                    # Offset depends on barge index (so multiple barges on same arc separate)
+                    offset = offset_scale * (idx_k - (len(K_b) - 1) / 2.0)
+                    x1_off = x1 + nx * offset
+                    y1_off = y1 + ny * offset
+                    x2_off = x2 + nx * offset
+                    y2_off = y2 + ny * offset
+
+                    flow_teu = arc_flows.get((i, j, k), 0.0)
+                    lw = flow_to_lw(flow_teu)
+
+                    # Shrink arrow slightly so it doesn't cover node centers
+                    shrink = 0.1
+                    x_start = x1_off + shrink * dx
+                    y_start = y1_off + shrink * dy
+                    x_end = x2_off - shrink * dx
+                    y_end = y2_off - shrink * dy
+
+                    arrow = FancyArrowPatch(
+                        (x_start, y_start), (x_end, y_end),
+                        arrowstyle="-|>",
+                        linewidth=lw,
+                        color=color,
+                        alpha=0.9,
+                        mutation_scale=8,
+                        zorder=2,
+                    )
+                    ax.add_patch(arrow)
+
+        # -----------------------------
+        # Final styling
+        # -----------------------------
+        # Legend for barges
+        for k in K_b:
+            color = cmap(barge_index_map[k] % 10)
+            ax.plot([], [], color=color, label=f"Barge {k}", linewidth=2)
+
+        ax.set_title("Barge Routes and Terminal Containers (Final Solution)")
+        ax.set_xlabel("MDS dimension 1")
+        ax.set_ylabel("MDS dimension 2")
+        ax.grid(True, linestyle=":", linewidth=0.5, alpha=0.5)
+        ax.legend(loc="upper right", frameon=False, fontsize=8)
+
+        plt.tight_layout()
+        plt.savefig("Figures/barge_solution_map.png", dpi=300)
+        # plt.show()
+    def plot_barge_solution_map(self):
+        """
+        Plots a 2D map of terminals and barge routes for the final solution.
+
+        - Nodes (terminals) are positioned using MDS on the travel-time matrix.
+        - Node size roughly reflects total number of containers at that terminal.
+        - Node annotations:
+            * node index inside the circle
+            * 'I:x  E:y' under the node (imports/exports).
+        - Barge paths:
+            * one color per barge
+            * line width proportional to TEU flow on that arc (imports + exports)
+            * lateral offset per barge so overlapping arcs are clearly distinguishable.
+
+        The figure is saved as 'Figures/barge_solution_map.png'.
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available for plotting.")
+            return
+
+        from matplotlib.patches import FancyArrowPatch
+
+        # Data / sets
+        T_ij_matrix = np.array(self.T_ij_matrix)
+        N = self.N_list
+        K_b = self.K_b
+        C = self.C_list
+        E = self.E
+        I = self.I
+        Z_cj = self.Z_cj
+        W_c = self.W_c
+        x_ijk = self.x_ijk
+        y_ijk = self.y_ijk
+        z_ijk = self.z_ijk
+
+        # -----------------------------
+        # Compute 2D node positions via MDS
+        # -----------------------------
+        mds = MDS(n_components=2, dissimilarity="precomputed", random_state=1)
+        node_positions = mds.fit_transform(T_ij_matrix)  # shape (N, 2)
+
+        # -----------------------------
+        # Node-level container stats
+        # -----------------------------
+        import_counts = {j: 0 for j in N}
+        export_counts = {j: 0 for j in N}
+        total_counts = {j: 0 for j in N}
+
+        for c in C:
+            for j in N:
+                if Z_cj[c][j] == 1:
+                    if c in I:
+                        import_counts[j] += 1
+                    elif c in E:
+                        export_counts[j] += 1
+                    total_counts[j] += 1
+                    break
+
+        max_containers = max(total_counts.values()) if total_counts else 1
+        base_size = 120.0    # base marker size
+        size_scale = 280.0   # extra size per relative container load
+
+        node_sizes = {}
+        for j in N:
+            if max_containers > 0:
+                node_sizes[j] = base_size + size_scale * (total_counts[j] / max_containers)
+            else:
+                node_sizes[j] = base_size
+
+        # -----------------------------
+        # Arc-level TEU flows (for line widths)
+        # -----------------------------
+        arc_flows = {}  # (i, j, k) -> TEU on arc i->j for barge k
+        max_flow = 0.0
+        for k in K_b:
+            for i in N:
+                for j in N:
+                    if i == j:
+                        continue
+                    if x_ijk[i, j, k].X > 0.5:
+                        flow_teu = y_ijk[i, j, k].X + z_ijk[i, j, k].X
+                        arc_flows[(i, j, k)] = flow_teu
+                        if flow_teu > max_flow:
+                            max_flow = flow_teu
+
+        if max_flow == 0:
+            max_flow = 1.0  # avoids division by zero; all arcs get minimal width
+
+        # Line width mapping
+        min_lw = 0.6
+        max_lw = 2.5
+
+        def flow_to_lw(flow):
+            return min_lw + (max_lw - min_lw) * (flow / max_flow)
+
+        # -----------------------------
+        # Plotting
+        # -----------------------------
+        fig, ax = plt.subplots(figsize=(9, 6))
+
+        # Plot nodes
+        xs = node_positions[:, 0]
+        ys = node_positions[:, 1]
+
+        # A small vertical offset for the I/E label in data coordinates
+        y_span = ys.max() - ys.min() if ys.size > 0 else 1.0
+        label_offset = 0.06 * y_span
+
+        for j in N:
+            x, y = node_positions[j]
+            size = node_sizes[j]
+
+            # Draw node (dryport visually distinct)
+            if j == 0:
+                facecolor = "white"
+                edgecolor = "black"
+                linewidth = 1.5
+            else:
+                facecolor = "white"
+                edgecolor = "black"
+                linewidth = 1.0
+
+            ax.scatter(
+                x, y,
+                s=size,
+                edgecolor=edgecolor,
+                facecolor=facecolor,
+                linewidth=linewidth,
+                zorder=3,
+            )
+
+            # Node id in the centre
+            ax.text(
+                x, y,
+                f"{j}",
+                ha="center", va="center",
+                fontsize=9, fontweight="bold",
+                zorder=4,
+            )
+
+            # I/E counts below the node
+            imp = import_counts[j]
+            exp = export_counts[j]
+            ax.text(
+                x, y - label_offset,
+                f"I:{imp}  E:{exp}",
+                ha="center", va="top",
+                fontsize=7,
+                zorder=4,
+            )
+
+        # -----------------------------
+        # Plot barge paths
+        # -----------------------------
+        cmap = plt.get_cmap("tab10")
+        barge_index_map = {k: idx for idx, k in enumerate(K_b)}
+        offset_scale = 0.05  # stronger lateral separation for clarity
+
+        for k in K_b:
+            color = cmap(barge_index_map[k] % 10)
+            idx_k = barge_index_map[k]
+
+            for i in N:
+                for j in N:
+                    if i == j:
+                        continue
+                    if x_ijk[i, j, k].X <= 0.5:
+                        continue
+
+                    x1, y1 = node_positions[i]
+                    x2, y2 = node_positions[j]
+
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    length = (dx**2 + dy**2) ** 0.5
+                    if length == 0:
+                        continue
+
+                    # Unit perpendicular vector
+                    nx = -dy / length
+                    ny = dx / length
+
+                    # Lateral offset per barge
+                    offset = offset_scale * (idx_k - (len(K_b) - 1) / 2.0)
+                    x1_off = x1 + nx * offset
+                    y1_off = y1 + ny * offset
+                    x2_off = x2 + nx * offset
+                    y2_off = y2 + ny * offset
+
+                    flow_teu = arc_flows.get((i, j, k), 0.0)
+                    lw = flow_to_lw(flow_teu)
+
+                    # Shrink arrow slightly so it doesn't cover node centres
+                    shrink = 0.12
+                    x_start = x1_off + shrink * dx
+                    y_start = y1_off + shrink * dy
+                    x_end = x2_off - shrink * dx
+                    y_end = y2_off - shrink * dy
+
+                    arrow = FancyArrowPatch(
+                        (x_start, y_start), (x_end, y_end),
+                        arrowstyle="-|>",
+                        linewidth=lw,
+                        color=color,
+                        alpha=0.75,
+                        mutation_scale=8,
+                        zorder=2,
+                    )
+                    ax.add_patch(arrow)
+
+        # -----------------------------
+        # Final styling
+        # -----------------------------
+        # Legend for barges
+        for k in K_b:
+            color = cmap(barge_index_map[k] % 10)
+            ax.plot([], [], color=color, label=f"Barge {k}", linewidth=2)
+
+        ax.set_title("Barge Routes and Terminal Containers (Final Solution)")
+        ax.set_xlabel("MDS dimension 1")
+        ax.set_ylabel("MDS dimension 2")
+        ax.grid(True, linestyle=":", linewidth=0.5, alpha=0.4)
+        ax.set_aspect("equal", adjustable="box")
+
+        # Add a bit of padding around the layout
+        x_min, x_max = xs.min(), xs.max()
+        y_min, y_max = ys.min(), ys.max()
+        x_pad = 0.15 * (x_max - x_min if x_max > x_min else 1.0)
+        y_pad = 0.15 * (y_max - y_min if y_max > y_min else 1.0)
+        ax.set_xlim(x_min - x_pad, x_max + x_pad)
+        ax.set_ylim(y_min - y_pad, y_max + y_pad)
+
+        ax.legend(loc="lower right", frameon=True, framealpha=0.8, fontsize=8)
+
+        plt.tight_layout()
+        plt.savefig("Figures/barge_solution_map.png", dpi=300)
+        # plt.show()
+    def plot_barge_solution_map(self):
+        """
+        Plots a 2D map of terminals and barge routes for the final solution.
+
+        - Nodes (terminals) are positioned using MDS on the travel-time matrix,
+          then normalized to a unit square for a clear layout.
+        - Node size roughly reflects total number of containers at that terminal.
+        - Node annotations:
+            * node index inside the circle
+            * 'I:x  E:y' under the node (imports/exports).
+        - Barge paths:
+            * one color per barge
+            * line width proportional to TEU flow on that arc (imports + exports)
+            * lateral offset per barge so overlapping arcs are clearly distinguishable.
+
+        The figure is saved as 'Figures/barge_solution_map.png'.
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available for plotting.")
+            return
+
+        from matplotlib.patches import FancyArrowPatch
+
+        # Data / sets
+        T_ij_matrix = np.array(self.T_ij_matrix)
+        N = self.N_list
+        K_b = self.K_b
+        C = self.C_list
+        E = self.E
+        I = self.I
+        Z_cj = self.Z_cj
+        W_c = self.W_c
+        x_ijk = self.x_ijk
+        y_ijk = self.y_ijk
+        z_ijk = self.z_ijk
+
+        # -----------------------------
+        # Compute 2D node positions via MDS
+        # -----------------------------
+        mds = MDS(n_components=2, dissimilarity="precomputed", random_state=1)
+        node_positions_raw = mds.fit_transform(T_ij_matrix)  # shape (N, 2)
+
+        # Normalize positions to a [0, 1] x [0, 1] box for a clean aspect
+        xs_raw = node_positions_raw[:, 0]
+        ys_raw = node_positions_raw[:, 1]
+
+        x_min0, x_max0 = xs_raw.min(), xs_raw.max()
+        y_min0, y_max0 = ys_raw.min(), ys_raw.max()
+        x_rng = x_max0 - x_min0 if x_max0 > x_min0 else 1.0
+        y_rng = y_max0 - y_min0 if y_max0 > y_min0 else 1.0
+
+        xs = (xs_raw - x_min0) / x_rng
+        ys = (ys_raw - y_min0) / y_rng
+
+        node_positions = np.column_stack([xs, ys])
+
+        # -----------------------------
+        # Node-level container stats
+        # -----------------------------
+        import_counts = {j: 0 for j in N}
+        export_counts = {j: 0 for j in N}
+        total_counts = {j: 0 for j in N}
+
+        for c in C:
+            for j in N:
+                if Z_cj[c][j] == 1:
+                    if c in I:
+                        import_counts[j] += 1
+                    elif c in E:
+                        export_counts[j] += 1
+                    total_counts[j] += 1
+                    break
+
+        max_containers = max(total_counts.values()) if total_counts else 1
+        base_size = 120.0    # base marker size
+        size_scale = 280.0   # extra size per relative container load
+
+        node_sizes = {}
+        for j in N:
+            if max_containers > 0:
+                node_sizes[j] = base_size + size_scale * (total_counts[j] / max_containers)
+            else:
+                node_sizes[j] = base_size
+
+        # -----------------------------
+        # Arc-level TEU flows (for line widths)
+        # -----------------------------
+        arc_flows = {}  # (i, j, k) -> TEU on arc i->j for barge k
+        max_flow = 0.0
+        for k in K_b:
+            for i in N:
+                for j in N:
+                    if i == j:
+                        continue
+                    if x_ijk[i, j, k].X > 0.5:
+                        flow_teu = y_ijk[i, j, k].X + z_ijk[i, j, k].X
+                        arc_flows[(i, j, k)] = flow_teu
+                        if flow_teu > max_flow:
+                            max_flow = flow_teu
+
+        if max_flow == 0:
+            max_flow = 1.0  # avoids division by zero; all arcs get minimal width
+
+        # Line width mapping
+        min_lw = 0.6
+        max_lw = 2.5
+
+        def flow_to_lw(flow):
+            return min_lw + (max_lw - min_lw) * (flow / max_flow)
+
+        # -----------------------------
+        # Plotting
+        # -----------------------------
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # For label offset we work in normalized coordinates
+        y_span = ys.max() - ys.min() if ys.size > 0 else 1.0
+        label_offset = 0.05 * y_span
+
+        # Plot nodes
+        for j in N:
+            x, y = node_positions[j]
+            size = node_sizes[j]
+
+            # Draw node (dryport visually distinct)
+            if j == 0:
+                facecolor = "white"
+                edgecolor = "black"
+                linewidth = 1.5
+            else:
+                facecolor = "white"
+                edgecolor = "black"
+                linewidth = 1.0
+
+            ax.scatter(
+                x, y,
+                s=size,
+                edgecolor=edgecolor,
+                facecolor=facecolor,
+                linewidth=linewidth,
+                zorder=3,
+            )
+
+            # Node id in the centre
+            ax.text(
+                x, y,
+                f"{j}",
+                ha="center", va="center",
+                fontsize=9, fontweight="bold",
+                zorder=4,
+            )
+
+            # I/E counts below the node
+            imp = import_counts[j]
+            exp = export_counts[j]
+            ax.text(
+                x, y - label_offset,
+                f"I:{imp}  E:{exp}",
+                ha="center", va="top",
+                fontsize=7,
+                zorder=4,
+            )
+
+        # -----------------------------
+        # Plot barge paths
+        # -----------------------------
+        cmap = plt.get_cmap("tab10")
+        barge_index_map = {k: idx for idx, k in enumerate(K_b)}
+        offset_scale = 0.04  # lateral separation in normalized coordinates
+
+        for k in K_b:
+            color = cmap(barge_index_map[k] % 10)
+            idx_k = barge_index_map[k]
+
+            for i in N:
+                for j in N:
+                    if i == j:
+                        continue
+                    if x_ijk[i, j, k].X <= 0.5:
+                        continue
+
+                    x1, y1 = node_positions[i]
+                    x2, y2 = node_positions[j]
+
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    length = (dx**2 + dy**2) ** 0.5
+                    if length == 0:
+                        continue
+
+                    # Unit perpendicular vector
+                    nx = -dy / length
+                    ny = dx / length
+
+                    # Lateral offset per barge
+                    offset = offset_scale * (idx_k - (len(K_b) - 1) / 2.0)
+                    x1_off = x1 + nx * offset
+                    y1_off = y1 + ny * offset
+                    x2_off = x2 + nx * offset
+                    y2_off = y2 + ny * offset
+
+                    flow_teu = arc_flows.get((i, j, k), 0.0)
+                    lw = flow_to_lw(flow_teu)
+
+                    # Shrink arrow slightly so it doesn't cover node centres
+                    shrink = 0.10
+                    x_start = x1_off + shrink * dx
+                    y_start = y1_off + shrink * dy
+                    x_end = x2_off - shrink * dx
+                    y_end = y2_off - shrink * dy
+
+                    arrow = FancyArrowPatch(
+                        (x_start, y_start), (x_end, y_end),
+                        arrowstyle="-|>",
+                        linewidth=lw,
+                        color=color,
+                        alpha=0.75,
+                        mutation_scale=8,
+                        zorder=2,
+                    )
+                    ax.add_patch(arrow)
+
+        # -----------------------------
+        # Final styling
+        # -----------------------------
+        # Legend for barges
+        for k in K_b:
+            color = cmap(barge_index_map[k] % 10)
+            ax.plot([], [], color=color, label=f"Barge {k}", linewidth=2)
+
+        ax.set_title("Barge Routes and Terminal Containers (Final Solution)")
+        ax.set_xlabel("MDS dimension 1 (normalized)")
+        ax.set_ylabel("MDS dimension 2 (normalized)")
+        ax.grid(True, linestyle=":", linewidth=0.5, alpha=0.4)
+        ax.set_aspect("equal", adjustable="box")
+
+        # Nice padding around [0,1]x[0,1]
+        ax.set_xlim(-0.1, 1.1)
+        ax.set_ylim(-0.1, 1.1)
+
+        ax.legend(
+            loc="upper right",
+            bbox_to_anchor=(1.02, 1.0),
+            frameon=True,
+            framealpha=0.8,
+            fontsize=8,
+        )
+
+        plt.tight_layout()
+        plt.savefig("Figures/barge_solution_map.png", dpi=300)
+        # plt.show()
+
+
     # -----------------------
     # Convenience pipeline
     # -----------------------
@@ -926,13 +1783,14 @@ class MILP_Algo:
         if self.model.status == GRB.OPTIMAL:
             # self.print_results_old_format()
             # print("\n\n\n\n\n\n")
-            self.print_results()
+            self.print_results_2()
             self.print_node_table()
             self.print_distance_table()
             self.print_barge_table()
             self.print_container_table()
             if with_plots:
                 self.plot_barge_displacements()
+                self.plot_barge_solution_map()
 
 
 # Optional quick test if you run MILP.py directly:
@@ -948,65 +1806,3 @@ if __name__ == "__main__":
 
 
 
-
-# # # okay, thank you. I now want you to help me create a new plotting function. that represents visually the final solution. This is the current version. 
-
-
-
-# # #     def plot_barge_displacements(self):
-# # #         """
-# # #         Plots displacements of barges based on x_ijk using MDS layout.
-# # #         (Trucked containers are not plotted.)
-# # #         """
-# # #         m = self.model
-# # #         if m is None or m.status != GRB.OPTIMAL:
-# # #             print("No optimal solution available for plotting.")
-# # #             return
-
-# # #         T_ij_matrix = np.array(self.T_ij_matrix)
-# # #         N = self.N_list
-# # #         K_b = self.K_b
-# # #         x_ijk = self.x_ijk
-
-# # #         mds = MDS(n_components=2, dissimilarity="precomputed", random_state=1)
-# # #         node_positions = mds.fit_transform(T_ij_matrix)
-
-# # #         plt.figure(figsize=(8, 6))
-
-# # #         # Plot nodes
-# # #         for idx, (x, y) in enumerate(node_positions):
-# # #             plt.scatter(x, y, s=100)
-# # #             plt.text(x + 0.01, y + 0.01, f"{idx}", fontsize=9)
-
-# # #         # Plot barge paths
-# # #         for k in K_b:
-# # #             for i in N:
-# # #                 for j in N:
-# # #                     if i != j and x_ijk[i, j, k].X > 0.5:
-# # #                         x1, y1 = node_positions[i]
-# # #                         x2, y2 = node_positions[j]
-
-# # #                         offset = 0.01 * k
-# # #                         x1 += offset
-# # #                         y1 += offset
-# # #                         x2 += offset
-# # #                         y2 += offset
-
-# # #                         plt.plot([x1, x2], [y1, y2], linewidth=1.5, alpha=0.7, label=f"Barge {k}")
-# # #                         mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
-# # #                         plt.text(mid_x, mid_y, f"B{k}", fontsize=8)
-
-# # #         plt.title("Barge Displacements Between Terminals")
-# # #         plt.xlabel("X")
-# # #         plt.ylabel("Y")
-# # #         plt.grid(True)
-# # #         plt.legend(loc="best")
-# # #         plt.savefig(f"Figures/barge_displacements.png")
-# # #         # plt.show()
-
-
-
-
-
-
-# # # I want it to 
