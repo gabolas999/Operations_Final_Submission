@@ -3,6 +3,9 @@
 Mixed-Integer Linear Programming (MILP) model for container allocation optimization.
 Implemented as the MILP_Algo class, structurally aligned with GreedyAlgo.
 Requires Gurobi (gurobipy) with a valid license.
+
+
+TODO: - Check units throughout the document. 
 """
 
 import random
@@ -52,8 +55,7 @@ class MILP_Algo:
         Initialize the MILP optimizer.
 
         Parameters mirror GreedyAlgo so that both can be constructed in the same way.
-        Time-related ranges are in hours (like GreedyAlgo) and converted to minutes
-        internally for the MILP model.
+        Time-related ranges and all internal time variables are in hours.
         """
         # Parameters
         self.seed = seed
@@ -62,8 +64,8 @@ class MILP_Algo:
         self.H_b = h_b        # barge fixed costs in euros
         self.H_t_40 = h_t_40  # euros per 40ft container
         self.H_t_20 = h_t_20  # euros per 20ft container
-        self.Handling_time_hours = handling_time  # hours per container
-        self.Handling_time_minutes = handling_time * 60.0
+        self.Handling_time = handling_time  # hours per container
+
 
         # Ranges (hours / probabilities)
         self.C_range = C_range
@@ -92,14 +94,14 @@ class MILP_Algo:
         self.E = []                 # list of export containers
         self.I = []                 # list of import containers
         self.W_c = []               # container size in TEU (1 or 2)
-        self.R_c = []               # release times [minutes]
-        self.O_c = []               # opening times [minutes]
-        self.D_c = []               # closing times [minutes]
+        self.R_c = []               # release times [hours]
+        self.O_c = []               # opening times [hours]
+        self.D_c = []               # closing times [hours]
         self.H_T = []               # trucking cost per container [euros]
         self.Z_cj = []              # assignment of container c to terminal j
         self.C_dict = {}            # same structure as in GreedyAlgo for compatibility
 
-        self.T_ij_matrix = []       # travel time matrix [minutes]
+        self.T_ij_matrix = []       # travel time matrix [hours]
 
         # Gurobi model and variables
         self.model = None
@@ -122,7 +124,7 @@ class MILP_Algo:
     def generate_instance(self):
         """
         Generate the problem instance using the same parameter logic
-        as GreedyAlgo.generate_container_info, but converted to minutes
+        as GreedyAlgo.generate_container_info.
         and extended with MILP-specific sets (E, I, Z_cj, etc.).
         """
         rng = random.Random(self.seed)
@@ -150,7 +152,7 @@ class MILP_Algo:
         self.K_t = self.K_list[-1]
 
         # Prepare containers
-        Dc_min_hr, Dc_max_hr = self.Dc_range
+        Dc_minim_hr, Dc_max_hr = self.Dc_range
         Oc_off_min_hr, Oc_off_max_hr = self.Oc_offset_range
         P40_min, P40_max = self.P40_range
         PExp_min, PExp_max = self.PExport_range
@@ -167,7 +169,7 @@ class MILP_Algo:
 
         for c in self.C_list:
             # Closing time in hours
-            Dc_hr = rng.randint(Dc_min_hr, Dc_max_hr)
+            Dc_hr = rng.randint(Dc_minim_hr, Dc_max_hr)
             # Opening time in hours (before closing, within offsets)
             Oc_hr = rng.randint(Dc_hr - Oc_off_max_hr, Dc_hr - Oc_off_min_hr)
 
@@ -193,10 +195,10 @@ class MILP_Algo:
                 Terminal = rng.randint(1, self.N - 1)
                 self.I.append(c)
 
-            # Convert times to minutes for MILP model
-            Rc_min = Rc_hr * 60
-            Oc_min = Oc_hr * 60
-            Dc_min = Dc_hr * 60
+            # Keep times in hours for MILP model
+            Rc = Rc_hr
+            Oc = Oc_hr
+            Dc = Dc_hr
 
             # Trucking cost per container
             if W_teu == 1:
@@ -206,9 +208,9 @@ class MILP_Algo:
 
             # Store
             self.W_c.append(W_teu)
-            self.R_c.append(Rc_min)
-            self.O_c.append(Oc_min)
-            self.D_c.append(Dc_min)
+            self.R_c.append(Rc)
+            self.O_c.append(Oc)
+            self.D_c.append(Dc)
             self.H_T.append(truck_cost)
             self.Z_cj[c][Terminal] = 1
 
@@ -227,13 +229,13 @@ class MILP_Algo:
 
     def generate_travel_times(self, long=5, short=1, aleatorio=False):
         """
-        Build travel time matrix T_ij [minutes].
+        Build travel time matrix T_ij [hours].
 
         i = origin terminal
         j = destination terminal
-        - long: time between dryport (0) and any other node
-        - short: time between non-0 nodes
-        - if aleatorio=True, generate random symmetric times (except diagonal)
+        - long: travel time [hours] between dryport (0) and any other node
+        - short: travel time [hours] between non-0 nodes
+        - if aleatorio=True, generate random symmetric times in hours (except diagonal)
         """
         num_nodes = self.N
         rng = random.Random(self.seed + 1)
@@ -249,7 +251,7 @@ class MILP_Algo:
                     T_ij = long
                 else:
                     T_ij = short
-                T_ij_matrix[i][j] = T_ij
+                T_ij_matrix[i][j] = T_ij    # T_ij in hours
 
         if aleatorio:
             for i in range(num_nodes):
@@ -361,7 +363,7 @@ class MILP_Algo:
         D_c = self.D_c
         Z_cj = self.Z_cj
         Qk = self.Qk
-        L = self.Handling_time_minutes
+        L = self.Handling_time  # in hours
         M = self.M
         T = self.T_ij_matrix
 
@@ -514,11 +516,267 @@ class MILP_Algo:
             raise RuntimeError("Model not set up. Call setup_model(), set_objective(), add_constraints() first.")
         self.model.optimize()
 
+        print("\n###################################################################################################################################################")
+        print("###################################################################################################################################################")
+        print("######################################################## Optimization Complete ####################################################################")
+        print("###################################################################################################################################################")
+        print("###################################################################################################################################################")
     # -----------------------
     # Result printing helpers
     # -----------------------
 
+    def print_node_table(self):
+        """
+        Prints a table summarizing how many imports/exports are associated to each node.
+        """
+        N = self.N_list
+        Z_cj = self.Z_cj
+        E = self.E
+        I = self.I
+
+        node_data = []
+        for node in N:
+            import_count = sum(1 for c in I if Z_cj[c][node] == 1)
+            export_count = sum(1 for c in E if Z_cj[c][node] == 1)
+            node_data.append({
+                "Node ID": f"Node {node}",
+                "Import Containers": import_count,
+                "Export Containers": export_count,
+            })
+
+        df = pd.DataFrame(node_data)
+        print("\n\nNode Table")
+        print("==========")
+        print(tabulate(df, headers="keys", tablefmt="grid"))
+
+    def print_distance_table(self):
+        """
+        Prints a table summarizing the travel times (distances) between node pairs.
+        Only unique pairs (i < j) are shown, since T[i][j] = T[j][i].
+        Distances are in hours.
+        """
+        if not self.T_ij_matrix:
+            print("Travel time matrix is empty. Did you call generate_travel_times()?") 
+            return
+
+        N = self.N_list
+        T = self.T_ij_matrix
+
+        distance_data = []
+        for i in N:
+            for j in N:
+                if j <= i:
+                    continue  # avoid self-pairs and duplicates
+                distance_data.append({
+                    "From": f"Node {i}",
+                    "To": f"Node {j}",
+                    "Distance [hours]": T[i][j],
+                })
+
+        df = pd.DataFrame(distance_data)
+        print("\n\nDistance Table (Unique Node Pairs)")
+        print("===================================")
+        print(tabulate(df, headers="keys", tablefmt="grid"))
+
+
     def print_results(self):
+        """
+        Print detailed results in the same style as GreedyAlgo.print_results.
+        Computes cost decomposition and barge utilization from the MILP solution.
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution found. Status:", m.status if m is not None else "No model")
+            return
+
+        C = self.C_list
+        N = self.N_list
+        K_b = self.K_b
+        K_t = self.K_t
+
+        # Data
+        H_T = self.H_T
+        H_b = self.H_b
+        T = self.T_ij_matrix
+        Gamma = self.Gamma
+        Qk = self.Qk
+        W_c = self.W_c
+
+        # Variables
+        f_ck = self.f_ck
+        x_ijk = self.x_ijk
+
+        # Cost decomposition
+        truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
+        barge_fixed_cost = sum(
+            H_b[k] * x_ijk[0, j, k].X for k in K_b for j in N if j != 0
+        )
+        travel_cost = sum(
+            T[i][j] * x_ijk[i, j, k].X
+            for k in K_b for i in N for j in N if i != j
+        )
+        terminal_penalty_cost = sum(
+            Gamma * x_ijk[i, j, k].X
+            for k in K_b for i in N for j in N if j != 0
+        )
+
+        barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
+        total_cost = truck_cost + barge_cost  # should match m.objVal
+
+        # Trucked containers
+        trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
+
+        # Header-style summary
+        print("\n\nResults Table")
+        print("==========")
+        print(f"Total containers: {self.C}")
+        print(f"K_b (barges): {self.K_b}")
+        print(f"K_t (truck): {self.K_t}")
+        print(f"Total cost: {total_cost:>10.0f} Euros")
+        print(
+            f"Barge cost: {barge_cost:>10.0f} Euros             "
+            f"({barge_cost / total_cost * 100:>5.1f}% )"
+        )
+        print(
+            f"Truck cost: {truck_cost:>10.0f} Euros             "
+            f"({truck_cost / total_cost * 100:>5.1f}% )"
+        )
+        print(f"Containers: {self.C:>10d}")
+        print(f"Terminals: {self.N:>10d}")
+        print(
+            f"Trucked containers: {trucked_containers:>10d}           "
+            f"({trucked_containers / self.C * 100:>5.1f}% )"
+        )
+
+        # Barge utilization (same spirit as Greedy version)
+        for k in K_b:
+            # Count containers assigned to barge k
+            containers_on_barge = sum(1 for c in C if f_ck[c, k].X > 0.5)
+            if containers_on_barge == 0:
+                continue  # barge unused
+
+            # TEU on barge k (W_c is in TEU units)
+            teu_on_barge = sum(W_c[c] for c in C if f_ck[c, k].X > 0.5)
+
+            print(
+                f"Barge {k:>3d}: "
+                f"{containers_on_barge:>4d} containers, "
+                f"{teu_on_barge:>4d}/{Qk[k]:<4d} TEU"
+            )
+
+    def print_barge_table(self):
+        """
+        Prints a table summarizing barge routes and capacity utilization per arc.
+        """
+        print(f"\n")
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available to print barge table.")
+            return
+
+        K_b = self.K_b
+        Qk = self.Qk
+        N = self.N_list
+        x_ijk = self.x_ijk
+        y_ijk = self.y_ijk
+        z_ijk = self.z_ijk
+
+        for k in K_b:
+            total_capacity = Qk[k]
+            routes = []
+
+            for i in N:
+                for j in N:
+                    if i != j and x_ijk[i, j, k].X > 0.5:
+                        capacity_used = y_ijk[i, j, k].X + z_ijk[i, j, k].X
+                        utilization_percent = (
+                            capacity_used / total_capacity * 100 if total_capacity > 0 else 0
+                        )
+                        routes.append({
+                            "Route": f"Node {i} -> Node {j}",
+                            "Capacity Used (TEU)": capacity_used,
+                            "Capacity (TEU)": total_capacity,
+                            "Utilization (%)": f"{utilization_percent:.2f}",
+                        })
+
+            if routes:
+                df = pd.DataFrame(routes)
+                print(f"\nBarge {k} Route & Capacity Usage")
+                print("================================")
+                print(tabulate(df, headers="keys", tablefmt="grid"))
+
+
+
+
+    def print_container_table(self):
+        """
+        Prints a table summarizing container properties and assigned barge/truck.
+        Exports: Node 0 -> Node j
+        Imports: Node j -> Node 0
+        """
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available to print container table.")
+            return
+
+        C = self.C_list
+        E = self.E
+        I = self.I
+        W_c = self.W_c
+        R_c = self.R_c
+        O_c = self.O_c
+        D_c = self.D_c
+        Z_cj = self.Z_cj
+        K = self.K_list
+        K_t = self.K_t
+        f_ck = self.f_ck
+
+        container_data = []
+        for c in C:
+            container_type = "Export" if c in E else "Import"
+            node = Z_cj[c].index(1)  # associated terminal
+
+            if container_type == "Export":
+                origin = "Node 0"
+                destination = f"Node {node}"
+                sort_node = node
+            else:
+                origin = f"Node {node}"
+                destination = "Node 0"
+                sort_node = node
+
+            assigned_vehicle = next((k for k in K if f_ck[c, k].X > 0.5), None)
+            assigned_label = (
+                f"Truck {assigned_vehicle}"
+                if assigned_vehicle == K_t
+                else f"Barge {assigned_vehicle}"
+            )
+
+            # TEU size -> ft just for display
+            size_ft = 20 if W_c[c] == 1 else 40
+
+            container_data.append({
+                "Container ID": c,
+                "Size (ft)": size_ft,
+                "Type": container_type,
+                "Origin": origin,
+                "Destination": destination,
+                "Release Time [hours]": R_c[c],
+                "Opening Time [hours]": O_c[c],
+                "Closing Time [hours]": D_c[c],
+                "Assigned Vehicle": assigned_label,
+                "Sort Node": sort_node,
+                "Sort Type": 0 if container_type == "Export" else 1
+            })
+
+        df = pd.DataFrame(container_data)
+        df = df.sort_values(by=["Sort Node", "Sort Type"]).drop(columns=["Sort Node", "Sort Type"])
+
+        print("\nContainer Table (Grouped by Node and Type)")
+        print("==========================================")
+        print(tabulate(df, headers="keys", tablefmt="grid"))
+
+    def print_results_old_format(self):
         """Print basic optimization results."""
         m = self.model
         if m is None or m.status != GRB.OPTIMAL:
@@ -590,137 +848,9 @@ class MILP_Algo:
                         f"({assigned_quant / available_quant * 100:.2f}%)"
                     )
 
-    def print_container_table(self):
-        """
-        Prints a table summarizing container properties and assigned barge/truck.
-        Exports: Node 0 -> Node j
-        Imports: Node j -> Node 0
-        """
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available to print container table.")
-            return
 
-        C = self.C_list
-        E = self.E
-        I = self.I
-        W_c = self.W_c
-        R_c = self.R_c
-        O_c = self.O_c
-        D_c = self.D_c
-        Z_cj = self.Z_cj
-        K = self.K_list
-        K_t = self.K_t
-        f_ck = self.f_ck
 
-        container_data = []
-        for c in C:
-            container_type = "Export" if c in E else "Import"
-            node = Z_cj[c].index(1)  # associated terminal
 
-            if container_type == "Export":
-                origin = "Node 0"
-                destination = f"Node {node}"
-                sort_node = node
-            else:
-                origin = f"Node {node}"
-                destination = "Node 0"
-                sort_node = node
-
-            assigned_vehicle = next((k for k in K if f_ck[c, k].X > 0.5), None)
-            assigned_label = (
-                f"Truck {assigned_vehicle}"
-                if assigned_vehicle == K_t
-                else f"Barge {assigned_vehicle}"
-            )
-
-            # TEU size -> ft just for display
-            size_ft = 20 if W_c[c] == 1 else 40
-
-            container_data.append({
-                "Container ID": c,
-                "Size (ft)": size_ft,
-                "Type": container_type,
-                "Origin": origin,
-                "Destination": destination,
-                "Release Time [min]": R_c[c],
-                "Opening Time [min]": O_c[c],
-                "Closing Time [min]": D_c[c],
-                "Assigned Vehicle": assigned_label,
-                "Sort Node": sort_node,
-                "Sort Type": 0 if container_type == "Export" else 1
-            })
-
-        df = pd.DataFrame(container_data)
-        df = df.sort_values(by=["Sort Node", "Sort Type"]).drop(columns=["Sort Node", "Sort Type"])
-
-        print("\nContainer Table (Grouped by Node and Type)")
-        print("==========================================")
-        print(tabulate(df, headers="keys", tablefmt="grid"))
-
-    def print_node_table(self):
-        """
-        Prints a table summarizing how many imports/exports are associated to each node.
-        """
-        N = self.N_list
-        Z_cj = self.Z_cj
-        E = self.E
-        I = self.I
-
-        node_data = []
-        for node in N:
-            import_count = sum(1 for c in I if Z_cj[c][node] == 1)
-            export_count = sum(1 for c in E if Z_cj[c][node] == 1)
-            node_data.append({
-                "Node ID": f"Node {node}",
-                "Import Containers": import_count,
-                "Export Containers": export_count,
-            })
-
-        df = pd.DataFrame(node_data)
-        print("\nNode Table")
-        print("==========")
-        print(tabulate(df, headers="keys", tablefmt="grid"))
-
-    def print_barge_table(self):
-        """
-        Prints a table summarizing barge routes and capacity utilization per arc.
-        """
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available to print barge table.")
-            return
-
-        K_b = self.K_b
-        Qk = self.Qk
-        N = self.N_list
-        x_ijk = self.x_ijk
-        y_ijk = self.y_ijk
-        z_ijk = self.z_ijk
-
-        for k in K_b:
-            total_capacity = Qk[k]
-            routes = []
-
-            for i in N:
-                for j in N:
-                    if i != j and x_ijk[i, j, k].X > 0.5:
-                        capacity_used = y_ijk[i, j, k].X + z_ijk[i, j, k].X
-                        utilization_percent = (
-                            capacity_used / total_capacity * 100 if total_capacity > 0 else 0
-                        )
-                        routes.append({
-                            "Route": f"Node {i} -> Node {j}",
-                            "Capacity Used (TEU)": capacity_used,
-                            "Capacity (TEU)": total_capacity,
-                            "Utilization (%)": f"{utilization_percent:.2f}",
-                        })
-
-            if routes:
-                df = pd.DataFrame(routes)
-                print(f"\nBarge {k} Route & Capacity Usage")
-                print("================================")
-                print(tabulate(df, headers="keys", tablefmt="grid"))
 
     def plot_barge_displacements(self):
         """
@@ -792,20 +922,91 @@ class MILP_Algo:
         self.add_constraints()
         self.solve()
 
-        self.print_node_table()
 
         if self.model.status == GRB.OPTIMAL:
+            # self.print_results_old_format()
+            # print("\n\n\n\n\n\n")
             self.print_results()
-            self.print_container_table()
+            self.print_node_table()
+            self.print_distance_table()
             self.print_barge_table()
-            print(f"\nTotal containers: {self.C}")
-            print(f"K_b (barges): {self.K_b}")
-            print(f"K_t (truck): {self.K_t}")
+            self.print_container_table()
             if with_plots:
                 self.plot_barge_displacements()
 
 
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
+    print("\n\n\n\n\n\n\n\n\n\n\n")
     milp = MILP_Algo(reduced=True)   # e.g. smaller instances
     milp.run(with_plots=True)
+
+
+
+
+
+
+
+
+
+# # # okay, thank you. I now want you to help me create a new plotting function. that represents visually the final solution. This is the current version. 
+
+
+
+# # #     def plot_barge_displacements(self):
+# # #         """
+# # #         Plots displacements of barges based on x_ijk using MDS layout.
+# # #         (Trucked containers are not plotted.)
+# # #         """
+# # #         m = self.model
+# # #         if m is None or m.status != GRB.OPTIMAL:
+# # #             print("No optimal solution available for plotting.")
+# # #             return
+
+# # #         T_ij_matrix = np.array(self.T_ij_matrix)
+# # #         N = self.N_list
+# # #         K_b = self.K_b
+# # #         x_ijk = self.x_ijk
+
+# # #         mds = MDS(n_components=2, dissimilarity="precomputed", random_state=1)
+# # #         node_positions = mds.fit_transform(T_ij_matrix)
+
+# # #         plt.figure(figsize=(8, 6))
+
+# # #         # Plot nodes
+# # #         for idx, (x, y) in enumerate(node_positions):
+# # #             plt.scatter(x, y, s=100)
+# # #             plt.text(x + 0.01, y + 0.01, f"{idx}", fontsize=9)
+
+# # #         # Plot barge paths
+# # #         for k in K_b:
+# # #             for i in N:
+# # #                 for j in N:
+# # #                     if i != j and x_ijk[i, j, k].X > 0.5:
+# # #                         x1, y1 = node_positions[i]
+# # #                         x2, y2 = node_positions[j]
+
+# # #                         offset = 0.01 * k
+# # #                         x1 += offset
+# # #                         y1 += offset
+# # #                         x2 += offset
+# # #                         y2 += offset
+
+# # #                         plt.plot([x1, x2], [y1, y2], linewidth=1.5, alpha=0.7, label=f"Barge {k}")
+# # #                         mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
+# # #                         plt.text(mid_x, mid_y, f"B{k}", fontsize=8)
+
+# # #         plt.title("Barge Displacements Between Terminals")
+# # #         plt.xlabel("X")
+# # #         plt.ylabel("Y")
+# # #         plt.grid(True)
+# # #         plt.legend(loc="best")
+# # #         plt.savefig(f"Figures/barge_displacements.png")
+# # #         # plt.show()
+
+
+
+
+
+
+# # # I want it to 
