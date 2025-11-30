@@ -19,7 +19,7 @@ import pandas as pd
 from tabulate import tabulate
 from matplotlib.patches import FancyArrowPatch
 import math
-
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -618,7 +618,7 @@ class MILP_Algo:
         ##############
             
         # 1. Each container is assigned to exactly one vehicle
-
+# 
         # 2. Flow conservation for barges at each node
 # checked
         # 3. Each barge leaves dryport (0) at most once
@@ -630,19 +630,19 @@ class MILP_Algo:
         # 6. Export quantity at terminal j for barge k
 
         # 7. Flow balance for import quantities at terminal j for barge k
-
+# checked
         # 8. Flow balance for export quantities at terminal j for barge k
-
+# checked
         # 9. Barge trip capacity constraint
-
+# almost checked
         # 10. Export containers: departure time at dryport >= release time
-
+# box plot looking thing. 
         # 11 & 12. Time propagation along arcs with handling time at arrival
 
         # 13. Export container service cannot start before opening time
-
+# box plot looking thing
         # 14. All containers must be served before closing time
-
+# box plot looking thing. 
 
 
 
@@ -1339,22 +1339,47 @@ class MILP_Algo:
                 
                 sign_x, sign_y = compute_signs(P0, P2, anchor_x, anchor_y)
 
-
-                plotter = ContainerPlotter(width=0.09, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
+                width_scaled = 0.09
+                plotter = ContainerPlotter(width=width_scaled, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
        
-                plotter.draw_capacity(ax, total_height=5, total_width=5)
-                i = 1
-                while i <= random.randint(2, 25):
-                    W_c = random.randint(1, 2)
-                    W_c = 1
-                    IorE = random.randint(1, 2)
-                    plotter.draw_container(ax, index=i, total_height=5, total_width=5, IorE=IorE, W_c=W_c)
-                    i += W_c
+                total_capacity = self.Qk[k]
+                self._draw_segment_stack(ax, plotter, i, j, k,
+                                         total_width=5, max_rows=total_capacity / 5)
+
+
 
             # legend entry for this barge
             line, = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
             legend_lines.append(line)
             legend_labels.append(f"Barge {k}")
+            # ==========================================
+            # Add Import / Export container legend icons
+            # ==========================================
+
+
+        # Small representative container size
+        legend_w = width_scaled
+        legend_h = legend_w * 8.6 / 20
+
+        import_patch = Rectangle(
+            (0, 0),
+            legend_w,
+            legend_h,
+            facecolor="#00A63C",
+            edgecolor="#006E28",
+            linewidth=1.5
+        )
+        export_patch = Rectangle(
+            (0, 0),
+            legend_w,
+            legend_h,
+            facecolor="#FF6F00",
+            edgecolor="#B23E00",
+            linewidth=1.5
+        )
+
+        legend_lines.extend([export_patch, import_patch])
+        legend_labels.extend(["Export", "Import"])
 
         # --------------------------
         # Styling
@@ -1371,14 +1396,68 @@ class MILP_Algo:
         loc="upper right",
         frameon=True,
         fontsize=14,
-        handlelength=5,      # default is 2 — increase for longer patterns
+        handlelength= 4.2,      # default is 2 — increase for longer patterns
         handletextpad=0.8,   # spacing between line and text
     )
 
         plt.tight_layout()
-        plt.savefig(f"Figures/solution_map{self.file_name}.png", dpi=400)
+        plt.savefig(f"Figures/solution_map{self.file_name}.pdf")
 
 
+
+    def _draw_segment_stack(self, ax, plotter, i, j, k,
+                            total_width, max_rows):
+        """
+        Draw a container stack for arc (i, j, k) using actual TEU on that segment.
+
+        Assumes:
+            - y_ijk[i, j, k].X ≈ import TEU on this arc
+            - z_ijk[i, j, k].X ≈ export TEU on this arc
+        These are interpreted in units of 1 TEU (i.e. W_c = 1 for drawing).
+        """
+        total_width += 1
+        # TEU on this arc (rounded to nearest int)
+        import_teu = int(round(self.y_ijk[i, j, k].X))
+        export_teu = int(round(self.z_ijk[i, j, k].X))
+
+        total_teu = import_teu + export_teu
+        if total_teu <= 0:
+            return  # nothing to draw
+
+        # Capacity of the drawing grid (in TEU slots)
+        max_cols = max(1, total_width - 1)
+        max_slots = max_rows * max_cols
+
+        # # Do not draw more slots than the grid can show
+        # total_teu = min(total_teu, max_slots)
+
+        # Draw bounding box
+        plotter.draw_capacity(ax, total_height=max_rows, total_width=total_width)
+
+        # Fill slots in order: first imports (green), then exports (orange)
+        idx = 1
+        remaining_import = import_teu
+        remaining_export = export_teu
+
+        while idx <= total_teu:
+            if remaining_import > 0:
+                IorE = 1  # import
+                remaining_import -= 1
+            elif remaining_export > 0:
+                IorE = 2  # export
+                remaining_export -= 1
+            else:
+                break
+
+            plotter.draw_container(
+                ax,
+                index=idx,
+                total_height=max_rows,
+                total_width=total_width,
+                IorE=IorE,
+                W_c=1    # treat each TEU as a 20ft for visualization
+            )
+            idx += 1
 
 
 
