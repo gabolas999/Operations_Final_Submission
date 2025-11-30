@@ -25,22 +25,22 @@ class MILP_Algo:
             self,
             run_name="MILP_Run",
             qk=[  # Barge capacities in TEU
-                30,        # Barge 0
-                30,         # Barge 1
-                30,         # Barge 2
-                30,         # Barge 3
-                30,         # Barge 4
-                30,         # Barge 5
-                30,         # Barge 6
+                20,         # Barge 0
+                20,         # Barge 1
+                20,         # Barge 2
+                20,         # Barge 3
+                10,         # Barge 4
+                10,         # Barge 5
+                10,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
-                1400,      # Barge 0
-                1500,      # Barge 1
-                1600,      # Barge 2
-                1700,      # Barge 3
-                3000,      # Barge 4
-                6000,      # Barge 5
-                6000,      # Barge 6
+                1100,      # Barge 0
+                1700,      # Barge 1
+                1800,      # Barge 2
+                1900,      # Barge 3
+                3300,      # Barge 4
+                6300,      # Barge 5
+                6300,      # Barge 6
             ],
             seed=0,
             reduced=False,
@@ -51,16 +51,16 @@ class MILP_Algo:
             N_range=(6, 6),                 # (min, max) number of terminals when reduced=False
 
             Oc_range=(24, 196),             # (min, max) opening time in hours
-            Oc_offset_range=(150, 420),      # (min_offset, max_offset) such that
+            Oc_offset_range=(50, 320),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
             travel_time_long_range=(3, 5),   # (min, max) travel time between dryport and sea terminals in hours
             travel_angle = math.pi, #* 1/6,          # angle sector for terminal placement
             # Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
 
-            P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
-            PExport_range=(0.05, 0.7),      # (min, max) probability of export
-            C_range_reduced=(60, 100),      # (min, max) containers when reduced=True
+            P40_range=(0.2, 0.22),          # (min, max) probability of 40ft container
+            PExport_range=(0.05, 0.75),      # (min, max) probability of export
+            C_range_reduced=(65, 75),      # (min, max) containers when reduced=True
             N_range_reduced=(4, 4),         # (min, max) terminals when reduced=True
             gamma=100,                      # penalty per sea terminal visit [euros]
             big_m=1_000_000                 # big-M
@@ -444,7 +444,7 @@ class MILP_Algo:
 
     def add_constraints(
             self,
-            limit_total_trucked_containers=True,
+            limit_total_trucked_containers=False,
             include_time_constraints=True
     ):
         """Add all MILP constraints to the model."""
@@ -606,6 +606,41 @@ class MILP_Algo:
                             t_jk[j, k] * Z_cj[c][j] <= D_c[c] + (1 - f_ck[c, k]) * M,
                             name=f"Demand_Fulfillment_{c}_{j}_{k}"
                         )
+            
+            
+        ##############
+        #### List ####
+        ##############
+            
+        # 1. Each container is assigned to exactly one vehicle
+
+        # 2. Flow conservation for barges at each node
+# checked
+        # 3. Each barge leaves dryport (0) at most once
+# checked
+        # 4. No self-loops (i -> i)
+# checked        
+        # 5. Import quantity at terminal j for barge k
+
+        # 6. Export quantity at terminal j for barge k
+
+        # 7. Flow balance for import quantities at terminal j for barge k
+
+        # 8. Flow balance for export quantities at terminal j for barge k
+
+        # 9. Barge trip capacity constraint
+
+        # 10. Export containers: departure time at dryport >= release time
+
+        # 11 & 12. Time propagation along arcs with handling time at arrival
+
+        # 13. Export container service cannot start before opening time
+
+        # 14. All containers must be served before closing time
+
+
+
+
 
     # -----------------------
     # Solve
@@ -833,7 +868,7 @@ class MILP_Algo:
         # -------------------------
         # Per-barge utilization summary (no table)
         # -------------------------
-        print("\nBarge Utilization Summary")
+        print("\nBarge Utilization Summary (considering all trips made)")
 
         if barge_rows:
             for row in barge_rows:
@@ -857,8 +892,13 @@ class MILP_Algo:
 
         node_data = []
         for node in N:
-            import_count = sum(1 for c in I if Z_cj[c][node] == 1)
-            export_count = sum(1 for c in E if Z_cj[c][node] == 1)
+            if node == 0:
+                # Dryport: count all imports (arrive to node 0) and all exports (depart from node 0)
+                import_count = -len(I)
+                export_count = -len(E)
+            else:
+                import_count = sum(1 for c in I if Z_cj[c][node] == 1)
+                export_count = sum(1 for c in E if Z_cj[c][node] == 1)
             node_data.append({
                 "Node ID": f"Node {node}",
                 "Import Containers": import_count,
@@ -1061,727 +1101,6 @@ class MILP_Algo:
         plt.legend(loc="best")
         plt.savefig(f"Figures/barge_displacements.png")
         # plt.show()
-
-    def plot_barge_solution_map(self):
-        """
-        Customized 2D barge route map using true coordinates self.node_xy.
-        Figure aesthetics:
-        - figsize (12, 8)
-        - dark blue background (#003d80)
-        - node 0 = large solid black square
-        - other nodes = thin black hollow circles
-        - barge paths = thin black lines with unique dash patterns
-        - legend on the right, only for barges actually used
-        - no title, no container count labels
-        """
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        node_xy = self.node_xy
-        N = self.N_list
-        K_b = self.K_b
-        x_ijk = self.x_ijk
-        y_ijk = self.y_ijk
-        z_ijk = self.z_ijk
-
-        # --------------------------
-        # Determine which barges are used
-        # --------------------------
-        used_barges = []
-        for k in K_b:
-            used = False
-            for i in N:
-                for j in N:
-                    if i != j and x_ijk[i, j, k].X > 0.5:
-                        used = True
-                        break
-                if used:
-                    break
-            if used:
-                used_barges.append(k)
-
-        # Define dash patterns (cycled)
-        dash_patterns = [
-            (None, None),          # solid
-            (5, 5),                # dashed
-            (2, 3),                # dotted
-            (8, 4, 2, 4),          # dash-dot
-            (10, 3),               # long dash
-            (3, 2, 3, 2, 8, 2),    # complex pattern
-        ]
-        # Enough patterns for many barges
-        dash_patterns = dash_patterns * 10
-
-        # --------------------------
-        # Plotting setup
-        # --------------------------
-        fig, ax = plt.subplots(figsize=(14, 8))
-
-        # background color
-
-        ax.set_facecolor("#003d80")
-
-        # --------------------------
-        # Plot nodes
-        # --------------------------
-        for j in N:
-            x, y = node_xy[j]
-
-            if j == 0:
-                # large solid black square
-                ax.scatter(
-                    x, y,
-                    s=600,
-                    marker="s",
-                    facecolor="none",
-                    edgecolor="white",
-                    linewidth=1.2,
-                    zorder=4,
-                )
-            else:
-                # thin hollow black circle
-                ax.scatter(
-                    x, y,
-                    s=300,
-                    facecolor="none",
-                    edgecolor="white",
-                    linewidth=1.2,
-                    zorder=3,
-                )
-
-            ax.text(
-                x, y,
-                f"{j}",
-                ha="center",
-                va="center",
-                fontsize=9,
-                fontweight="bold",
-                color="white",
-                zorder=5,
-            )
-
-        # --------------------------
-        # Plot barge paths
-        # --------------------------
-        offset_scale = 0.03
-        barge_index_map = {k: idx for idx, k in enumerate(used_barges)}
-
-        for k_idx, k in enumerate(used_barges):
-            dash = dash_patterns[k_idx]
-            idx_k = barge_index_map[k]
-
-            for i in N:
-                for j in N:
-                    if i == j or x_ijk[i, j, k].X <= 0.5:
-                        continue
-
-                    x1, y1 = node_xy[i]
-                    x2, y2 = node_xy[j]
-                    dx, dy = x2 - x1, y2 - y1
-                    length = (dx**2 + dy**2) ** 0.5
-                    if length == 0:
-                        continue
-
-                    # perpendicular offset
-                    nx, ny = -dy / length, dx / length
-                    offset = offset_scale * (idx_k - (len(used_barges) - 1) / 2)
-                    x1o, y1o = x1 + nx * offset, y1 + ny * offset
-                    x2o, y2o = x2 + nx * offset, y2 + ny * offset
-
-                    # shrink endpoints slightly
-                    shrink = 0.02
-                    xs = x1o + shrink * dx
-                    ys_ = y1o + shrink * dy
-                    xe = x2o - shrink * dx
-                    ye = y2o - shrink * dy
-
-                    ax.plot(
-                        [xs, xe], [ys_, ye],
-                        color="black",
-                        linewidth=1.2,
-                        linestyle='-' if dash == (None, None) else (0, dash),
-                        zorder=2,
-                    )
-
-        # --------------------------
-        # Final styling
-        # --------------------------
-        ax.set_xlabel("X coordinate (hours)", color="black", fontsize=10)
-        ax.set_ylabel("Y coordinate (hours)", color="black", fontsize=10)
-
-        # No title
-        ax.set_title("")
-
-        # White grid on blue background
-        ax.grid(True, linestyle=":", linewidth=0.5, color="white", alpha=0.4)
-
-        ax.set_aspect("equal", adjustable="datalim")
-
-        # Ticks in white
-        ax.tick_params(colors="black")
-
-        # --------------------------
-        # Legend (only used barges)
-        # --------------------------
-        legend_lines = []
-        legend_labels = []
-
-        for k_idx, k in enumerate(used_barges):
-            dash = dash_patterns[k_idx]
-            line = ax.plot(
-                [], [],
-                color="black",
-                linewidth=1.5,
-                linestyle='-' if dash == (None, None) else (0, dash),
-            )[0]
-            legend_lines.append(line)
-            legend_labels.append(f"Barge {k}")
-
-        ax.legend(
-            legend_lines,
-            legend_labels,
-            loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
-            frameon=True,
-            framealpha=0.9,
-            fontsize=9,
-            facecolor="white",
-            edgecolor="black",
-        )
-
-        plt.tight_layout()
-        plt.savefig("Figures/barge_solution_map.png", dpi=300)
-
-    def plot_barge_solution_map_report(self):
-        """
-        Minimalistic 2D barge route map using true coordinates self.node_xy.
-
-        Aesthetics:
-        - figsize (12, 8)
-        - white background
-        - node 0 = solid black square
-        - other nodes = hollow black circles
-        - barge paths = thin colored lines with subtle dash variations
-        - legend on the right, only for barges actually used
-        - no title, no container/count labels
-        - axes and ticks removed for a clean, schematic look
-        """
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        node_xy = self.node_xy
-        N = self.N_list
-        K_b = self.K_b
-        x_ijk = self.x_ijk
-        y_ijk = self.y_ijk
-        z_ijk = self.z_ijk
-
-        # --------------------------
-        # Determine which barges are used
-        # --------------------------
-        used_barges = []
-        for k in K_b:
-            used = False
-            for i in N:
-                for j in N:
-                    if i != j and x_ijk[i, j, k].X > 0.5:
-                        used = True
-                        break
-                if used:
-                    break
-            if used:
-                used_barges.append(k)
-
-        if not used_barges:
-            print("No barges used in the solution; nothing to plot.")
-            return
-
-        # Dash patterns (cycled)
-        dash_patterns = [
-            (None, None),          # solid
-            (4, 3),                # dashed
-            (1, 2),                # dotted
-            (6, 3, 1, 3),          # dash-dot
-            (8, 4),                # long dash
-            (2, 2, 6, 2),          # mixed
-        ]
-        dash_patterns = dash_patterns * 10  # ensure enough
-
-        # Color palette (soft)
-        cmap = plt.get_cmap("tab10")
-
-        # --------------------------
-        # Plotting setup
-        # --------------------------
-        fig, ax = plt.subplots(figsize=(12, 8))
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
-
-        # --------------------------
-        # Plot nodes
-        # --------------------------
-        for j in N:
-            x, y = node_xy[j]
-
-            if j == 0:
-                # solid black square for dryport
-                ax.scatter(
-                    x, y,
-                    s=220,
-                    marker="s",
-                    facecolor="black",
-                    edgecolor="black",
-                    linewidth=1.2,
-                    zorder=4,
-                )
-            else:
-                # hollow circle for sea terminals
-                ax.scatter(
-                    x, y,
-                    s=160,
-                    facecolor="white",
-                    edgecolor="black",
-                    linewidth=1.0,
-                    zorder=3,
-                )
-
-            # node index label
-            ax.text(
-                x, y,
-                f"{j}",
-                ha="center",
-                va="center",
-                fontsize=9,
-                fontweight="medium",
-                color="black",
-                zorder=5,
-            )
-
-        # --------------------------
-        # Plot barge paths
-        # --------------------------
-        offset_scale = 0.03
-        barge_index_map = {k: idx for idx, k in enumerate(used_barges)}
-
-        for k_idx, k in enumerate(used_barges):
-            dash = dash_patterns[k_idx]
-            color = cmap(k_idx % 10)
-            idx_k = barge_index_map[k]
-
-            for i in N:
-                for j in N:
-                    if i == j or x_ijk[i, j, k].X <= 0.5:
-                        continue
-
-                    x1, y1 = node_xy[i]
-                    x2, y2 = node_xy[j]
-                    dx, dy = x2 - x1, y2 - y1
-                    length = (dx**2 + dy**2) ** 0.5
-                    if length == 0:
-                        continue
-
-                    # perpendicular offset
-                    nx, ny = -dy / length, dx / length
-                    offset = offset_scale * (idx_k - (len(used_barges) - 1) / 2)
-                    x1o, y1o = x1 + nx * offset, y1 + ny * offset
-                    x2o, y2o = x2 + nx * offset, y2 + ny * offset
-
-                    # slightly shrink to avoid covering node centers
-                    shrink = 0.04
-                    xs = x1o + shrink * dx
-                    ys_ = y1o + shrink * dy
-                    xe = x2o - shrink * dx
-                    ye = y2o - shrink * dy
-
-                    ax.plot(
-                        [xs, xe], [ys_, ye],
-                        color=color,
-                        linewidth=1.4,
-                        linestyle='-' if dash == (None, None) else (0, dash),
-                        zorder=2,
-                    )
-
-        # --------------------------
-        # Minimal styling
-        # --------------------------
-        # no title, very light axes
-        ax.set_title("")
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-
-        # remove ticks
-        ax.set_xticks([])
-        ax.set_yticks([])
-
-        # subtle spines
-        for spine in ax.spines.values():
-            spine.set_linewidth(0.8)
-            spine.set_color("#aaaaaa")
-
-        ax.set_aspect("equal", adjustable="datalim")
-
-        # --------------------------
-        # Legend (only used barges)
-        # --------------------------
-        legend_lines = []
-        legend_labels = []
-
-        for k_idx, k in enumerate(used_barges):
-            dash = dash_patterns[k_idx]
-            color = cmap(k_idx % 10)
-            line = ax.plot(
-                [], [],
-                color=color,
-                linewidth=1.6,
-                linestyle='-' if dash == (None, None) else (0, dash),
-            )[0]
-            legend_lines.append(line)
-            legend_labels.append(f"Barge {k}")
-
-        ax.legend(
-            legend_lines,
-            legend_labels,
-            loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
-            frameon=False,
-            fontsize=9,
-        )
-
-        plt.tight_layout()
-        plt.savefig("Figures/barge_solution_map_report.png", dpi=300)
-
-    def plot_barge_solution_map_report_2(self):
-        """
-        Minimalistic curved-edge barge route map.
-        Each barge path is drawn as a quadratic Bezier curve:
-        - Nodes: true coordinates self.node_xy
-        - Barge arcs: curved, colored, no offset at endpoints
-        - Figure aesthetics: simple, clean, minimal
-        """
-
-        def bezier_quad(P0, P1, P2, t):
-            """Quadratic Bézier interpolation."""
-            return (1 - t)**2 * P0 + 2 * (1 - t) * t * P1 + t**2 * P2
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        node_xy = self.node_xy
-        N = self.N_list
-        K_b = self.K_b
-        x_ijk = self.x_ijk
-
-        # --------------------------
-        # Determine which barges are used
-        # --------------------------
-        used_barges = []
-        for k in K_b:
-            if any(x_ijk[i, j, k].X > 0.5 for i in N for j in N if i != j):
-                used_barges.append(k)
-
-        if not used_barges:
-            print("No barges used; nothing to plot.")
-            return
-
-        # Color palette and curvature magnitudes
-        cmap = plt.get_cmap("tab10")
-        curvature_values = [0.12, -0.12, 0.18, -0.18, 0.25, -0.25, 0.32, -0.32]
-
-        fig, ax = plt.subplots(figsize=(12, 8))
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
-
-        # --------------------------
-        # Draw nodes
-        # --------------------------
-        for j in N:
-            x, y = node_xy[j]
-
-            if j == 0:
-                # Dryport = black solid square
-                ax.scatter(
-                    x, y,
-                    s=260,
-                    marker="s",
-                    facecolor="black",
-                    edgecolor="black",
-                    zorder=4,
-                )
-            else:
-                ax.scatter(
-                    x, y,
-                    s=160,
-                    facecolor="white",
-                    edgecolor="black",
-                    linewidth=1.2,
-                    zorder=3,
-                )
-
-            ax.text(
-                x, y,
-                f"{j}",
-                ha="center",
-                va="center",
-                fontsize=9,
-                color="black",
-                zorder=5,
-            )
-
-        # --------------------------
-        # Draw curved barge paths
-        # --------------------------
-        for idx, k in enumerate(used_barges):
-            color = cmap(idx % 10)
-            curvature = curvature_values[idx % len(curvature_values)]
-
-            for i in N:
-                for j in N:
-                    if i == j or x_ijk[i, j, k].X <= 0.5:
-                        continue
-
-                    # Endpoints
-                    x1, y1 = node_xy[i]
-                    x2, y2 = node_xy[j]
-                    P0 = np.array([x1, y1])
-                    P2 = np.array([x2, y2])
-
-                    # Direction vector and orthogonal normal
-                    d = P2 - P0
-                    L = np.linalg.norm(d)
-                    if L == 0:
-                        continue
-
-                    n = np.array([-d[1], d[0]]) / L  # orthogonal unit vector
-
-                    # Control point displaced by curvature
-                    P1 = (P0 + P2) / 2 + curvature * L * n
-
-                    # Generate Bezier curve points
-                    ts = np.linspace(0, 1, 60)
-                    curve = np.array([bezier_quad(P0, P1, P2, t) for t in ts])
-
-                    ax.plot(
-                        curve[:, 0], curve[:, 1],
-                        color=color,
-                        linewidth=1.5,
-                        zorder=2,
-                    )
-
-        # --------------------------
-        # Styling
-        # --------------------------
-        ax.set_aspect("equal", adjustable="datalim")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-
-        # Legend for used barges
-        legend_lines = []
-        legend_labels = []
-        for idx, k in enumerate(used_barges):
-            color = cmap(idx % 10)
-            dummy, = ax.plot([], [], color=color, linewidth=1.8)
-            legend_lines.append(dummy)
-            legend_labels.append(f"Barge {k}")
-
-        ax.legend(
-            legend_lines,
-            legend_labels,
-            loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
-            frameon=False,
-            fontsize=9,
-        )
-
-        plt.tight_layout()
-        plt.savefig("Figures/barge_solution_map_report_2.png", dpi=300)
-    def plot_barge_solution_map_report_2(self):
-        """
-        Minimalistic curved-edge barge route map.
-        - Nodes: true coordinates self.node_xy
-        - All barge paths: black curves with different line patterns per barge
-        - No title, no ticks, clean white background
-        - Legend only for barges that are actually used
-        """
-
-        def bezier_quad(P0, P1, P2, t):
-            """Quadratic Bézier interpolation."""
-            return (1 - t)**2 * P0 + 2 * (1 - t) * t * P1 + t**2 * P2
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        node_xy = self.node_xy
-        N = self.N_list
-        K_b = self.K_b
-        x_ijk = self.x_ijk
-
-        # --------------------------
-        # Determine which barges are used
-        # --------------------------
-        used_barges = []
-        for k in K_b:
-            if any(x_ijk[i, j, k].X > 0.5 for i in N for j in N if i != j):
-                used_barges.append(k)
-
-        if not used_barges:
-            print("No barges used; nothing to plot.")
-            return
-
-        # Different line patterns for barges
-        line_styles = [
-            "-",            # solid
-            "--",           # dashed
-            ":",            # dotted
-            "-.",           # dash-dot
-            (0, (5, 2, 1, 2)),   # custom: long-short-short
-            (0, (3, 3, 1, 3)),   # custom: dot-dash
-            (0, (1, 2)),         # sparse dots
-            (0, (8, 4)),         # long dash
-        ]
-        line_styles = line_styles * 10  # just in case there are many barges
-
-        fig, ax = plt.subplots(figsize=(12, 8))
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
-
-        # --------------------------
-        # Draw nodes
-        # --------------------------
-        for j in N:
-            x, y = node_xy[j]
-
-            if j == 0:
-                # Dryport = solid black square
-                ax.scatter(
-                    x, y,
-                    s=260,
-                    marker="s",
-                    facecolor="black",
-                    edgecolor="black",
-                    zorder=4,
-                )
-            else:
-                # Other terminals = hollow circles
-                ax.scatter(
-                    x, y,
-                    s=160,
-                    facecolor="white",
-                    edgecolor="black",
-                    linewidth=1.2,
-                    zorder=3,
-                )
-
-            ax.text(
-                x, y,
-                f"{j}",
-                ha="center",
-                va="center",
-                fontsize=9,
-                color="black",
-                zorder=5,
-            )
-
-        # --------------------------
-        # Draw curved barge paths
-        # --------------------------
-        for idx, k in enumerate(used_barges):
-            linestyle = line_styles[idx % len(line_styles)]
-            # alternate curvature sign/magnitude for barges
-            curvature_values = [0.12, -0.12, 0.18, -0.18, 0.25, -0.25]
-            curvature = curvature_values[idx % len(curvature_values)]
-
-            for i in N:
-                for j in N:
-                    if i == j or x_ijk[i, j, k].X <= 0.5:
-                        continue
-
-                    # Endpoints
-                    x1, y1 = node_xy[i]
-                    x2, y2 = node_xy[j]
-                    P0 = np.array([x1, y1])
-                    P2 = np.array([x2, y2])
-
-                    # Direction vector and orthogonal normal
-                    d = P2 - P0
-                    L = np.linalg.norm(d)
-                    if L == 0:
-                        continue
-
-                    n = np.array([-d[1], d[0]]) / L  # orthogonal unit vector
-
-                    # Control point displaced by curvature
-                    P1 = (P0 + P2) / 2 + curvature * L * n
-
-                    # Generate Bezier curve points
-                    ts = np.linspace(0, 1, 60)
-                    curve = np.array([bezier_quad(P0, P1, P2, t) for t in ts])
-
-                    ax.plot(
-                        curve[:, 0], curve[:, 1],
-                        color="black",
-                        linewidth=1.4,
-                        linestyle=linestyle,
-                        zorder=2,
-                    )
-
-        # --------------------------
-        # Styling
-        # --------------------------
-        ax.set_aspect("equal", adjustable="datalim")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-
-        # Legend for used barges (black lines, different patterns)
-        legend_lines = []
-        legend_labels = []
-        for idx, k in enumerate(used_barges):
-            linestyle = line_styles[idx % len(line_styles)]
-            line, = ax.plot(
-                [], [],
-                color="black",
-                linewidth=1.6,
-                linestyle=linestyle,
-            )
-            legend_lines.append(line)
-            legend_labels.append(f"Barge {k}")
-
-        ax.legend(
-            legend_lines,
-            legend_labels,
-            loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
-            frameon=False,
-            fontsize=9,
-        )
-
-        plt.tight_layout()
-        plt.savefig("Figures/barge_solution_map_report_2.png", dpi=300)
     def plot_barge_solution_map_report_3(self):
         """
         Curved-edge barge route map with segment-order alpha encoding.
@@ -1856,7 +1175,7 @@ class MILP_Algo:
             if j == 0:
                 # Dryport = solid square
                 ax.scatter(
-                    x, y, s=700, marker="s",
+                    x, y, s=800, marker="s",
                     facecolor="white", edgecolor="black",
                     zorder=4,
                 )
@@ -1928,11 +1247,6 @@ class MILP_Algo:
         # Draw curved barge paths
         # --------------------------
         multiplier = 1.8
-        # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier, 0.40*multiplier, -0.40*multiplier]
-        # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier]
-        # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier,
-        #                     0.32*multiplier, 0.25*multiplier, -0.32*multiplier,  0.18*multiplier, 0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.25*multiplier,-0.18*multiplier, -0.40*multiplier,  ]
-
         curvature_values = [0.1*multiplier, 0.2*multiplier, 0.3*multiplier, 0.4*multiplier, 0.5*multiplier, 0.6*multiplier, -0.1*multiplier, -0.2*multiplier, -0.3*multiplier, -0.4*multiplier, -0.5*multiplier, -0.6*multiplier,]
 
         legend_lines = []
@@ -1992,19 +1306,6 @@ class MILP_Algo:
             spine.set_visible(False)
 
         # Legend
-        # ax.legend(
-        #     legend_lines, legend_labels,
-        #     loc="center left",
-        #     bbox_to_anchor=(1.02, 0.5),
-        #     frameon=False,
-        #     fontsize=9,
-        # )
-        # ax.legend(
-        #     legend_lines, legend_labels,
-        #     loc="upper right",
-        #     frameon=True,
-        #     fontsize=15,
-        # )
         ax.legend(
         legend_lines, legend_labels,
         loc="upper right",
@@ -2013,7 +1314,6 @@ class MILP_Algo:
         handlelength=5,      # default is 2 — increase for longer patterns
         handletextpad=0.8,   # spacing between line and text
     )
-
 
         plt.tight_layout()
         plt.savefig(f"Figures/solution_map{self.file_name}.png", dpi=400)
@@ -2080,7 +1380,7 @@ class MILP_Algo:
             self.print_node_table()
             self.print_distance_table()
             self.print_barge_table()
-            self.print_container_table()
+            # self.print_container_table()
             if with_plots:
                 self.plot_barge_displacements()
                 # self.plot_barge_solution_map()
