@@ -55,13 +55,13 @@ class MILP_Algo:
             C_range=(150, 200),             # (min, max) number of containers when reduced=False
             N_range=(6, 6),                 # (min, max) number of terminals when reduced=False
 
-            Oc_range=(24, 196),             # (min, max) opening time in hours
-            Oc_offset_range=(50, 320),      # (min_offset, max_offset) such that
+            Oc_range=(24, 100),             # (min, max) opening time in hours
+            Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            travel_time_long_range=(3, 5),   # (min, max) travel time between dryport and sea terminals in hours
-            travel_angle = math.pi, #* 1/6,          # angle sector for terminal placement
-            # Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
+            travel_time_long_range=(120, 200),   # (min, max) travel time between dryport and sea terminals in hours
+            travel_angle = math.pi,             # angle sector for terminal placement
+            travel_time_scale = 30,             # scale down travel times for better layout
 
             P40_range=(0.2, 0.22),          # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.75),      # (min, max) probability of export
@@ -129,6 +129,7 @@ class MILP_Algo:
 
         self.travel_time_long_range = travel_time_long_range
         self.travel_angle = travel_angle
+        self.travel_time_scale = travel_time_scale
         # self.travel_time_short_range = Travel_time_short_range
 
         self.C_range_reduced = C_range_reduced
@@ -245,7 +246,7 @@ class MILP_Algo:
             # Import / export, terminal, release time
             if rng.random() < P_Export:
                 In_or_Out = 2  # Export
-                Rc_hr = rng.randint(0, 24)  # release window for exports
+                Rc_hr = rng.randint(0, 5)  # release window for exports
                 Terminal = rng.randint(1, self.N - 1)
                 self.E.append(c)
             else:
@@ -312,7 +313,7 @@ class MILP_Algo:
         # ---------------------------
         for j in range(1, num_nodes):
             # Sample travel time distance from dryport
-            r = rng.randint(long_min, long_max)
+            r = rng.randint(long_min, long_max) / self.travel_time_scale  # scaled down for better layout
 
             # Random angle
             # theta = rng.uniform(0, 2 * math.pi)
@@ -1250,7 +1251,7 @@ class MILP_Algo:
         # --------------------------
         # Draw curved barge paths
         # --------------------------
-        multi = 2.0
+        multi = 3.0
         # curvature_values = [0.2*multi, 0.25*multi, 0.3*multi, 0.35*multi, 0.4*multi, 0.45*multi, -0.2*multi, -0.25*multi, -0.3*multi, -0.35*multi, -0.4*multi, -0.45*multi,]
         # curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi, -0.1*multi, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
         curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi] #, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
