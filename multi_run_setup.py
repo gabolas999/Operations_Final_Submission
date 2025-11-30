@@ -12,18 +12,7 @@ def multi_run_setup():
     print("Starting multi-run MILP batch...")
 
     runs = [
-        # {"run_name": "MILP_Run_1",   "reduced": True,  "N_range_reduced": (2, 2), "seed": 100},
-        # {"run_name": "MILP_Run_2",   "reduced": True,  "N_range_reduced": (2, 2), "seed": 100},
-        # {"run_name": "MILP_Run_3",   "reduced": True,  "N_range_reduced": (3, 3), "seed": 100},
-        # {"run_name": "MILP_Run_4",   "reduced": True,  "N_range_reduced": (4, 4), "seed": 100},
-        # {"run_name": "MILP_Run_5",   "reduced": True,  "N_range_reduced": (5, 5), "seed": 100},
-        # {"run_name": "MILP_Run_5_1", "reduced": True,  "N_range_reduced": (5, 5), "seed": 101},
-        {"run_name": "MILP_Run_5_2", "reduced": True,  "N_range_reduced": (5, 5), "seed": 0},
-        {"run_name": "MILP_Run_5_3", "reduced": True,  "N_range_reduced": (5, 5), "seed": 1},
-        {"run_name": "MILP_Run_6",   "reduced": True,  "N_range_reduced": (6, 6), "seed": 100},
-        {"run_name": "MILP_Run_6_1",   "reduced": True,  "N_range_reduced": (6, 6), "seed": 101},
-        {"run_name": "MILP_Run_7",   "reduced": True,  "N_range_reduced": (7, 7), "seed": 100},
-        {"run_name": "MILP_Run_8",   "reduced": True,  "N_range_reduced": (8, 8), "seed": 100},
+        {"run_name": "MILP_Run_1",   "reduced": True,  "N_range_reduced": (2, 2), "seed": 100},
 
     ]
 

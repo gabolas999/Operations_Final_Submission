@@ -42,7 +42,7 @@ class MILP_Algo:
                 6000,      # Barge 5
                 6000,      # Barge 6
             ],
-            seed=100,
+            seed=0,
             reduced=False,
             h_t_40=200_000,                     # 40ft container trucking cost in euros
             h_t_20=140_000,                     # 20ft container trucking cost in euros
@@ -51,11 +51,11 @@ class MILP_Algo:
             N_range=(6, 6),                 # (min, max) number of terminals when reduced=False
 
             Oc_range=(24, 196),             # (min, max) opening time in hours
-            Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
+            Oc_offset_range=(150, 420),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            Travel_time_long_range=(3, 6),   # (min, max) travel time between dryport and sea terminals in hours
-            travel_angle = math.pi * 1/4,          # angle sector for terminal placement
+            travel_time_long_range=(3, 5),   # (min, max) travel time between dryport and sea terminals in hours
+            travel_angle = math.pi, #* 1/6,          # angle sector for terminal placement
             # Travel_time_short_range=(1, 1),  # (min, max) travel time between sea terminals in hours
 
             P40_range=(0.75, 0.9),          # (min, max) probability of 40ft container
@@ -92,7 +92,7 @@ class MILP_Algo:
             "N_range": N_range,
             "Oc_range": Oc_range,
             "Oc_offset_range": Oc_offset_range,
-            "Travel_time_long_range": Travel_time_long_range,
+            "travel_time_long_range": travel_time_long_range,
             "travel_angle": travel_angle,
             "P40_range": P40_range,
             "PExport_range": PExport_range,
@@ -122,7 +122,7 @@ class MILP_Algo:
         self.P40_range = P40_range
         self.PExport_range = PExport_range
 
-        self.travel_time_long_range = Travel_time_long_range
+        self.travel_time_long_range = travel_time_long_range
         self.travel_angle = travel_angle
         # self.travel_time_short_range = Travel_time_short_range
 
@@ -1927,7 +1927,7 @@ class MILP_Algo:
         # --------------------------
         # Draw curved barge paths
         # --------------------------
-        multiplier = 1.3
+        multiplier = 1.8
         # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier, 0.40*multiplier, -0.40*multiplier]
         # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier]
         # curvature_values = [0.12*multiplier, -0.12*multiplier, 0.40*multiplier, -0.40*multiplier, 0.18*multiplier, -0.18*multiplier, 0.25*multiplier, -0.25*multiplier, 0.32*multiplier, -0.32*multiplier,
