@@ -49,8 +49,8 @@ class MILP_Algo:
             ],
             seed=0,
             reduced=False,
-            h_t_40=200_000,                     # 40ft container trucking cost in euros
-            h_t_20=140_000,                     # 20ft container trucking cost in euros
+            h_t_40=201,                     # 40ft container trucking cost in euros
+            h_t_20=141,                     # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
             C_range=(150, 200),             # (min, max) number of containers when reduced=False
             N_range=(6, 6),                 # (min, max) number of terminals when reduced=False
@@ -1519,7 +1519,7 @@ class MILP_Algo:
             self.print_node_table()
             self.print_distance_table()
             self.print_barge_table()
-            # self.print_container_table()
+            self.print_container_table()
             if with_plots:
                 self.plot_barge_displacements()
                 # self.plot_barge_solution_map()
