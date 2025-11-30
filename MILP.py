@@ -1250,8 +1250,9 @@ class MILP_Algo:
         # --------------------------
         # Draw curved barge paths
         # --------------------------
-        multiplier = 2.4
+        multiplier = 3.5
         curvature_values = [0.1*multiplier, 0.2*multiplier, 0.3*multiplier, 0.4*multiplier, 0.5*multiplier, 0.6*multiplier, -0.1*multiplier, -0.2*multiplier, -0.3*multiplier, -0.4*multiplier, -0.5*multiplier, -0.6*multiplier,]
+        # curvature_values = [0.2*multiplier, 0.25*multiplier, 0.3*multiplier, 0.35*multiplier, 0.4*multiplier, 0.45*multiplier, -0.2*multiplier, -0.25*multiplier, -0.3*multiplier, -0.35*multiplier, -0.4*multiplier, -0.45*multiplier,]
 
         legend_lines = []
         legend_labels = []
@@ -1310,12 +1311,36 @@ class MILP_Algo:
                     n_curve = np.array([-d[1], d[0]]) / L
 
                 # 3) choose how far away from the curve to place the stack
-                offset_dist = -0.05  # tune this number to taste
+                offset_dist = 0.03  # tune this number to taste
 
                 anchor_x = peak[0] + offset_dist * n_curve[0]
                 anchor_y = peak[1] + offset_dist * n_curve[1]
 
-                plotter = ContainerPlotter(width=0.1, x=anchor_x, y=anchor_y)
+                def compute_signs(P0, P2, anchor_x, anchor_y):
+                    """
+                    Compute sign_x and sign_y by comparing the anchor point (anchor_x, anchor_y)
+                    to the midpoint of the straight line between P0 and P2.
+
+                    Returns:
+                        sign_x, sign_y  ∈ { -1, 1 }
+                    """
+                    # Midpoint of the chord
+                    M = (P0 + P2) / 2     # array([Mx, My])
+                    Mx, My = M
+
+                    dx = anchor_x - Mx
+                    dy = anchor_y - My
+
+                    # Determine signs (never 0: 0 -> +1)
+                    sign_x = 1 if dx >= 0 else -1
+                    sign_y = 1 if dy >= 0 else -1
+
+                    return sign_x, sign_y
+                
+                sign_x, sign_y = compute_signs(P0, P2, anchor_x, anchor_y)
+
+
+                plotter = ContainerPlotter(width=0.09, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
        
                 plotter.draw_capacity(ax, total_height=5, total_width=5)
                 i = 1
@@ -1323,23 +1348,13 @@ class MILP_Algo:
                     W_c = random.randint(1, 2)
                     W_c = 1
                     IorE = random.randint(1, 2)
-                    plotter.draw_container(ax, index=i, total_width=5, IorE=IorE, W_c=W_c)
+                    plotter.draw_container(ax, index=i, total_height=5, total_width=5, IorE=IorE, W_c=W_c)
                     i += W_c
 
             # legend entry for this barge
             line, = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
             legend_lines.append(line)
             legend_labels.append(f"Barge {k}")
-
-        # plotter = ContainerPlotter(width= 0.1, x=1.4, y=-1.3)
-        # plotter.draw_capacity(ax, total_height=5, total_width=5)
-        # i = 1
-        # while i <= 15:
-        #     W_c = random.randint(1, 2)
-        #     W_c = 1
-        #     IorE = random.randint(1, 2)
-        #     plotter.draw_container(ax, index=i, total_width=5, IorE=IorE, W_c=W_c)
-        #     i += W_c
 
         # --------------------------
         # Styling
@@ -1434,17 +1449,13 @@ class MILP_Algo:
                 self.plot_barge_solution_map_report_3()
 
 
-
-
-
-
 class ContainerPlotter:
     """
     Minimal wrapper class for draw_container() and draw_capacity().
     Logic, colours, and geometry remain EXACTLY as in the original functions.
     """
 
-    def __init__(self, width=20, x=0, y=0, sign=1):
+    def __init__(self, width=20, x=22, y=22, sign_x=1, sign_y=1):
         # Colors (exact same values)
         self.color_green = "#00A63C"
         self.color_green_dark = "#006E28"
@@ -1459,10 +1470,12 @@ class ContainerPlotter:
 
         self.starting_x = x
         self.starting_y = y
-        self.sign = sign
+
+        self.sign_x = sign_x
+        self.sign_y = sign_y
 
     # ------------------------------------------------------------------
-    def draw_container(self, ax, index, total_width, IorE=1, W_c=1 ):
+    def draw_container(self, ax, index, total_height, total_width, IorE=1, W_c=1 ):
         """
         Draw a single container in a grid layout.
         IDENTICAL to your original function.
@@ -1477,6 +1490,12 @@ class ContainerPlotter:
 
         x = self.starting_x + col * self.width
         y = self.starting_y + row * self.height
+
+        if self.sign_x == -1:
+            x = self.starting_x - (col + 1) * self.width
+        
+        if self.sign_y == -1:
+            y = self.starting_y - total_height * self.height + (row - 1) * self.height
 
         # Colours
         if IorE == 1:
@@ -1515,23 +1534,55 @@ class ContainerPlotter:
         color_gray = self.color_gray
         lw = 3
 
-        ax.plot(
-            [self.starting_x - margin * 1.1, self.starting_x - margin * 1.1],
-            [self.starting_y - margin, self.starting_y + total_h],
-            color=color_gray, linewidth=lw
-        )
+        if self.sign_y == 1:
+            ax.plot(
+                [self.starting_x - self.sign_x * margin * 1.1, self.starting_x - self.sign_x * margin * 1.1],
+                [self.starting_y - margin, self.starting_y + total_h],
+                color=color_gray, linewidth=lw
+            )
 
-        ax.plot(
-            [self.starting_x - margin, self.starting_x + total_w + margin],
-            [self.starting_y - margin, self.starting_y - margin],
-            color=color_gray, linewidth=lw
-        )
+            ax.plot(
+                [self.starting_x - self.sign_x * margin, self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [self.starting_y - margin, self.starting_y - margin],
+                color=color_gray, linewidth=lw
+            )
 
-        ax.plot(
-            [self.starting_x + total_w + margin, self.starting_x + total_w + margin],
-            [self.starting_y - margin, self.starting_y + total_h],
-            color=color_gray, linewidth=lw
-        )
+            ax.plot(
+                [self.starting_x + self.sign_x * total_w + self.sign_x * margin, self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [self.starting_y - margin, self.starting_y + total_h],
+                color=color_gray, linewidth=lw
+            )
+
+
+
+        elif self.sign_y == -1:
+            # Left vertical line (flipped vertically)
+            ax.plot(
+                [self.starting_x - self.sign_x * margin * 1.1, 
+                self.starting_x - self.sign_x * margin * 1.1],
+                [self.starting_y - total_h - self.height - margin, 
+                self.starting_y - self.height - margin],
+                color=color_gray, linewidth=lw
+            )
+
+
+            # Bottom horizontal line (flipped vertically)
+            ax.plot(
+                [self.starting_x - self.sign_x * margin,
+                self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [self.starting_y - total_h - self.height - margin, self.starting_y - total_h - self.height- margin],
+                color=color_gray, linewidth=lw
+            )
+
+            # Right vertical line (flipped vertically)
+            ax.plot(
+                [self.starting_x + self.sign_x * total_w + self.sign_x * margin, 
+                self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [self.starting_y - total_h - self.height - margin, 
+                self.starting_y - self.height - margin],
+                color=color_gray, linewidth=lw
+            )
+
 
 
 # Optional quick test if you run MILP.py directly:
