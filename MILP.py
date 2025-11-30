@@ -20,6 +20,11 @@ from tabulate import tabulate
 from matplotlib.patches import FancyArrowPatch
 import math
 
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+
+
 class MILP_Algo:
     def __init__(
             self,
@@ -1111,8 +1116,7 @@ class MILP_Algo:
         - Minimalistic aesthetic
         """
 
-        import numpy as np
-        import matplotlib.pyplot as plt
+
 
         def bezier_quad(P0, P1, P2, t):
             """Quadratic Bézier interpolation."""
@@ -1246,7 +1250,7 @@ class MILP_Algo:
         # --------------------------
         # Draw curved barge paths
         # --------------------------
-        multiplier = 1.8
+        multiplier = 2.4
         curvature_values = [0.1*multiplier, 0.2*multiplier, 0.3*multiplier, 0.4*multiplier, 0.5*multiplier, 0.6*multiplier, -0.1*multiplier, -0.2*multiplier, -0.3*multiplier, -0.4*multiplier, -0.5*multiplier, -0.6*multiplier,]
 
         legend_lines = []
@@ -1291,10 +1295,51 @@ class MILP_Algo:
                     zorder=2,
                 )
 
+
+                t_peak = 0.5
+                peak = bezier_quad(P0, P1, P2, t_peak)
+
+                # 2) tangent at t = 0.5
+                T = 2 * (1 - t_peak) * (P1 - P0) + 2 * t_peak * (P2 - P1)
+                T_norm = np.linalg.norm(T)
+                if T_norm > 0:
+                    # normal to the curve at the peak
+                    n_curve = np.array([-T[1], T[0]]) / T_norm
+                else:
+                    # fallback: use the segment direction normal
+                    n_curve = np.array([-d[1], d[0]]) / L
+
+                # 3) choose how far away from the curve to place the stack
+                offset_dist = -0.05  # tune this number to taste
+
+                anchor_x = peak[0] + offset_dist * n_curve[0]
+                anchor_y = peak[1] + offset_dist * n_curve[1]
+
+                plotter = ContainerPlotter(width=0.1, x=anchor_x, y=anchor_y)
+       
+                plotter.draw_capacity(ax, total_height=5, total_width=5)
+                i = 1
+                while i <= random.randint(2, 25):
+                    W_c = random.randint(1, 2)
+                    W_c = 1
+                    IorE = random.randint(1, 2)
+                    plotter.draw_container(ax, index=i, total_width=5, IorE=IorE, W_c=W_c)
+                    i += W_c
+
             # legend entry for this barge
             line, = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
             legend_lines.append(line)
             legend_labels.append(f"Barge {k}")
+
+        # plotter = ContainerPlotter(width= 0.1, x=1.4, y=-1.3)
+        # plotter.draw_capacity(ax, total_height=5, total_width=5)
+        # i = 1
+        # while i <= 15:
+        #     W_c = random.randint(1, 2)
+        #     W_c = 1
+        #     IorE = random.randint(1, 2)
+        #     plotter.draw_container(ax, index=i, total_width=5, IorE=IorE, W_c=W_c)
+        #     i += W_c
 
         # --------------------------
         # Styling
@@ -1387,6 +1432,107 @@ class MILP_Algo:
                 # self.plot_barge_solution_map_report()
                 # self.plot_barge_solution_map_report_2()
                 self.plot_barge_solution_map_report_3()
+
+
+
+
+
+
+class ContainerPlotter:
+    """
+    Minimal wrapper class for draw_container() and draw_capacity().
+    Logic, colours, and geometry remain EXACTLY as in the original functions.
+    """
+
+    def __init__(self, width=20, x=0, y=0, sign=1):
+        # Colors (exact same values)
+        self.color_green = "#00A63C"
+        self.color_green_dark = "#006E28"
+
+        self.color_orange = "#FF6F00"
+        self.color_orange_dark = "#B23E00"
+
+        self.color_gray = "#888888"
+
+        self.width = width
+        self.height = width * 8.6 / 20
+
+        self.starting_x = x
+        self.starting_y = y
+        self.sign = sign
+
+    # ------------------------------------------------------------------
+    def draw_container(self, ax, index, total_width, IorE=1, W_c=1 ):
+        """
+        Draw a single container in a grid layout.
+        IDENTICAL to your original function.
+        """
+
+        # Effective number of columns per row
+        max_cols = max(1, total_width - 1)
+
+        idx0 = index - 1
+        row = idx0 // max_cols
+        col = idx0 % max_cols
+
+        x = self.starting_x + col * self.width
+        y = self.starting_y + row * self.height
+
+        # Colours
+        if IorE == 1:
+            face = self.color_green
+            edge = self.color_green_dark
+        elif IorE == 2:
+            face = self.color_orange
+            edge = self.color_orange_dark
+        else:
+            face = "#CCCCCC"
+            edge = "#888888"
+
+        rect = Rectangle(
+            (x, y),
+            self.width * W_c,
+            self.height,
+            facecolor=face,
+            edgecolor=edge,
+            linewidth=1.8
+        )
+        ax.add_patch(rect)
+
+    # ------------------------------------------------------------------
+    def draw_capacity(self, ax, total_height, total_width):
+        """
+        Draw the grey bounding box around the full capacity.
+        IDENTICAL to your original function.
+        """
+        max_cols = max(1, total_width - 1)
+
+        margin = self.width / 10
+
+        total_w = max_cols * self.width
+        total_h = total_height * self.height
+
+        color_gray = self.color_gray
+        lw = 3
+
+        ax.plot(
+            [self.starting_x - margin * 1.1, self.starting_x - margin * 1.1],
+            [self.starting_y - margin, self.starting_y + total_h],
+            color=color_gray, linewidth=lw
+        )
+
+        ax.plot(
+            [self.starting_x - margin, self.starting_x + total_w + margin],
+            [self.starting_y - margin, self.starting_y - margin],
+            color=color_gray, linewidth=lw
+        )
+
+        ax.plot(
+            [self.starting_x + total_w + margin, self.starting_x + total_w + margin],
+            [self.starting_y - margin, self.starting_y + total_h],
+            color=color_gray, linewidth=lw
+        )
+
 
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
