@@ -619,31 +619,31 @@ class MILP_Algo:
         ##############
             
         # 1. Each container is assigned to exactly one vehicle
-#  print table. 
-        # 2. Flow conservation for barges at each node
-# checked
-        # 3. Each barge leaves dryport (0) at most once
-# checked
-        # 4. No self-loops (i -> i)
-# checked        
-        # 5. Import quantity at terminal j for barge k
+    #  print table. 
+            # 2. Flow conservation for barges at each node
+    # checked
+            # 3. Each barge leaves dryport (0) at most once
+    # checked
+            # 4. No self-loops (i -> i)
+    # checked        
+            # 5. Import quantity at terminal j for barge k
 
-        # 6. Export quantity at terminal j for barge k
+            # 6. Export quantity at terminal j for barge k
 
-        # 7. Flow balance for import quantities at terminal j for barge k
-# checked
-        # 8. Flow balance for export quantities at terminal j for barge k
-# checked
-        # 9. Barge trip capacity constraint
-# almost checked
-        # 10. Export containers: departure time at dryport >= release time
-# box plot looking thing. 
-        # 11 & 12. Time propagation along arcs with handling time at arrival
+            # 7. Flow balance for import quantities at terminal j for barge k
+    # checked
+            # 8. Flow balance for export quantities at terminal j for barge k
+    # checked
+            # 9. Barge trip capacity constraint
+    # almost checked
+            # 10. Export containers: departure time at dryport >= release time
+    # box plot looking thing. 
+            # 11 & 12. Time propagation along arcs with handling time at arrival
 
-        # 13. Export container service cannot start before opening time
-# box plot looking thing
-        # 14. All containers must be served before closing time
-# box plot looking thing. 
+            # 13. Export container service cannot start before opening time
+    # box plot looking thing
+            # 14. All containers must be served before closing time
+    # box plot looking thing. 
 
 
 
@@ -1404,6 +1404,117 @@ class MILP_Algo:
 
         plt.tight_layout()
         plt.savefig(f"Figures/solution_map{self.file_name}.pdf")
+
+    def plot_barge_solution_map_report_ONLY_NODES(self):
+        """
+        Curved-edge barge route map with segment-order alpha encoding.
+        Improvements over _2:
+        - Each barge's path segments fade in as the barge progresses:
+              early arcs → low alpha
+              late arcs → alpha=1
+        - Minimalistic aesthetic
+        """
+
+
+
+        def bezier_quad(P0, P1, P2, t):
+            """Quadratic Bézier interpolation."""
+            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t ** 2 * P2
+
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available for plotting.")
+            return
+
+        # --------------------------
+        # Extract data
+        # --------------------------
+        node_xy = self.node_xy
+        N = self.N_list
+        K_b = self.K_b
+        x_ijk = self.x_ijk
+
+
+        # --------------------------
+        # Prepare figure
+        # --------------------------
+        # fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=((12/1.4), (8/1.4)))
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
+
+        # --------------------------
+        # Draw nodes
+        # --------------------------
+        for j in N:
+            x, y = node_xy[j]
+
+            if j == 0:
+                # Dryport = solid square
+                ax.scatter(
+                    x, y, s=800, marker="s",
+                    facecolor="white", edgecolor="black",
+                    zorder=4,
+                )
+            else:
+                ax.scatter(
+                    x, y, s=400,
+                    facecolor="white", edgecolor="black",
+                    linewidth=1.2, zorder=3
+                )
+
+            ax.text(
+                x, y, f"{j}",
+                ha="center", va="center",
+                fontsize=9, color="black", zorder=5
+            )
+
+        # --------------------------
+        # Draw dotted connections between all node pairs
+        # --------------------------
+        for i in N:
+            xi, yi = node_xy[i]
+
+            for j in N:
+                if j <= i:
+                    continue  # avoid self-loops and duplicate lines
+
+                xj, yj = node_xy[j]
+
+                curve = np.array([
+                    [xi, yi],
+                    [xj, yj],
+                ])
+
+                ax.plot(
+                    curve[:, 0], curve[:, 1],
+                    color="black",
+                    linewidth=1.2,
+                    linestyle=":",
+                    alpha=1.0,
+                    zorder=2,
+                )
+
+
+        # --------------------------
+        # Styling
+        # --------------------------
+        ax.set_aspect("equal", adjustable="datalim")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        plt.tight_layout()
+        plt.savefig(f"Figures/solution_map{self.file_name}_simple.pdf")
+
+
+
+
+
+
+
+
 
     def _draw_segment_stack(self, ax, plotter, i, j, k,
                             total_width, max_rows):
@@ -2523,6 +2634,7 @@ class MILP_Algo:
                 # self.plot_barge_solution_map_report()
                 # self.plot_barge_solution_map_report_2()
                 self.plot_barge_solution_map_report_3()
+                self.plot_barge_solution_map_report_ONLY_NODES()
                 self.plot_time_windows()
 
 
