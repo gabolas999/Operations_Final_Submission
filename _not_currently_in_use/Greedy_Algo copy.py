@@ -690,6 +690,6 @@ def delay_window(container, D_terminal, route, terminal, handling_time):
 
 # Run the algorithm and print results if this file is executed directly
 if __name__ == "__main__":
-    optimizer = GreedyOptimizer(reduced=True)
+    optimizer = GreedyOptimizer()
     results = optimizer.solve_greedy()
     optimizer.print_results()
