@@ -28,24 +28,25 @@ from matplotlib.patches import Rectangle
 class MILP_Algo:
     def __init__(
             self,
-            run_name="MILP_Run",
+            # run_name="MILP_Run",
+            run_name="______",
             qk=[  # Barge capacities in TEU
                 20,         # Barge 0
                 20,         # Barge 1
-                20,         # Barge 2
-                20,         # Barge 3
-                10,         # Barge 4
-                10,         # Barge 5
-                10,         # Barge 6
+                # 20,         # Barge 2
+                # 20,         # Barge 3
+                # 10,         # Barge 4
+                # 10,         # Barge 5
+                # 10,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
                 1100,      # Barge 0
                 1700,      # Barge 1
-                1800,      # Barge 2
-                1900,      # Barge 3
-                3300,      # Barge 4
-                6300,      # Barge 5
-                6300,      # Barge 6
+                # 1800,      # Barge 2
+                # 1900,      # Barge 3
+                # 3300,      # Barge 4
+                # 6300,      # Barge 5
+                # 6300,      # Barge 6
             ],
             seed=0,
             reduced=False,
@@ -65,7 +66,7 @@ class MILP_Algo:
 
             P40_range=(0.2, 0.22),          # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.75),      # (min, max) probability of export
-            C_range_reduced=(65, 75),      # (min, max) containers when reduced=True
+            C_range_reduced=(5, 10),      # (min, max) containers when reduced=True
             N_range_reduced=(4, 4),         # (min, max) terminals when reduced=True
             gamma=100,                      # penalty per sea terminal visit [euros]
             big_m=1_000_000                 # big-M
@@ -246,7 +247,7 @@ class MILP_Algo:
             # Import / export, terminal, release time
             if rng.random() < P_Export:
                 In_or_Out = 2  # Export
-                Rc_hr = rng.randint(0, 5)  # release window for exports
+                Rc_hr = rng.randint(20, 40)  # release window for exports
                 Terminal = rng.randint(1, self.N - 1)
                 self.E.append(c)
             else:
@@ -620,26 +621,26 @@ class MILP_Algo:
             
         # 1. Each container is assigned to exactly one vehicle
     #  print table. 
-            # 2. Flow conservation for barges at each node
+            # 2. Flow conservation for barges at each node              #
     # checked
-            # 3. Each barge leaves dryport (0) at most once
+            # 3. Each barge leaves dryport (0) at most once             #
     # checked
-            # 4. No self-loops (i -> i)
-    # checked        
-            # 5. Import quantity at terminal j for barge k
-
-            # 6. Export quantity at terminal j for barge k
-
-            # 7. Flow balance for import quantities at terminal j for barge k
+            # 4. No self-loops (i -> i)                                 #
+    # checked           
+            # 5. Import quantity at terminal j for barge k              #
+    # checked           
+            # 6. Export quantity at terminal j for barge k              #
+    # checked           
+            # 7. Flow balance for import quantities at terminal j for barge k           #
     # checked
-            # 8. Flow balance for export quantities at terminal j for barge k
+            # 8. Flow balance for export quantities at terminal j for barge k           #
     # checked
-            # 9. Barge trip capacity constraint
+            # 9. Barge trip capacity constraint                                         #                                     
     # almost checked
             # 10. Export containers: departure time at dryport >= release time
     # box plot looking thing. 
             # 11 & 12. Time propagation along arcs with handling time at arrival
-
+    # boc plot looking thing.
             # 13. Export container service cannot start before opening time
     # box plot looking thing
             # 14. All containers must be served before closing time
@@ -1167,7 +1168,8 @@ class MILP_Algo:
         # --------------------------
         # Prepare figure
         # --------------------------
-        fig, ax = plt.subplots(figsize=(12, 8))
+        # fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(10, 7))
         fig.patch.set_facecolor("white")
         ax.set_facecolor("white")
 
@@ -1341,7 +1343,8 @@ class MILP_Algo:
                 
                 sign_x, sign_y = compute_signs(P0, P2, anchor_x, anchor_y)
 
-                width_scaled = 0.09
+                # width_scaled = 0.09
+                width_scaled = 0.18
                 plotter = ContainerPlotter(width=width_scaled, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
        
                 total_capacity = self.Qk[k]
@@ -1397,13 +1400,310 @@ class MILP_Algo:
         legend_lines, legend_labels,
         loc="upper right",
         frameon=True,
-        fontsize=14,
+        fontsize=15,
         handlelength= 4.2,      # default is 2 — increase for longer patterns
         handletextpad=0.8,   # spacing between line and text
     )
 
         plt.tight_layout()
         plt.savefig(f"Figures/solution_map{self.file_name}.pdf")
+    def plot_barge_solution_map_report_Without_containers(self):
+        """
+        Curved-edge barge route map with segment-order alpha encoding.
+        Improvements over _2:
+        - Each barge's path segments fade in as the barge progresses:
+              early arcs → low alpha
+              late arcs → alpha=1
+        - Minimalistic aesthetic
+        """
+
+
+
+        def bezier_quad(P0, P1, P2, t):
+            """Quadratic Bézier interpolation."""
+            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t ** 2 * P2
+
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available for plotting.")
+            return
+
+        # --------------------------
+        # Extract data
+        # --------------------------
+        node_xy = self.node_xy
+        N = self.N_list
+        K_b = self.K_b
+        x_ijk = self.x_ijk
+
+        # --------------------------
+        # Determine which barges are used
+        # --------------------------
+        used_barges = []
+        for k in K_b:
+            if any(x_ijk[i, j, k].X > 0.5 for i in N for j in N if i != j):
+                used_barges.append(k)
+
+        if not used_barges:
+            print("No barges used; nothing to plot.")
+            return
+
+        # --------------------------
+        # Linestyles for barges
+        # --------------------------
+        line_styles = [
+            "-",          # solid
+            "--",         # dashed
+            ":",          # dotted
+            "-.",         # dash-dot
+            (0, (1, 1, 2, 1)),    # dot-dash fine
+            (0, (8, 4)),          # long dash
+            (0, (1, 2, 1, 2, 1, 6)),    # custom pattern
+            (0, (2, 6)),                # custom pattern
+            (0, (6, 2, 1, 2, 1, 2)),    # custom pattern
+        ]
+        line_styles = line_styles * 10  # repeat if many barges
+
+        # --------------------------
+        # Prepare figure
+        # --------------------------
+        fig, ax = plt.subplots(figsize=(12, 8))
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
+
+        # --------------------------
+        # Draw nodes
+        # --------------------------
+        for j in N:
+            x, y = node_xy[j]
+
+            if j == 0:
+                # Dryport = solid square
+                ax.scatter(
+                    x, y, s=800, marker="s",
+                    facecolor="white", edgecolor="black",
+                    zorder=4,
+                )
+            else:
+                ax.scatter(
+                    x, y, s=400,
+                    facecolor="white", edgecolor="black",
+                    linewidth=1.2, zorder=3
+                )
+
+            ax.text(
+                x, y, f"{j}",
+                ha="center", va="center",
+                fontsize=9, color="black", zorder=5
+            )
+
+        # --------------------------
+        # Build barge segment order
+        # --------------------------
+        barge_arcs_ordered = {}  # k -> ordered list of (i,j)
+
+        for k in used_barges:
+            # Collect all used arcs for this barge
+            arcs = [(i, j) for i in N for j in N if i != j and x_ijk[i, j, k].X > 0.5]
+
+            # -----------------------------------------------------------
+            # Try to reconstruct the path order
+            # Assumes a route exists (no complex branching)
+            # -----------------------------------------------------------
+            successors = {i: [] for i in N}
+            predecessors = {j: [] for j in N}
+
+            for (i, j) in arcs:
+                successors[i].append(j)
+                predecessors[j].append(i)
+
+            # A start node has no predecessors
+            start_candidates = [i for i in N if successors[i] and len(predecessors[i]) == 0]
+
+            if start_candidates:
+                start = start_candidates[0]
+            else:
+                # fallback: pick a node appearing as a 'from' node
+                start = arcs[0][0]
+
+            ordered = []
+            current = start
+            visited = set()
+
+            while True:
+                next_nodes = [j for j in successors[current] if (current, j) in arcs]
+                next_nodes = [j for j in next_nodes if (current, j) not in visited]
+
+                if not next_nodes:
+                    break
+
+                j = next_nodes[0]
+                ordered.append((current, j))
+                visited.add((current, j))
+                current = j
+
+            # If something was missed, append remaining arcs arbitrarily
+            remaining = [a for a in arcs if a not in ordered]
+            ordered.extend(remaining)
+
+            barge_arcs_ordered[k] = ordered
+
+        # --------------------------
+        # Draw curved barge paths
+        # --------------------------
+        multi = 3.0
+        # curvature_values = [0.2*multi, 0.25*multi, 0.3*multi, 0.35*multi, 0.4*multi, 0.45*multi, -0.2*multi, -0.25*multi, -0.3*multi, -0.35*multi, -0.4*multi, -0.45*multi,]
+        # curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi, -0.1*multi, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
+        curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi] #, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
+
+        legend_lines = []
+        legend_labels = []
+
+        for idx, k in enumerate(used_barges):
+            linestyle = line_styles[idx]
+            curvature = curvature_values[idx % len(curvature_values)]
+
+            arcs = barge_arcs_ordered[k]
+            S = max(1, len(arcs))  # number of segments
+
+            alphas = np.linspace(1.0, 0.25, S)
+
+            for s, ((i, j), alpha) in enumerate(zip(arcs, alphas)):
+                x1, y1 = node_xy[i]
+                x2, y2 = node_xy[j]
+
+                P0 = np.array([x1, y1])
+                P2 = np.array([x2, y2])
+
+                d = P2 - P0
+                L = np.linalg.norm(d)
+                if L == 0:
+                    continue
+
+                # perpendicular orthonormal vector
+                n = np.array([-d[1], d[0]]) / L
+
+                # Bezier control point for curvature
+                P1 = (P0 + P2) / 2 + curvature * L * n
+
+                ts = np.linspace(0, 1, 60)
+                curve = np.array([bezier_quad(P0, P1, P2, t) for t in ts])
+
+                ax.plot(
+                    curve[:, 0], curve[:, 1],
+                    color="black",
+                    linewidth=2.5,
+                    linestyle=linestyle,
+                    alpha=float(alpha),
+                    zorder=2,
+                )
+
+
+                t_peak = 0.5
+                peak = bezier_quad(P0, P1, P2, t_peak)
+
+                # 2) tangent at t = 0.5
+                T = 2 * (1 - t_peak) * (P1 - P0) + 2 * t_peak * (P2 - P1)
+                T_norm = np.linalg.norm(T)
+                if T_norm > 0:
+                    # normal to the curve at the peak
+                    n_curve = np.array([-T[1], T[0]]) / T_norm
+                else:
+                    # fallback: use the segment direction normal
+                    n_curve = np.array([-d[1], d[0]]) / L
+
+                # 3) choose how far away from the curve to place the stack
+                offset_dist = 0.03  # tune this number to taste
+
+                anchor_x = peak[0] + offset_dist * n_curve[0]
+                anchor_y = peak[1] + offset_dist * n_curve[1]
+
+                def compute_signs(P0, P2, anchor_x, anchor_y):
+                    """
+                    Compute sign_x and sign_y by comparing the anchor point (anchor_x, anchor_y)
+                    to the midpoint of the straight line between P0 and P2.
+
+                    Returns:
+                        sign_x, sign_y  ∈ { -1, 1 }
+                    """
+                    # Midpoint of the chord
+                    M = (P0 + P2) / 2     # array([Mx, My])
+                    Mx, My = M
+
+                    dx = anchor_x - Mx
+                    dy = anchor_y - My
+
+                    # Determine signs (never 0: 0 -> +1)
+                    sign_x = 1 if dx >= 0 else -1
+                    sign_y = 1 if dy >= 0 else -1
+
+                    return sign_x, sign_y
+                
+                # sign_x, sign_y = compute_signs(P0, P2, anchor_x, anchor_y)
+
+                # width_scaled = 0.09
+                # plotter = ContainerPlotter(width=width_scaled, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
+       
+                # total_capacity = self.Qk[k]
+                # self._draw_segment_stack(ax, plotter, i, j, k,
+                                        #  total_width=5, max_rows=total_capacity / 5)
+
+
+
+            # legend entry for this barge
+            line, = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
+            legend_lines.append(line)
+            legend_labels.append(f"Barge {k}")
+            # ==========================================
+            # Add Import / Export container legend icons
+            # ==========================================
+
+
+        # # Small representative container size
+        # legend_w = width_scaled
+        # legend_h = legend_w * 8.6 / 20
+
+        # import_patch = Rectangle(
+        #     (0, 0),
+        #     legend_w,
+        #     legend_h,
+        #     facecolor="#00A63C",
+        #     edgecolor="#006E28",
+        #     linewidth=1.5
+        # )
+        # export_patch = Rectangle(
+        #     (0, 0),
+        #     legend_w,
+        #     legend_h,
+        #     facecolor="#FF6F00",
+        #     edgecolor="#B23E00",
+        #     linewidth=1.5
+        # )
+
+        # legend_lines.extend([export_patch, import_patch])
+        # legend_labels.extend(["Export", "Import"])
+
+        # --------------------------
+        # Styling
+        # --------------------------
+        ax.set_aspect("equal", adjustable="datalim")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        # Legend
+        ax.legend(
+        legend_lines, legend_labels,
+        loc="upper right",
+        frameon=True,
+        fontsize=15,
+        handlelength= 4.2,      # default is 2 — increase for longer patterns
+        handletextpad=0.8,   # spacing between line and text
+    )
+
+        plt.tight_layout()
+        plt.savefig(f"Figures/solution_map{self.file_name}_no_cont.pdf")
 
     def plot_barge_solution_map_report_ONLY_NODES(self):
         """
@@ -1570,738 +1870,6 @@ class MILP_Algo:
                 W_c=1    # treat each TEU as a 20ft for visualization
             )
             idx += 1
-
-    def plot_time_windows(self, row_spacing: float = 0.1):
-        """
-        Plot container time windows and service times to visually verify time constraints.
-        """
-        import matplotlib.pyplot as plt
-        import matplotlib.lines as mlines
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting time windows.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        C = self.C_list
-        E = set(self.E)
-        I = set(self.I)
-
-        R_c = self.R_c
-        O_c = self.O_c
-        D_c = self.D_c
-        Z_cj = self.Z_cj
-
-        K = self.K_list
-        K_b = set(self.K_b)
-        K_t = self.K_t
-
-        f_ck = self.f_ck
-        t_jk = self.t_jk
-
-        # --------------------------
-        # Build ordered container list: exports first, then imports
-        # --------------------------
-        export_ids = sorted(E)
-        import_ids = sorted(I)
-        container_rows = export_ids + import_ids
-
-        if not container_rows:
-            print("No containers to plot.")
-            return
-
-        # Number of rows
-        n_rows = len(container_rows)                                               # <<< changed
-
-        # Adapt row spacing so rows fill vertical axis without wasted space
-        if n_rows > 1:                                                             # <<< changed
-            row_spacing = 1.0 / (n_rows - 1)                                       # <<< changed
-        else:                                                                      # <<< changed
-            row_spacing = 1.0                                                      # <<< changed
-
-        # Map container -> row index (0 at top, but we'll invert axis later)
-        row_index = {c: idx for idx, c in enumerate(container_rows)}
-
-        # --------------------------
-        # X-axis range: earliest opening to latest closing
-        # --------------------------
-        min_open = min(O_c[c] for c in C)
-        max_close = max(D_c[c] for c in C)
-        span = max_close - min_open
-        margin = max(0.05 * span, 1.0)
-
-        x_min = min_open - margin
-        x_max = max_close + margin
-
-        # --------------------------
-        # Prepare figure
-        # --------------------------
-        # Fix width, adapt height to number of containers
-        fig_width = 6                                                              # <<< changed
-        base_height_per_row = 0.45                                                 # <<< changed
-        fig_height = base_height_per_row * n_rows                                  # <<< changed
-        fig_height = min(max(fig_height, 3.0), 12.0)  # clamp between 3" and 12"   # <<< changed
-
-        fig, ax = plt.subplots(figsize=(fig_width, fig_height))                    # <<< changed
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
-
-        # --------------------------
-        # Plot each container's time info
-        # --------------------------
-        for c in container_rows:
-            y = row_index[c] * row_spacing
-
-            if c in E:
-                color      = "#FF6F00"
-                color_dark = "#B23E00"
-            if c in I:
-                color      = "#00A63C"
-                color_dark = "#006E28"
-
-            R = R_c[c]
-            O = O_c[c]
-            D = D_c[c]
-
-            # time window line [O, D]
-            ax.hlines(
-                y, O, D,
-                colors=color_dark,
-                linewidth=2,
-            )
-
-            # release time (square)
-            ax.scatter(
-                R, y,
-                marker="s",
-                s=30,
-                facecolor="white",
-                edgecolor="black",
-                linewidth=1.0,
-                zorder=3,
-            )
-
-            # opening time 
-            ax.scatter(
-                O, y,
-                marker=">",
-                s=50,
-                facecolor=color,
-                edgecolor=color_dark,
-                linewidth=1.0,
-                zorder=3,
-            )
-
-            # closing time 
-            ax.scatter(
-                D, y,
-                marker="<",
-                s=50,
-                facecolor=color,
-                edgecolor=color_dark,
-                linewidth=1.0,
-                zorder=3,
-            )
-
-            # Determine assigned vehicle
-            assigned_k = None
-            for k in K:
-                if f_ck[c, k].X > 0.5:
-                    assigned_k = k
-                    break
-
-            # Service time marker (only if barge)
-            if assigned_k is not None and assigned_k in K_b:
-                try:
-                    j = Z_cj[c].index(1)
-                except ValueError:
-                    j = None
-
-                if j is not None:
-                    service_time = t_jk[j, assigned_k].X
-                    ax.scatter(
-                        service_time, y,
-                        marker="2",
-                        s=80,
-                        facecolor="black",
-                        linewidth=1.6,
-                        zorder=4,
-                    )
-
-        # --------------------------
-        # Axis formatting
-        # --------------------------
-        ax.set_xlim(x_min, x_max)
-
-        yticks = [row_index[c] * row_spacing for c in container_rows]
-        ylabels = [f"{c}" for c in container_rows]
-
-        ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabels, fontsize=8)
-
-        ax.invert_yaxis()
-
-        ax.set_xlabel("Time [hours]", fontsize=10)
-        ax.set_ylabel("Containers", fontsize=10)
-
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.grid(False)
-
-        # --------------------------
-        # Legend below the plot
-        # --------------------------
-        export_window = mlines.Line2D([], [], color="#FF6F00", linewidth=2)
-        import_window = mlines.Line2D([], [], color="#00A63C", linewidth=2)
-        marker_release  = mlines.Line2D([], [], color="black", marker="s", linestyle="None", markerfacecolor="white", markeredgecolor="black")
-        marker_service  = mlines.Line2D([], [], markeredgecolor="black", marker="2", linestyle="None")
-
-        legend_handles = [
-            export_window,
-            import_window,
-            marker_service,
-            marker_release,
-        ]
-        legend_labels = [
-            "Export time window [O, D]",
-            "Import time window [O, D]",
-            "Delivery/Pickup time t_jk",
-            "Release time R",
-        ]
-
-
-        # after computing n_rows and row_spacing:
-
-
-        ax.legend(
-            legend_handles,
-            legend_labels,
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.05),
-            ncol=2,
-            frameon=True,
-            fontsize=8,
-        )
-
-
-        plt.tight_layout()
-
-        outfile = f"Figures/time_windows{self.file_name}.pdf"
-        plt.savefig(outfile, dpi=300)
-    def plot_time_windows(self, row_spacing: float = 0.1):
-        """
-        Plot container time windows and service times to visually verify time constraints.
-        """
-        import matplotlib.pyplot as plt
-        import matplotlib.lines as mlines
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting time windows.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        C = self.C_list
-        E = set(self.E)
-        I = set(self.I)
-
-        R_c = self.R_c
-        O_c = self.O_c
-        D_c = self.D_c
-        Z_cj = self.Z_cj
-
-        K = self.K_list
-        K_b = set(self.K_b)
-        K_t = self.K_t
-
-        f_ck = self.f_ck
-        t_jk = self.t_jk
-
-        # --------------------------
-        # Precompute assigned barge and service time per container
-        # --------------------------
-        assigned_barge = {}   # c -> k (if barge) or None
-        service_time_c = {}   # c -> service time (if barge) or None
-
-        for c in C:
-            assigned_k = None
-            for k in K:
-                if f_ck[c, k].X > 0.5:
-                    assigned_k = k
-                    break
-
-            if assigned_k is not None and assigned_k in K_b:
-                # Find terminal j from Z_cj[c]
-                try:
-                    j = Z_cj[c].index(1)
-                except ValueError:
-                    j = None
-
-                if j is not None:
-                    st = t_jk[j, assigned_k].X
-                else:
-                    st = None
-
-                assigned_barge[c] = assigned_k
-                service_time_c[c] = st
-            else:
-                assigned_barge[c] = None
-                service_time_c[c] = None
-
-        # --------------------------
-        # Build ordered container list:
-        #   - exports first, then imports
-        #   - within each type: group by barge index, order by service time
-        # --------------------------
-        export_ids = sorted(E)
-        import_ids = sorted(I)
-
-        export_rows = []
-        import_rows = []
-
-        # Helper: sorted containers of a given list, for a given barge k
-        def containers_for_barge(container_list, k):
-            conts = [c for c in container_list if assigned_barge.get(c) == k]
-            # Order by service time; None goes last if it ever appears
-            conts_sorted = sorted(
-                conts,
-                key=lambda c: (service_time_c[c] is None, service_time_c[c])
-            )
-            return conts_sorted
-
-        # Exports, grouped by barge index
-        for k in sorted(K_b):
-            export_rows.extend(containers_for_barge(export_ids, k))
-        # Exports without barge (e.g. truck)
-        export_no_barge = [c for c in export_ids if assigned_barge.get(c) is None]
-        export_rows.extend(sorted(export_no_barge))
-
-        # Imports, grouped by barge index
-        for k in sorted(K_b):
-            import_rows.extend(containers_for_barge(import_ids, k))
-        # Imports without barge (e.g. truck)
-        import_no_barge = [c for c in import_ids if assigned_barge.get(c) is None]
-        import_rows.extend(sorted(import_no_barge))
-
-        # Final row order: exports, then imports
-        container_rows = export_rows + import_rows
-
-        if not container_rows:
-            print("No containers to plot.")
-            return
-
-        # Number of rows
-        n_rows = len(container_rows)
-
-        # Adapt row spacing so rows fill vertical axis without wasted space
-        if n_rows > 1:
-            row_spacing = 1.0 / (n_rows - 1)
-        else:
-            row_spacing = 1.0
-
-        # Map container -> row index (0 at top, but we'll invert axis later)
-        row_index = {c: idx for idx, c in enumerate(container_rows)}
-
-        # --------------------------
-        # X-axis range: earliest opening to latest closing
-        # --------------------------
-        min_open = min(O_c[c] for c in C)
-        max_close = max(D_c[c] for c in C)
-        span = max_close - min_open
-        margin = max(0.05 * span, 1.0)
-
-        x_min = min_open - margin
-        x_max = max_close + margin
-
-        # --------------------------
-        # Prepare figure
-        # --------------------------
-        # Fix width, adapt height to number of containers
-        fig_width = 6
-        base_height_per_row = 0.45
-        fig_height = base_height_per_row * n_rows
-        fig_height = min(max(fig_height, 3.0), 12.0)  # clamp between 3" and 12"
-
-        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
-
-        # --------------------------
-        # Plot each container's time info
-        # --------------------------
-        for c in container_rows:
-            y = row_index[c] * row_spacing
-
-            if c in E:
-                color      = "#FF6F00"
-                color_dark = "#B23E00"
-            if c in I:
-                color      = "#00A63C"
-                color_dark = "#006E28"
-
-            R = R_c[c]
-            O = O_c[c]
-            D = D_c[c]
-
-            # time window line [O, D]
-            ax.hlines(
-                y, O, D,
-                colors=color_dark,
-                linewidth=2,
-            )
-
-            # release time (square)
-            ax.scatter(
-                R, y,
-                marker="s",
-                s=30,
-                facecolor="white",
-                edgecolor="black",
-                linewidth=1.0,
-                zorder=3,
-            )
-
-            # opening time
-            ax.scatter(
-                O, y,
-                marker=">",
-                s=50,
-                facecolor=color,
-                edgecolor=color_dark,
-                linewidth=1.0,
-                zorder=3,
-            )
-
-            # closing time
-            ax.scatter(
-                D, y,
-                marker="<",
-                s=50,
-                facecolor=color,
-                edgecolor=color_dark,
-                linewidth=1.0,
-                zorder=3,
-            )
-
-            # Service time marker (only if assigned to barge)
-            assigned_k = assigned_barge.get(c)
-            st = service_time_c.get(c)
-            if assigned_k is not None and assigned_k in K_b and st is not None:
-                ax.scatter(
-                    st, y,
-                    marker="2",
-                    s=80,
-                    facecolor="black",
-                    linewidth=1.6,
-                    zorder=4,
-                )
-
-        # --------------------------
-        # Axis formatting
-        # --------------------------
-        ax.set_xlim(x_min, x_max)
-
-        yticks = [row_index[c] * row_spacing for c in container_rows]
-
-        # Widths for aligned labels
-        k_width = max(1, max((len(str(k)) for k in K_b), default=1))
-        c_width = max(1, max(len(str(c)) for c in C))
-
-        ylabels = []
-        for c in container_rows:
-            k = assigned_barge.get(c)
-            label = f"B{str(k).rjust(k_width)}".ljust(k_width+2) + " | " + str(c).rjust(c_width, '0')
-            ylabels.append(label)
-
-        ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabels, fontsize=8)
-
-        ax.invert_yaxis()
-
-        ax.set_xlabel("Time [hours]", fontsize=10)
-        ax.set_ylabel("Containers", fontsize=10)
-
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.grid(False)
-
-        # --------------------------
-        # Legend below the plot
-        # --------------------------
-        export_window = mlines.Line2D([], [], color="#FF6F00", linewidth=2)
-        import_window = mlines.Line2D([], [], color="#00A63C", linewidth=2)
-        marker_release = mlines.Line2D(
-            [], [], color="black", marker="s", linestyle="None",
-            markerfacecolor="white", markeredgecolor="black"
-        )
-        marker_service = mlines.Line2D(
-            [], [], markeredgecolor="black", marker="2", linestyle="None"
-        )
-
-        legend_handles = [
-            export_window,
-            import_window,
-            marker_service,
-            marker_release,
-        ]
-        legend_labels = [
-            "Export time window [O, D]",
-            "Import time window [O, D]",
-            "Delivery/Pickup time t_jk",
-            "Release time R",
-        ]
-
-        ax.legend(
-            legend_handles,
-            legend_labels,
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.05),
-            ncol=2,
-            frameon=True,
-            fontsize=8,
-        )
-
-        plt.tight_layout()
-
-        outfile = f"Figures/time_windows{self.file_name}.pdf"
-        plt.savefig(outfile, dpi=300)
-
-
-    def plot_time_windows(self, row_spacing: float = 0.1):
-        """
-        Plot container time windows and service times to visually verify time constraints.
-        """
-        import matplotlib.pyplot as plt
-        import matplotlib.lines as mlines
-
-        m = self.model
-        if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution available for plotting time windows.")
-            return
-
-        # --------------------------
-        # Extract data
-        # --------------------------
-        C = self.C_list
-        E = set(self.E)
-        I = set(self.I)
-
-        R_c = self.R_c
-        O_c = self.O_c
-        D_c = self.D_c
-        Z_cj = self.Z_cj
-
-        K = self.K_list
-        K_b = set(self.K_b)
-        K_t = self.K_t
-
-        f_ck = self.f_ck
-        t_jk = self.t_jk
-
-        # --------------------------
-        # Precompute assigned barge + service time
-        # --------------------------
-        assigned_barge = {}
-        service_time_c = {}
-
-        for c in C:
-            assigned_k = None
-            for k in K:
-                if f_ck[c, k].X > 0.5:
-                    assigned_k = k
-                    break
-
-            if assigned_k is not None and assigned_k in K_b:
-                try:
-                    j = Z_cj[c].index(1)
-                except ValueError:
-                    j = None
-
-                st = t_jk[j, assigned_k].X if j is not None else None
-                assigned_barge[c] = assigned_k
-                service_time_c[c] = st
-            else:
-                assigned_barge[c] = None
-                service_time_c[c] = None
-
-        # --------------------------
-        # Build ordered rows:
-        #   Header row first
-        #   Then exports grouped by barge + sorted by service time
-        #   Then imports grouped by barge + sorted by service time
-        # --------------------------
-        export_ids = sorted(E)
-        import_ids = sorted(I)
-
-        def containers_for_barge(container_list, k):
-            conts = [c for c in container_list if assigned_barge.get(c) == k]
-            conts_sorted = sorted(conts, key=lambda c: (service_time_c[c] is None, service_time_c[c]))
-            return conts_sorted
-
-        export_rows = []
-        import_rows = []
-
-        # group exports
-        for k in sorted(K_b):
-            export_rows.extend(containers_for_barge(export_ids, k))
-        export_rows.extend(sorted([c for c in export_ids if assigned_barge.get(c) is None]))
-
-        # group imports
-        for k in sorted(K_b):
-            import_rows.extend(containers_for_barge(import_ids, k))
-        import_rows.extend(sorted([c for c in import_ids if assigned_barge.get(c) is None]))
-
-        # header entry:
-        HEADER = "__HEADER__"
-
-        # final row order
-        container_rows = [HEADER] + export_rows + import_rows
-
-        # --------------------------
-        # Row spacing logic
-        # --------------------------
-        n_rows = len(container_rows)
-
-        if n_rows > 1:
-            row_spacing = 1.0 / (n_rows - 1)
-        else:
-            row_spacing = 1.0
-
-        row_index = {c: idx for idx, c in enumerate(container_rows)}
-
-        # --------------------------
-        # X-axis range
-        # --------------------------
-        min_open = min(O_c[c] for c in C)
-        max_close = max(D_c[c] for c in C)
-        span = max_close - min_open
-        margin = max(0.05 * span, 1.0)
-
-        x_min = min_open - margin
-        x_max = max_close + margin
-
-        # --------------------------
-        # Figure
-        # --------------------------
-        fig_width = 6
-        base_height_per_row = 0.45
-        fig_height = base_height_per_row * n_rows
-        fig_height = min(max(fig_height, 3.0), 12.0)
-
-        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-        fig.patch.set_facecolor("white")
-        ax.set_facecolor("white")
-
-        # --------------------------
-        # Plot rows (skip header row)
-        # --------------------------
-        for c in container_rows:
-            if c == HEADER:
-                continue
-
-            y = row_index[c] * row_spacing
-
-            if c in E:
-                color, color_dark = "#FF6F00", "#B23E00"
-            else:
-                color, color_dark = "#00A63C", "#006E28"
-
-            R, O, D = R_c[c], O_c[c], D_c[c]
-
-            ax.hlines(y, O, D, colors=color_dark, linewidth=2)
-
-            ax.scatter(R, y, marker="s", s=30, facecolor="white",
-                    edgecolor="black", linewidth=1.0, zorder=3)
-
-            ax.scatter(O, y, marker=">", s=50, facecolor=color,
-                    edgecolor=color_dark, linewidth=1.0, zorder=3)
-
-            ax.scatter(D, y, marker="<", s=50, facecolor=color,
-                    edgecolor=color_dark, linewidth=1.0, zorder=3)
-
-            k = assigned_barge.get(c)
-            st = service_time_c.get(c)
-            if k is not None and k in K_b and st is not None:
-                ax.scatter(st, y, marker="2", s=80, facecolor="black",
-                        linewidth=1.6, zorder=4)
-
-        # --------------------------
-        # Axis formatting
-        # --------------------------
-        ax.set_xlim(x_min, x_max)
-
-        yticks = [row_index[c] * row_spacing for c in container_rows]
-
-        # widths for alignment
-        k_width = max(1, max((len(str(k)) for k in K_b), default=1))
-        c_width = max(1, max(len(str(c)) for c in C))
-
-        ylabels = []
-        for c in container_rows:
-            if c == HEADER:
-                # ylabels.append(r"$\bf{Barge\;\;\;\;Container}$")
-                ylabels.append(r"$\bf{Barge\;\;\;Cont}$")
-                continue
-
-            k = assigned_barge.get(c)
-            k_str = str(k) if k is not None else "-"
-            # label = f"[B{str(k_str).rjust(k_width)}]   C={str(c).rjust(c_width,'0')}"
-            label = f"B{str(k_str).rjust(k_width)}".ljust(k_width+2) + "   |   " + str(c).rjust(c_width, '0') + "  "
-            ylabels.append(label)
-
-        ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabels, fontsize=9)
-
-        ax.invert_yaxis()
-
-        ax.set_xlabel("Time [hours]", fontsize=10)
-        ax.set_ylabel("")  # REMOVE VERTICAL Y-AXIS LABEL
-
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.grid(False)
-
-        # --------------------------
-        # Legend
-        # --------------------------
-        export_window = mlines.Line2D([], [], color="#FF6F00", linewidth=2)
-        import_window = mlines.Line2D([], [], color="#00A63C", linewidth=2)
-        marker_release = mlines.Line2D([], [], color="black", marker="s", linestyle="None",
-                                    markerfacecolor="white", markeredgecolor="black")
-        marker_service = mlines.Line2D([], [], markeredgecolor="black", marker="2", linestyle="None")
-
-        legend_handles = [
-            export_window,
-            import_window,
-            marker_service,
-            marker_release,
-        ]
-        legend_labels = [
-            "Export time window [O, D]",
-            "Import time window [O, D]",
-            "Delivery/Pickup time t_jk",
-            "Release time R",
-        ]
-
-        ax.legend(
-            legend_handles,
-            legend_labels,
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.05),
-            ncol=2,
-            frameon=True,
-            fontsize=8,
-        )
-
-        plt.tight_layout()
-
-        outfile = f"Figures/time_windows{self.file_name}.pdf"
-        plt.savefig(outfile, dpi=300)
     def plot_time_windows(self, row_spacing: float = 0.1):
         """
         Plot container time windows and service times to visually verify time constraints.
@@ -2503,7 +2071,7 @@ class MILP_Algo:
         for c in container_rows:
             if c == HEADER:
                 # ylabels.append(r"$\bf{Barge\;\;\;\;Container}$")
-                ylabels.append(r"$\bf{Barge\;\;\;Cont}$")
+                ylabels.append(r"$\bf{Barge \;\;\;\; Cont}$")
                 continue
 
             k = assigned_barge.get(c)
@@ -2511,18 +2079,18 @@ class MILP_Algo:
             # two-column style, preserving your new formatting
             label = (
                 f"B{str(k_str).rjust(k_width)}".ljust(k_width + 2)
-                + "   |   "
+                + "    |     "
                 + str(c).rjust(c_width, '0')
-                + "  "
+                + "   "
             )
             ylabels.append(label)
 
         ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabels, fontsize=9)
+        ax.set_yticklabels(ylabels, fontsize=11)
 
         ax.invert_yaxis()
 
-        ax.set_xlabel("Time [hours]", fontsize=10)
+        ax.set_xlabel("Time [hours]", fontsize=11)
         ax.set_ylabel("")  # REMOVE VERTICAL Y-AXIS LABEL
 
         ax.spines["top"].set_visible(False)
@@ -2539,7 +2107,7 @@ class MILP_Algo:
             markerfacecolor="white", markeredgecolor="black"
         )
         marker_service = mlines.Line2D(
-            [], [], markeredgecolor="black", marker="2", linestyle="None"
+            [], [], markeredgecolor="black", marker="2", markersize=10, linewidth=2.0, linestyle="None"
         )
 
         legend_handles = [
@@ -2549,21 +2117,24 @@ class MILP_Algo:
             marker_release,
         ]
         legend_labels = [
-            "Export time window [O, D]",
-            "Import time window [O, D]",
-            "Delivery/Pickup time t_jk",
-            "Release time R",
+            r"Export time window [$O_c,\,D_c$]",
+            r"Import time window [$O_c,\,D_c$]",
+            r"Delivery / Pickup time $t_{jk}$",
+            r"Release time $R$",
         ]
+
 
         ax.legend(
             legend_handles,
             legend_labels,
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.05),
+            # bbox_to_anchor=(0.5, -0.05),
+            bbox_to_anchor=(0.5, -0.15),
             ncol=2,
             frameon=True,
-            fontsize=8,
+            fontsize=10,
         )
+        plt.subplots_adjust(right=0.85)
 
         plt.tight_layout()
 
@@ -2634,6 +2205,7 @@ class MILP_Algo:
                 # self.plot_barge_solution_map_report()
                 # self.plot_barge_solution_map_report_2()
                 self.plot_barge_solution_map_report_3()
+                self.plot_barge_solution_map_report_Without_containers()
                 self.plot_barge_solution_map_report_ONLY_NODES()
                 self.plot_time_windows()
 
