@@ -10,6 +10,11 @@ __pycache__/
 *.toml
 
 
+# Not load the storage folders
+Storage/Logs/
+Storage/Solutions/
+Storage/Settings/
+
 # C extensions
 *.so
 
