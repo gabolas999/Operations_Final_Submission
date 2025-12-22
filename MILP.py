@@ -45,19 +45,19 @@ class MILP_Algo:
                 1800,      # Barge 2
                 1900,      # Barge 3
                 3300,      # Barge 4
-                6300,      # Barge 5
-                6300,      # Barge 6
+                3300,      # Barge 5
+                3300,      # Barge 6
             ],
-            seed=0,
+            seed=25,
             reduced=False,
             h_t_40=200_000,                 # 40ft container trucking cost in euros
             h_t_20=140_000,                 # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
-            C_range=(60, 100),             # (min, max) number of containers when reduced=False
+            C_range=(150, 175),              # (min, max) number of containers when reduced=False
             N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
 
-            Oc_range=(24, 100),             # (min, max) opening time in hours
-            Oc_offset_range=(50, 220),      # (min_offset, max_offset) such that
+            Oc_range=(24, 190),             # (min, max) opening time in hours
+            Oc_offset_range=(110, 350),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
             travel_time_long_range=(60, 100),   # (min, max) travel time between dryport and sea terminals in hours
@@ -67,7 +67,7 @@ class MILP_Algo:
             P40_range=(0.2, 0.22),              # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.75),         # (min, max) probability of export
             C_range_reduced=(65, 75),           # (min, max) containers when reduced=True
-            N_range_reduced=(4, 4),             # (min, max) terminals when reduced=True
+            N_range_reduced=(6, 6),             # (min, max) terminals when reduced=True
             gamma=100,                          # penalty per sea terminal visit [euros]
             big_m=1_000_000                     # big-M
     ):
