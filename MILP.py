@@ -50,8 +50,8 @@ class MILP_Algo:
             ],
             seed=25,
             reduced=False,
-            h_t_40=200_000,                 # 40ft container trucking cost in euros
-            h_t_20=140_000,                 # 20ft container trucking cost in euros
+            h_t_40=200,                 # 40ft container trucking cost in euros
+            h_t_20=140,                 # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
             C_range=(150, 175),              # (min, max) number of containers when reduced=False
             N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
@@ -69,7 +69,7 @@ class MILP_Algo:
             C_range_reduced=(65, 75),           # (min, max) containers when reduced=True
             N_range_reduced=(6, 6),             # (min, max) terminals when reduced=True
             gamma=100,                          # penalty per sea terminal visit [euros]
-            big_m=1_000_000                     # big-M
+            big_m=1000                          # big-M
     ):
         """
         Initialize the MILP optimi zer.
@@ -655,8 +655,52 @@ class MILP_Algo:
             # 14. All containers must be served before closing time
     # box plot looking thing. 
 
+    def get_solution_dict(self):
+        """
+        Extracts the current solution (variable names and values) 
+        to pass to the next iteration.
+        Only stores non-zero values to save memory (Sparse approach).
+        """
+        if self.model is None or self.model.status not in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
+            return None
+        
+        sol_dict = {}
+        for v in self.model.getVars():
+            # Only save binary/integer vars that are non-zero (approx > 0.5)
+            # For continuous variables, you might want to save them too, 
+            # but usually integers are the most important for MIP start.
+            if v.x > 0.0001: 
+                sol_dict[v.VarName] = v.x
+        return sol_dict
 
+    def apply_warm_start(self, sol_input):
+        """
+        Injects a previous solution into the current model as a MIP Start.
+        Can accept:
+        1. A dictionary (from get_solution_dict)
+        2. A file path string (path to a .sol or .mst file)
+        """
+        if sol_input is None:
+            return
 
+        # CASE A: Input is a Dictionary (In-memory transfer)
+        if isinstance(sol_input, dict):
+            print(f"   -> Applying Warm Start from Dictionary ({len(sol_input)} vars)...")
+            count = 0
+            for v in self.model.getVars():
+                if v.VarName in sol_input:
+                    v.Start = sol_input[v.VarName]
+                    count += 1
+            print(f"   -> Warm Start set for {count} variables.")
+
+        # CASE B: Input is a File Path (Loading from .sol file)
+        elif isinstance(sol_input, str):
+            if os.path.exists(sol_input):
+                print(f"   -> Applying Warm Start from File: {sol_input}")
+                # Gurobi automatically reads .sol files as MIP Starts
+                self.model.read(sol_input)
+            else:
+                print(f"   Warning: Warm start file not found: {sol_input}")
 
     # -----------------------
     # Solve
@@ -1830,6 +1874,7 @@ class MILP_Algo:
                 W_c=1    # treat each TEU as a 20ft for visualization
             )
             idx += 1
+    
     def plot_time_windows(self, row_spacing: float = 0.1):
         """
         Plot container time windows and service times to visually verify time constraints.
@@ -2103,12 +2148,303 @@ class MILP_Algo:
         outfile = f"Storage/Figures/time_windows{self.file_name}.pdf"
         plt.savefig(outfile, dpi=300)
 
+    def plot_barge_specific_split_timelines(self, margin_hours=2.0):
+        """
+        Generates one figure per barge.
+        The figure is split horizontally into subplots (chunks) for each terminal visit.
+        
+        UPDATES:
+        - Black Dot = Exact Arrival Time (t_jk).
+        - Grey Band = Extends from Black Dot to (Black Dot + Handling Duration).
+        """
+        import matplotlib.pyplot as plt
+        import matplotlib.lines as mlines
+        import matplotlib.patches as mpatches
+
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available.")
+            return
+
+        # --- Data Unpacking ---
+        N = self.N_list
+        K_b = self.K_b
+        f_ck = self.f_ck
+        x_ijk = self.x_ijk
+        t_jk = self.t_jk
+        Z_cj = self.Z_cj
+        C = self.C_list
+        E = set(self.E)
+        I = set(self.I)
+        R_c = self.R_c
+        O_c = self.O_c
+        D_c = self.D_c
+        L_hours = self.Handling_time
+
+        used_barges = []
+        for k in K_b:
+            if sum(x_ijk[0, j, k].X for j in N if j != 0) > 0.5:
+                used_barges.append(k)
+
+        if not used_barges:
+            print("No barges used.")
+            return
+
+        # --- Loop per Barge ---
+        for k in used_barges:
+            
+            # 1. Reconstruct Route
+            route = [0]
+            curr = 0
+            visited = {0}
+            while True:
+                next_node = None
+                for j in N:
+                    if j != curr and x_ijk[curr, j, k].X > 0.5:
+                        next_node = j
+                        break
+                if next_node is None or next_node in visited:
+                    break 
+                route.append(next_node)
+                visited.add(next_node)
+                curr = next_node
+
+            num_stops = len(route)
+            
+            # 2. Identify containers and sort for Y-axis
+            barge_containers = [c for c in C if f_ck[c, k].X > 0.5]
+            
+            # Sort: Exports first, then Imports
+            def sort_key(c):
+                is_import = 1 if c in I else 0
+                time_val = O_c[c] if is_import else R_c[c]
+                return (is_import, time_val)
+            
+            barge_containers.sort(key=sort_key)
+            y_map = {c: i for i, c in enumerate(barge_containers)}
+            total_rows = len(barge_containers)
+
+            # 3. Setup Figure
+            fig, axes = plt.subplots(1, num_stops, figsize=(3.5 * num_stops, max(4, total_rows * 0.3)), 
+                                     sharey=True)
+            if num_stops == 1: axes = [axes]
+            
+            fig.suptitle(f"Barge {k} Operations (Capacity: {self.Qk[k]})", fontsize=14, fontweight='bold', y=0.98)
+
+            # --- Loop per Stop (Chunk) ---
+            for ax_idx, (node, ax) in enumerate(zip(route, axes)):
+                
+                # A. Timing & Duration
+                # t_jk represents the time the barge is ready at the terminal
+                start_time = t_jk[node, k].X 
+                
+                # Identify handled containers
+                if node == 0:
+                    # At Dry Port: Loading Exports
+                    handled_here = [c for c in barge_containers if c in E]
+                else:
+                    # At Sea Terminal: Deliver Exports OR Pickup Imports
+                    handled_here = [c for c in barge_containers if Z_cj[c][node] == 1]
+                
+                # Duration starts FROM the arrival/start time
+                duration = len(handled_here) * L_hours
+                end_time = start_time + duration
+
+                # B. Plot The "Active" Window (Grey Band)
+                # Spans from Arrival -> Arrival + Handling
+                ax.axvspan(start_time, end_time, color='lightgrey', alpha=0.5, zorder=0)
+                
+                # Vertical edges
+                ax.axvline(start_time, color='black', linestyle='-', linewidth=0.8, alpha=0.3)
+                ax.axvline(end_time, color='black', linestyle=':', linewidth=0.8, alpha=0.5)
+
+                # C. Plot Containers
+                for c in handled_here:
+                    y = y_map[c]
+                    
+                    if c in E:
+                        color, color_dark = "#FF6F00", "#B23E00" # Orange
+                    else:
+                        color, color_dark = "#00A63C", "#006E28" # Green
+                        
+                    R, O, D = R_c[c], O_c[c], D_c[c]
+                    
+                    # 1. The Valid Time Window Line
+                    ax.hlines(y, O, D, colors=color_dark, linewidth=1.5, zorder=2)
+                    
+                    # 2. Markers
+                    if c in E:
+                        ax.scatter(R, y, marker="s", s=30, facecolor="white", edgecolor="black", zorder=3)
+                    ax.scatter(O, y, marker=">", s=40, facecolor=color, edgecolor=color_dark, zorder=3)
+                    ax.scatter(D, y, marker="<", s=40, facecolor=color, edgecolor=color_dark, zorder=3)
+                    
+                    # 3. The Black Dot (Arrival / Start of Service)
+                    # Plotted exactly at start_time
+                    ax.scatter(start_time, y, marker="o", color="black", s=30, zorder=5)
+
+                # D. Formatting
+                # Zoom in: Start - Margin TO End + Margin
+                eff_duration = max(duration, 0.5)
+                ax.set_xlim(start_time - margin_hours, end_time + margin_hours)
+                
+                if node == 0:
+                    ax.set_title("Dry Port\n(Start)", fontsize=10, fontweight='bold')
+                else:
+                    ax.set_title(f"Term {node}\n(Visit)", fontsize=10, fontweight='bold')
+                
+                ax.tick_params(axis='x', rotation=45, labelsize=8)
+                ax.grid(True, axis='x', linestyle=':', alpha=0.5)
+
+            # --- Global Labels ---
+            inv_map = {v: k for k, v in y_map.items()}
+            y_ticks = range(total_rows)
+            y_labels = [f"C{inv_map[i]}" for i in y_ticks]
+            
+            axes[0].set_yticks(y_ticks)
+            axes[0].set_yticklabels(y_labels, fontsize=8)
+            axes[0].set_ylabel("Container ID")
+            
+            # Legend
+            legend_handles = [
+                mpatches.Patch(facecolor='lightgrey', edgecolor='gray', label='Handling Duration'),
+                mlines.Line2D([], [], color='black', marker='o', linestyle='None', label='Arrival (Start Ops)'),
+                mlines.Line2D([], [], color='#FF6F00', marker='<', label='Export Due'),
+                mlines.Line2D([], [], color='#00A63C', marker='>', label='Import Open'),
+            ]
+            fig.legend(handles=legend_handles, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=4, fontsize=9)
+            
+            plt.subplots_adjust(bottom=0.15, wspace=0.1)
+            
+            filename = f"Storage/Figures/timeline_split_{self.file_name}_barge_{k}.pdf"
+            plt.savefig(filename)
+            plt.close()
+            print(f"Generated split timeline for Barge {k}: {filename}")
+
+    def print_time_schedule(self):
+        """
+        Prints a detailed chronological schedule for each barge in the console.
+        FIXED: Prevents infinite loop when barge returns to Node 0.
+        """
+        import pandas as pd
+        from tabulate import tabulate
+
+        m = self.model
+        if m is None or m.status != GRB.OPTIMAL:
+            print("No optimal solution available to print schedule.")
+            return
+
+        # Unpack Data
+        N = self.N_list
+        K_b = self.K_b
+        x_ijk = self.x_ijk
+        t_jk = self.t_jk
+        f_ck = self.f_ck
+        Z_cj = self.Z_cj
+        C = self.C_list
+        E = set(self.E)
+        I = set(self.I)
+        L_hours = self.Handling_time
+
+        print("\n\n      Barge Schedules       ")
+        print("============================")
+
+        barge_found = False
+
+        for k in K_b:
+            # 1. Check if barge is used (leaves Dry Port)
+            is_used = sum(x_ijk[0, j, k].X for j in N if j != 0) > 0.5
+            if not is_used:
+                continue
+            
+            barge_found = True
+            schedule_data = []
+            
+            # 2. Reconstruct Route: Start at 0
+            curr = 0
+            visit_order = 1
+            
+            # Safety: Track visited arcs to prevent cycles
+            visited_nodes = set()
+            
+            while True:
+                # --- A. Gather Timing Info ---
+                # For Node 0, t_jk is departure time usually, but let's just grab the value
+                arrival_val = t_jk[curr, k].X
+                
+                # --- B. Calculate Handling at this Node ---
+                handled_containers = []
+                activity_desc = ""
+                
+                if curr == 0 and visit_order == 1:
+                    # START of trip (Dry Port)
+                    handled_containers = [c for c in C if f_ck[c, k].X > 0.5 and c in E]
+                    activity_desc = "Start / Load Exports"
+                elif curr == 0 and visit_order > 1:
+                    # END of trip (Return to Dry Port)
+                    # No new loading, just arrival
+                    handled_containers = []
+                    activity_desc = "Return / End Trip"
+                else:
+                    # Sea Terminal
+                    handled_containers = [c for c in C if f_ck[c, k].X > 0.5 and Z_cj[c][curr] == 1]
+                    activity_desc = "Unload Exp / Load Imp"
+
+                qty = len(handled_containers)
+                duration = qty * L_hours
+                departure_val = arrival_val + duration
+
+                # --- C. Add to Table ---
+                schedule_data.append({
+                    "Order": visit_order,
+                    "Terminal": "Dry Port (0)" if curr == 0 else f"Terminal {curr}",
+                    "Arrival": f"{arrival_val:.2f}",
+                    "Cont.": qty,
+                    "Dur.": f"{duration:.2f}",
+                    "Depart": f"{departure_val:.2f}",
+                    "Activity": activity_desc
+                })
+                
+                # If we just processed the return to 0, stop.
+                if curr == 0 and visit_order > 1:
+                    break
+
+                # --- D. Find Next Node ---
+                next_node = None
+                for j in N:
+                    # Look for active arc
+                    if j != curr and x_ijk[curr, j, k].X > 0.5:
+                        next_node = j
+                        break
+                
+                if next_node is None:
+                    # No outgoing arc (shouldn't happen if flow is conserved, unless end of route)
+                    break
+                
+                # Update for next iteration
+                curr = next_node
+                visit_order += 1
+                
+                # Safety break for huge loops
+                if visit_order > len(N) + 2:
+                    print(f"Warning: Cycle detected for Barge {k}")
+                    break
+
+            # 3. Print Table for this Barge
+            df = pd.DataFrame(schedule_data)
+            print(f"\n--- Barge {k} (Capacity: {self.Qk[k]} TEU) ---")
+            print(tabulate(df, headers="keys", tablefmt="simple", showindex=False))
+
+        if not barge_found:
+            print("No barges were utilized in this solution (All containers trucked).")
+        print("\n")
+
+
 
     # -----------------------
     # Convenience pipeline
     # -----------------------
 
-    def run(self, with_plots=True):
+    def run(self, with_plots=True, warm_start_sol=None):
         """
         Convenience method to run the full MILP pipeline:
         - setup_model
@@ -2121,6 +2457,10 @@ class MILP_Algo:
         self.print_pre_run_results()   
         
         self.setup_model()
+
+        if warm_start_sol:
+                    self.apply_warm_start(warm_start_sol)
+
         self.set_objective()
         self.add_constraints()
 
@@ -2161,6 +2501,7 @@ class MILP_Algo:
             self.print_distance_table()
             self.print_barge_table()
             self.print_container_table()
+            self.print_time_schedule()
             if with_plots:
                 # self.plot_barge_displacements()
                 # self.plot_barge_solution_map()
@@ -2170,7 +2511,8 @@ class MILP_Algo:
                 # self.plot_barge_solution_map_report_Without_containers()
                 # self.plot_barge_solution_map_report_ONLY_NODES()
                 self.plot_time_windows()
-
+                # self.plot_barge_specific_split_timelines(margin_hours=3.0)
+                
 
 class ContainerPlotter:
     """
