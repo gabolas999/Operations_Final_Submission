@@ -1,4 +1,3 @@
-
 # File to set up multiple runs of the MILP algorithm, with different settings.
 
 
@@ -7,15 +6,31 @@ from MILP import MILP_Algo
 import traceback
 
 
-
 def multi_run_setup():
     print("Starting multi-run MILP batch...")
 
     runs = [
-        {"run_name": "MILP_Run__for_6_3",   "reduced": True,  "N_range_reduced": (6, 6), "seed": 20, "travel_time_long_range": (5, 7)},
-        {"run_name": "MILP_Run__for_6_4",   "reduced": True,  "N_range_reduced": (6, 6), "seed": 30, "travel_time_long_range": (5, 7)},
-        {"run_name": "MILP_Run__for_6_5",   "reduced": True,  "N_range_reduced": (6, 6), "seed": 40, "travel_time_long_range": (5, 7)},
-
+        {
+            "run_name": "MILP_Run__for_6_3",
+            "reduced": True,
+            "N_range_reduced": (6, 6),
+            "seed": 20,
+            "travel_time_long_range": (5, 7),
+        },
+        {
+            "run_name": "MILP_Run__for_6_4",
+            "reduced": True,
+            "N_range_reduced": (6, 6),
+            "seed": 30,
+            "travel_time_long_range": (5, 7),
+        },
+        {
+            "run_name": "MILP_Run__for_6_5",
+            "reduced": True,
+            "N_range_reduced": (6, 6),
+            "seed": 40,
+            "travel_time_long_range": (5, 7),
+        },
     ]
 
     for cfg in runs:
@@ -34,7 +49,6 @@ def multi_run_setup():
             print(f"Continuing to next run...\n")
 
     print("\nAll runs attempted.")
-
 
 
 if __name__ == "__main__":

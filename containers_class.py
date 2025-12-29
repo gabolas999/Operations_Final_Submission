@@ -1,7 +1,3 @@
-
-
-
-
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -32,7 +28,7 @@ class ContainerPlotter:
         self.sign_y = sign_y
 
     # ------------------------------------------------------------------
-    def draw_container(self, ax, index, total_height, total_width, IorE=1, W_c=1 ):
+    def draw_container(self, ax, index, total_height, total_width, IorE=1, W_c=1):
         """
         Draw a single container in a grid layout.
         IDENTICAL to your original function.
@@ -50,7 +46,7 @@ class ContainerPlotter:
 
         if self.sign_x == -1:
             x = self.starting_x - (col + 1) * self.width
-        
+
         if self.sign_y == -1:
             y = self.starting_y - total_height * self.height + (row - 1) * self.height
 
@@ -71,7 +67,7 @@ class ContainerPlotter:
             self.height,
             facecolor=face,
             edgecolor=edge,
-            linewidth=1.8
+            linewidth=1.8,
         )
         ax.add_patch(rect)
 
@@ -93,52 +89,78 @@ class ContainerPlotter:
 
         if self.sign_y == 1:
             ax.plot(
-                [self.starting_x - self.sign_x * margin * 1.1, self.starting_x - self.sign_x * margin * 1.1],
+                [
+                    self.starting_x - self.sign_x * margin * 1.1,
+                    self.starting_x - self.sign_x * margin * 1.1,
+                ],
                 [self.starting_y - margin, self.starting_y + total_h],
-                color=color_gray, linewidth=lw
+                color=color_gray,
+                linewidth=lw,
             )
 
             ax.plot(
-                [self.starting_x - self.sign_x * margin, self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [
+                    self.starting_x - self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
                 [self.starting_y - margin, self.starting_y - margin],
-                color=color_gray, linewidth=lw
+                color=color_gray,
+                linewidth=lw,
             )
 
             ax.plot(
-                [self.starting_x + self.sign_x * total_w + self.sign_x * margin, self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
                 [self.starting_y - margin, self.starting_y + total_h],
-                color=color_gray, linewidth=lw
+                color=color_gray,
+                linewidth=lw,
             )
-
-
 
         elif self.sign_y == -1:
             # Left vertical line (flipped vertically)
             ax.plot(
-                [self.starting_x - self.sign_x * margin * 1.1, 
-                self.starting_x - self.sign_x * margin * 1.1],
-                [self.starting_y - total_h - self.height - margin, 
-                self.starting_y - self.height - margin],
-                color=color_gray, linewidth=lw
+                [
+                    self.starting_x - self.sign_x * margin * 1.1,
+                    self.starting_x - self.sign_x * margin * 1.1,
+                ],
+                [
+                    self.starting_y - total_h - self.height - margin,
+                    self.starting_y - self.height - margin,
+                ],
+                color=color_gray,
+                linewidth=lw,
             )
-
 
             # Bottom horizontal line (flipped vertically)
             ax.plot(
-                [self.starting_x - self.sign_x * margin,
-                self.starting_x + self.sign_x * total_w + self.sign_x * margin],
-                [self.starting_y - total_h - self.height - margin, self.starting_y - total_h - self.height- margin],
-                color=color_gray, linewidth=lw
+                [
+                    self.starting_x - self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
+                [
+                    self.starting_y - total_h - self.height - margin,
+                    self.starting_y - total_h - self.height - margin,
+                ],
+                color=color_gray,
+                linewidth=lw,
             )
 
             # Right vertical line (flipped vertically)
             ax.plot(
-                [self.starting_x + self.sign_x * total_w + self.sign_x * margin, 
-                self.starting_x + self.sign_x * total_w + self.sign_x * margin],
-                [self.starting_y - total_h - self.height - margin, 
-                self.starting_y - self.height - margin],
-                color=color_gray, linewidth=lw
+                [
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
+                [
+                    self.starting_y - total_h - self.height - margin,
+                    self.starting_y - self.height - margin,
+                ],
+                color=color_gray,
+                linewidth=lw,
             )
+
 
 if __name__ == "__main__":
 
@@ -155,15 +177,17 @@ if __name__ == "__main__":
 
     # Draw some containers
     import random as rnd
+
     rnd.seed(0)
     i = 1
     while i <= 12:
         W_c = rnd.randint(1, 2)
         W_c = 1
         IorE = rnd.randint(1, 2)
-        plotter.draw_container(ax, index=i, total_height=4,total_width=5, IorE=IorE, W_c=W_c)
+        plotter.draw_container(
+            ax, index=i, total_height=4, total_width=5, IorE=IorE, W_c=W_c
+        )
         i += W_c
-
 
     plt.plot(0, 0, marker="o")  # Dummy plot to fix autoscaling
     ax.set_xlim(-160, 160)

@@ -7,7 +7,7 @@ for container-to-barge allocation optimization.
 
 This file does work #+#+# Gabo
 
-TODO: Implement a re-run verification tool - and include the video in the report -> instant 10. 
+TODO: Implement a re-run verification tool - and include the video in the report -> instant 10.
 
 """
 
@@ -19,100 +19,101 @@ import numpy as np
 
 class GreedyOptimizer:
     """Unified greedy algorithm class for container allocation optimization"""
-    
+
     def __init__(
-            self,
-            qk = [# Barge capacities in TEU
-
-                    104,        # Barge 0
-                    99,         # Barge 1
-                    81,         # Barge 2
-                    52,         # Barge 3
-                    28,         # Barge 4
-
-                    # 1,         # Extensive Barges 5 
-                    # 1,         # Extensive Barges 6 
-                    # 2,         # Extensive Barges 7 
-                    # 3,         # Extensive Barges 8 
-                    # 4,         # Extensive Barges 9 
-                    # 5,         # Extensive Barges 10
-                    # 6,         # Extensive Barges 11
-                    # 7,         # Extensive Barges 12
-                    # 8,         # Extensive Barges 13
-                    # 9,         # Extensive Barges 14
-                    # 10,         # Extensive Barges 15
-                    # 11,         # Extensive Barges 16
-                    # 12,         # Extensive Barges 17
-                    # 13,         # Extensive Barges 18
-                    # 14,         # Extensive Barges 19
-                    # 15,         # Extensive Barges 20
-                    # 16,         # Extensive Barges 21
-                    # 17,         # Extensive Barges 22
-                    # 18,         # Extensive Barges 23
-                    # 19,         # Extensive Barges 24
-                    # 20,         # Extensive Barges 25
-                    # 21,         # Extensive Barges 26
-                    # 22,         # Extensive Barges 27
-                    # 23,         # Extensive Barges 28
-                    # 24,         # Extensive Barges 29
-                    # 25,         # Extensive Barges 30
-                    ],
-
-            h_b = [# Barge fixed costs in euros
-
-                    3700,      # Barge 0
-                    3600,      # Barge 1
-                    3400,      # Barge 2
-                    2800,      # Barge 3
-                    1800,      # Barge 4
-
-                    # 10,         # Extensive Barges 5 
-                    # 10,         # Extensive Barges 6 
-                    # 10,         # Extensive Barges 7 
-                    # 10,         # Extensive Barges 8 
-                    # 10,         # Extensive Barges 9 
-                    # 10,         # Extensive Barges 10
-                    # 10,         # Extensive Barges 11  
-                    # 10,         # Extensive Barges 12
-                    # 10,         # Extensive Barges 13
-                    # 10,         # Extensive Barges 14
-                    # 10,         # Extensive Barges 15
-                    # 10,         # Extensive Barges 16
-                    # 10,         # Extensive Barges 17
-                    # 10,         # Extensive Barges 18
-                    # 10,         # Extensive Barges 19
-                    # 10,         # Extensive Barges 20
-                    # 10,         # Extensive Barges 21
-                    # 10,         # Extensive Barges 22
-                    # 10,         # Extensive Barges 23
-                    # 10,         # Extensive Barges 24
-                    # 10,         # Extensive Barges 25
-                    # 10,         # Extensive Barges 26
-                    # 10,         # Extensive Barges 27
-                    # 10,         # Extensive Barges 28
-                    # 10,         # Extensive Barges 29
-                    # 10,         # Extensive Barges 30
-                    ],
-            seed=100,
-            reduced=False,
-            h_t_40=200,                     # 40ft container trucking cost in euros
-            h_t_20=140,                     # 20ft container trucking cost in euros
-            handling_time=1/6,              # Container handling time in hours
-            C_range=(100, 600),             # (min, max) number of containers
-            N_range=(10, 20),               # (min, max) number of terminals
-            
-            Oc_range=(24, 196),             # (min, max) opening time in hours
-            Oc_offset_range=(24, 120),      # (min_offset, max_offset) such that        # Dc is drawn in [Oc + min_offset, Oc + max_offset]
-            
-            P40_range=(0.75, 0.9),          # (min, max) for uniform draw of probability of 40ft container
-            PExport_range=(0.05, 0.7),      # (min, max) for uniform draw of probability of export 
-
-            C_range_reduced=(33, 200),      # (min, max) number of containers when reduced=True
-            N_range_reduced=(4, 8),         # (min, max) number of terminals when reduced=True
-        ):
+        self,
+        qk=[  # Barge capacities in TEU
+            104,  # Barge 0
+            99,  # Barge 1
+            81,  # Barge 2
+            52,  # Barge 3
+            28,  # Barge 4
+            # 1,         # Extensive Barges 5
+            # 1,         # Extensive Barges 6
+            # 2,         # Extensive Barges 7
+            # 3,         # Extensive Barges 8
+            # 4,         # Extensive Barges 9
+            # 5,         # Extensive Barges 10
+            # 6,         # Extensive Barges 11
+            # 7,         # Extensive Barges 12
+            # 8,         # Extensive Barges 13
+            # 9,         # Extensive Barges 14
+            # 10,         # Extensive Barges 15
+            # 11,         # Extensive Barges 16
+            # 12,         # Extensive Barges 17
+            # 13,         # Extensive Barges 18
+            # 14,         # Extensive Barges 19
+            # 15,         # Extensive Barges 20
+            # 16,         # Extensive Barges 21
+            # 17,         # Extensive Barges 22
+            # 18,         # Extensive Barges 23
+            # 19,         # Extensive Barges 24
+            # 20,         # Extensive Barges 25
+            # 21,         # Extensive Barges 26
+            # 22,         # Extensive Barges 27
+            # 23,         # Extensive Barges 28
+            # 24,         # Extensive Barges 29
+            # 25,         # Extensive Barges 30
+        ],
+        h_b=[  # Barge fixed costs in euros
+            3700,  # Barge 0
+            3600,  # Barge 1
+            3400,  # Barge 2
+            2800,  # Barge 3
+            1800,  # Barge 4
+            # 10,         # Extensive Barges 5
+            # 10,         # Extensive Barges 6
+            # 10,         # Extensive Barges 7
+            # 10,         # Extensive Barges 8
+            # 10,         # Extensive Barges 9
+            # 10,         # Extensive Barges 10
+            # 10,         # Extensive Barges 11
+            # 10,         # Extensive Barges 12
+            # 10,         # Extensive Barges 13
+            # 10,         # Extensive Barges 14
+            # 10,         # Extensive Barges 15
+            # 10,         # Extensive Barges 16
+            # 10,         # Extensive Barges 17
+            # 10,         # Extensive Barges 18
+            # 10,         # Extensive Barges 19
+            # 10,         # Extensive Barges 20
+            # 10,         # Extensive Barges 21
+            # 10,         # Extensive Barges 22
+            # 10,         # Extensive Barges 23
+            # 10,         # Extensive Barges 24
+            # 10,         # Extensive Barges 25
+            # 10,         # Extensive Barges 26
+            # 10,         # Extensive Barges 27
+            # 10,         # Extensive Barges 28
+            # 10,         # Extensive Barges 29
+            # 10,         # Extensive Barges 30
+        ],
+        seed=100,
+        reduced=False,
+        h_t_40=200,  # 40ft container trucking cost in euros
+        h_t_20=140,  # 20ft container trucking cost in euros
+        handling_time=1 / 6,  # Container handling time in hours
+        C_range=(100, 600),  # (min, max) number of containers
+        N_range=(10, 20),  # (min, max) number of terminals
+        Oc_range=(24, 196),  # (min, max) opening time in hours
+        Oc_offset_range=(
+            24,
+            120,
+        ),  # (min_offset, max_offset) such that        # Dc is drawn in [Oc + min_offset, Oc + max_offset]
+        P40_range=(
+            0.75,
+            0.9,
+        ),  # (min, max) for uniform draw of probability of 40ft container
+        PExport_range=(
+            0.05,
+            0.7,
+        ),  # (min, max) for uniform draw of probability of export
+        C_range_reduced=(33, 200),  # (min, max) number of containers when reduced=True
+        N_range_reduced=(4, 8),  # (min, max) number of terminals when reduced=True
+    ):
         """
         Initialize the greedy optimizer
-        
+
         Parameters:
         -----------
         qk : list
@@ -164,41 +165,41 @@ class GreedyOptimizer:
         self.Oc_offset_range = Oc_offset_range
         self.P40_range = P40_range
         self.PExport_range = PExport_range
-        
+
         self.C_range_reduced = C_range_reduced
         self.N_range_reduced = N_range_reduced
 
-
         # Instance data - will be populated by generate_instance()
-        self.C_dict = {}        # Container information dictionary
-                                # Contains following keys per container:
-                                # Rc: ready time
-                                # Dc: closing time
-                                # Oc: opening time
-                                # Wc: weight in TEU (either 1 or 2)
-                                # In_or_Out: import (1) or export (2)
-                                # Terminal: assigned terminal
+        self.C_dict = {}  # Container information dictionary
+        # Contains following keys per container:
+        # Rc: ready time
+        # Dc: closing time
+        # Oc: opening time
+        # Wc: weight in TEU (either 1 or 2)
+        # In_or_Out: import (1) or export (2)
+        # Terminal: assigned terminal
 
-        self.C = 0              # Number of containers
-        self.N = 0              # Number of terminals
-        self.T_matrix = []      # Travel time matrix (N x N)
-        self.Barges = []        # Barge capacities
-        self.C_ordered = []     # Ordered containers
+        self.C = 0  # Number of containers
+        self.N = 0  # Number of terminals
+        self.T_matrix = []  # Travel time matrix (N x N)
+        self.Barges = []  # Barge capacities
+        self.C_ordered = []  # Ordered containers
         self.master_route = []  # Master route
-        
+
         # Results storage
-        self.f_ck_init = None   # It is not a swear word, it uses the same nomenclature as the paper
+        self.f_ck_init = (
+            None  # It is not a swear word, it uses the same nomenclature as the paper
+        )
         self.route_list = []
         self.barge_departure_delay = []
         self.trucked_containers = {}
-        self.total_cost = 0     # Total cost of the solution
-        self.truck_cost = 0     # Total trucking cost
-        self.barge_cost = 0     # Total barge cost
-        self.xijk = None        # Barge routing matrix
-        
+        self.total_cost = 0  # Total cost of the solution
+        self.truck_cost = 0  # Total trucking cost
+        self.barge_cost = 0  # Total barge cost
+        self.xijk = None  # Barge routing matrix
+
         # Generate instance automatically
         self.generate_instance()
-
 
     def generate_instance(self):
         """Generate complete problem instance"""
@@ -241,26 +242,28 @@ class GreedyOptimizer:
                 Wc = 2  # 40ft container
             else:
                 Wc = 1  # 20ft container
-            
+
             if random.random() < P_Export:
                 In_or_Out = 2  # Export
                 Rc = random.randint(0, 24)
-                Terminal = random.randint(1, self.N - 1)  # assigned delivery terminal location
+                Terminal = random.randint(
+                    1, self.N - 1
+                )  # assigned delivery terminal location
             else:
                 In_or_Out = 1  # Import
                 Rc = 0
-                Terminal = random.randint(1, self.N - 1)  # assigned pickup terminal location
-            
+                Terminal = random.randint(
+                    1, self.N - 1
+                )  # assigned pickup terminal location
+
             self.C_dict[i] = {
-                "Rc": Rc,                   # ready time    
-                "Dc": Dc,                   # closing time
-                "Oc": Oc,                   # opening time
-                "Wc": Wc,                   # weight in TEU (either 1 or 2)
-                "In_or_Out": In_or_Out,     # import or export
-                "Terminal": Terminal        # assigned terminal
+                "Rc": Rc,  # ready time
+                "Dc": Dc,  # closing time
+                "Oc": Oc,  # opening time
+                "Wc": Wc,  # weight in TEU (either 1 or 2)
+                "In_or_Out": In_or_Out,  # import or export
+                "Terminal": Terminal,  # assigned terminal
             }
-
-
 
     def generate_travel_times(self):
         """Generate travel time matrix T_matrix"""
@@ -268,11 +271,19 @@ class GreedyOptimizer:
 
         number_of_sub_terminals = math.floor((self.N - 1) / 3)
 
-        index_antwerp = list(range(1, number_of_sub_terminals+1))  # Antwerp sub-terminals
-        index_rotterdam = list(range(number_of_sub_terminals+1, 2*number_of_sub_terminals+1))  # Rotterdam sub-terminals
-        index_maasvlakte = list(range(2*number_of_sub_terminals+1, self.N))  # Maasvlakte sub-terminals
+        index_antwerp = list(
+            range(1, number_of_sub_terminals + 1)
+        )  # Antwerp sub-terminals
+        index_rotterdam = list(
+            range(number_of_sub_terminals + 1, 2 * number_of_sub_terminals + 1)
+        )  # Rotterdam sub-terminals
+        index_maasvlakte = list(
+            range(2 * number_of_sub_terminals + 1, self.N)
+        )  # Maasvlakte sub-terminals
 
-        if len(index_maasvlakte) == number_of_sub_terminals+2:  # making sure the length of Maasvlakte is not too different to other two
+        if (
+            len(index_maasvlakte) == number_of_sub_terminals + 2
+        ):  # making sure the length of Maasvlakte is not too different to other two
             index_rotterdam.append(index_maasvlakte[0])
             index_maasvlakte = index_maasvlakte[1:]
 
@@ -288,45 +299,56 @@ class GreedyOptimizer:
                     self.T_matrix[i][j] = 1
                 elif (i == 0 or j == 0) and (j in index_antwerp or i in index_antwerp):
                     self.T_matrix[i][j] = 13
-                elif (i == 0 or j == 0) and ((j in index_maasvlakte or j in index_rotterdam) or (i in index_maasvlakte or i in index_rotterdam)):
+                elif (i == 0 or j == 0) and (
+                    (j in index_maasvlakte or j in index_rotterdam)
+                    or (i in index_maasvlakte or i in index_rotterdam)
+                ):
                     self.T_matrix[i][j] = 11
-                elif (i in index_antwerp or j in index_antwerp) and ((j in index_maasvlakte or j in index_rotterdam) or (i in index_maasvlakte or i in index_rotterdam)):
+                elif (i in index_antwerp or j in index_antwerp) and (
+                    (j in index_maasvlakte or j in index_rotterdam)
+                    or (i in index_maasvlakte or i in index_rotterdam)
+                ):
                     self.T_matrix[i][j] = 16
-                elif (i in index_maasvlakte or j in index_maasvlakte) and (i in index_rotterdam or j in index_rotterdam):
+                elif (i in index_maasvlakte or j in index_maasvlakte) and (
+                    i in index_rotterdam or j in index_rotterdam
+                ):
                     self.T_matrix[i][j] = 4
                 else:
                     self.T_matrix[i][j] = 666
+
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
         n = len(self.T_matrix)
         G = nx.complete_graph(n)
-        
+
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    G[i][j]['weight'] = self.T_matrix[i][j]
+                    G[i][j]["weight"] = self.T_matrix[i][j]
 
         # Find approximate TSP cycle (returns to start)
-        self.master_route = nx.approximation.traveling_salesman_problem(G, cycle=True, weight='weight')
+        self.master_route = nx.approximation.traveling_salesman_problem(
+            G, cycle=True, weight="weight"
+        )
+
     def generate_ordered_containers(self):
         """Generate ordered list of containers based on master route"""
         self.C_ordered = []
-        
+
         for i in self.master_route[1:-1]:  # Skip first and last (depot)
             for j in range(self.C):
                 if self.C_dict[j]["Terminal"] == i:
                     self.C_ordered.append(j)
-    
-    
+
     def get_route(self, L_current):
         """
         Generate route for current barge load
-        
+
         Parameters:
         -----------
         L_current : dict
             Current containers assigned to this barge
-            
+
         Returns:
         --------
         list : Route as list of terminal indices
@@ -340,13 +362,13 @@ class GreedyOptimizer:
             else:
                 route.append(c["Terminal"])
                 current_terminal = c["Terminal"]
-        
+
         return route
-    
+
     def get_timing(self, route, L_current, delay):
         """
         Calculate timing for barge route
-        
+
         Parameters:
         -----------
         route : list
@@ -355,7 +377,7 @@ class GreedyOptimizer:
             Current containers assigned to this barge
         delay : float
             Additional delay in hours
-            
+
         Returns:
         --------
         tuple : (departure_times, arrival_times)
@@ -369,7 +391,7 @@ class GreedyOptimizer:
                 dry_port_handling_time += self.Handling_time
                 if c["Rc"] > current_max:
                     current_max = c["Rc"]
-                    
+
         departure_time = current_max + dry_port_handling_time
 
         D_terminal = [departure_time]  # time of departure from each terminal
@@ -381,26 +403,34 @@ class GreedyOptimizer:
 
         for terminal in route[1:]:
             travel_time = self.T_matrix[current_terminal][terminal]
-            handling_time_total = self.Handling_time * sum(1 for c in L_current.values() if c["Terminal"] == terminal)
+            handling_time_total = self.Handling_time * sum(
+                1 for c in L_current.values() if c["Terminal"] == terminal
+            )
 
             term_departure_time += travel_time  # add travel time to next terminal
             term_departure_time += handling_time_total  # add handling time at terminal
 
-            term_arrival_time += travel_time + D_terminal[-1]  # arrival time is the same as departure time after handling
+            term_arrival_time += (
+                travel_time + D_terminal[-1]
+            )  # arrival time is the same as departure time after handling
 
-            D_terminal.append(term_departure_time)  # append the time of arrival at the terminal
-            O_terminal.append(term_arrival_time)  # append the time of arrival at the terminal
+            D_terminal.append(
+                term_departure_time
+            )  # append the time of arrival at the terminal
+            O_terminal.append(
+                term_arrival_time
+            )  # append the time of arrival at the terminal
 
             current_terminal = terminal
-        
+
         D_terminal[-1] += delay  # add delay to the last terminal's departure time
 
         return D_terminal, O_terminal
-    
+
     def check_for_cap(self, route, L_current, barge_idx):
         """
         Check if current assignment respects barge capacity
-        
+
         Parameters:
         -----------
         route : list
@@ -409,7 +439,7 @@ class GreedyOptimizer:
             Current containers assigned to this barge
         barge_idx : int
             Index of the barge
-            
+
         Returns:
         --------
         bool : True if capacity is respected, False otherwise
@@ -419,11 +449,15 @@ class GreedyOptimizer:
         for i in range(len(route)):
             terminal = route[i]
             sum_teu = 0
-            
+
             for c in L_current.values():
-                if c["Terminal"] == terminal and terminal > 0 and c["In_or_Out"] == 1:  # import containers are loaded on the barge
+                if (
+                    c["Terminal"] == terminal and terminal > 0 and c["In_or_Out"] == 1
+                ):  # import containers are loaded on the barge
                     sum_teu += c["Wc"]
-                elif c["Terminal"] == terminal and terminal > 0 and c["In_or_Out"] == 2:  # export containers are unloaded from the barge
+                elif (
+                    c["Terminal"] == terminal and terminal > 0 and c["In_or_Out"] == 2
+                ):  # export containers are unloaded from the barge
                     sum_teu -= c["Wc"]
                 elif i == 0 and c["In_or_Out"] == 2:  # export at depot
                     sum_teu += c["Wc"]
@@ -433,11 +467,11 @@ class GreedyOptimizer:
         cap = [True if teu <= self.Barges[barge_idx] else False for teu in teu_used]
 
         return all(cap)
-    
+
     def delay_window(self, container, D_terminal, route, terminal):
         """
         Calculate delay needed for time window constraint
-        
+
         Parameters:
         -----------
         container : dict
@@ -448,7 +482,7 @@ class GreedyOptimizer:
             Route as list of terminal indices
         terminal : int
             Terminal index
-            
+
         Returns:
         --------
         float : Required delay in hours
@@ -461,17 +495,19 @@ class GreedyOptimizer:
             return delay
         else:
             return 0
-    
+
     def solve_greedy(self):
         """
         Solve the container allocation problem using greedy algorithm
-        
+
         Returns:
         --------
         dict : Solution results including costs and assignments
         """
-        self.f_ck_init = np.zeros((self.C, len(self.Barges)))  # matrix for container to barge assignment
-        
+        self.f_ck_init = np.zeros(
+            (self.C, len(self.Barges))
+        )  # matrix for container to barge assignment
+
         barge_idx = 0
         to_ignore = []  # list to store containers that can be removed from C_ordered
         departure_delay = 0  # carry this forward across containers
@@ -486,7 +522,7 @@ class GreedyOptimizer:
                 # 1) Tentatively assign c to this barge
                 self.f_ck_init[c, barge_idx] = 1
 
-                # 2) Build the current load 
+                # 2) Build the current load
                 L_current = {
                     cont: self.C_dict[cont]
                     for cont in self.C_ordered
@@ -512,8 +548,12 @@ class GreedyOptimizer:
                     for cont in L_current.values():
                         t = cont["Terminal"]
                         if not (
-                            O_term[route.index(t)] <= cont["Oc"] <= D_term[route.index(t)]
-                            or O_term[route.index(t)] <= cont["Dc"] <= D_term[route.index(t)]
+                            O_term[route.index(t)]
+                            <= cont["Oc"]
+                            <= D_term[route.index(t)]
+                            or O_term[route.index(t)]
+                            <= cont["Dc"]
+                            <= D_term[route.index(t)]
                         ):
                             violations.append(cont)
 
@@ -561,7 +601,9 @@ class GreedyOptimizer:
                 self.truck_cost += self.H_t_40
 
         # Calculate barge routing matrix
-        self.xijk = np.zeros((len(self.Barges), self.N, self.N))  # xijk[k][i][j] = 1 if barge k goes from terminal i to terminal j
+        self.xijk = np.zeros(
+            (len(self.Barges), self.N, self.N)
+        )  # xijk[k][i][j] = 1 if barge k goes from terminal i to terminal j
 
         for barge_idx, route in enumerate(self.route_list):
             for i in range(len(route) - 1):
@@ -570,24 +612,24 @@ class GreedyOptimizer:
 
         # Calculate barge cost
         self.barge_cost = self.calculate_objective()
-        
+
         # Calculate total cost
         self.total_cost = self.barge_cost + self.truck_cost
-        
+
         return {
-            'total_cost': self.total_cost,
-            'barge_cost': self.barge_cost,
-            'truck_cost': self.truck_cost,
-            'f_ck_init': self.f_ck_init,
-            'route_list': self.route_list,
-            'trucked_containers': self.trucked_containers,
-            'xijk': self.xijk
+            "total_cost": self.total_cost,
+            "barge_cost": self.barge_cost,
+            "truck_cost": self.truck_cost,
+            "f_ck_init": self.f_ck_init,
+            "route_list": self.route_list,
+            "trucked_containers": self.trucked_containers,
+            "xijk": self.xijk,
         }
-    
+
     def calculate_objective(self):
         """
         Calculate objective function value (barge costs)
-        
+
         Returns:
         --------
         float : Total barge cost
@@ -617,34 +659,43 @@ class GreedyOptimizer:
                     cost += self.xijk[k][i][j] * self.Handling_time
 
         return cost
-    
+
     def print_results(self):
         """Print detailed results of the optimization"""
         print(f"Total cost: {self.total_cost:>10.0f} Euros")
-        print(f"Barge cost: {self.barge_cost:>10.0f} Euros             ({self.barge_cost / self.total_cost * 100:>5.1f}% )")
-        print(f"Truck cost: {self.truck_cost:>10.0f} Euros             ({self.truck_cost / self.total_cost * 100:>5.1f}% )")
+        print(
+            f"Barge cost: {self.barge_cost:>10.0f} Euros             ({self.barge_cost / self.total_cost * 100:>5.1f}% )"
+        )
+        print(
+            f"Truck cost: {self.truck_cost:>10.0f} Euros             ({self.truck_cost / self.total_cost * 100:>5.1f}% )"
+        )
         print(f"Containers: {self.C:>10d}")
         print(f"Terminals: {self.N:>10d}")
-        print(f"Trucked containers: {len(self.trucked_containers):>10d}           ({len(self.trucked_containers) / self.C * 100:>5.1f}% )")
-        
+        print(
+            f"Trucked containers: {len(self.trucked_containers):>10d}           ({len(self.trucked_containers) / self.C * 100:>5.1f}% )"
+        )
+
         # Print barge utilization
         for k, route in enumerate(self.route_list):
             if len(route) > 1:  # Only print if barge is used
-                containers_on_barge = sum(1 for c in range(self.C) if self.f_ck_init[c][k] == 1)
-                teu_on_barge = sum(self.C_dict[c]["Wc"] for c in range(self.C) if self.f_ck_init[c][k] == 1)
+                containers_on_barge = sum(
+                    1 for c in range(self.C) if self.f_ck_init[c][k] == 1
+                )
+                teu_on_barge = sum(
+                    self.C_dict[c]["Wc"]
+                    for c in range(self.C)
+                    if self.f_ck_init[c][k] == 1
+                )
                 print(
-                        f"Barge {k:>3d}: "
-                        f"{containers_on_barge:>4d} containers, "
-                        f"{teu_on_barge:>4d}/{self.Barges[k]:<4d} TEU"
-                        )
+                    f"Barge {k:>3d}: "
+                    f"{containers_on_barge:>4d} containers, "
+                    f"{teu_on_barge:>4d}/{self.Barges[k]:<4d} TEU"
+                )
 
     @property
     def T_ij_list(self):
         """Alias for T_matrix for backward compatibility"""
         return self.T_matrix
-
-
-
 
 
 # Create global instance for backward compatibility
@@ -663,19 +714,23 @@ H_t_40 = _global_optimizer.H_t_40
 H_t_20 = _global_optimizer.H_t_20
 Handling_time = _global_optimizer.Handling_time
 
+
 # Functions for backward compatibility
 def container_info(seed, reduced):
     """Backward compatibility function"""
     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
     return optimizer.C_dict, optimizer.C, optimizer.N
 
+
 def get_route(L_current):
     """Backward compatibility function"""
     return _global_optimizer.get_route(L_current)
 
+
 def get_timing(route, T_ij_list, handling_time, L_current, delay):
     """Backward compatibility function"""
     return _global_optimizer.get_timing(route, L_current, delay)
+
 
 def check_for_cap(route, L_current, barges, idx):
     """Backward compatibility function"""
@@ -684,9 +739,11 @@ def check_for_cap(route, L_current, barges, idx):
     temp_optimizer.Barges = barges
     return temp_optimizer.check_for_cap(route, L_current, idx)
 
+
 def delay_window(container, D_terminal, route, terminal, handling_time):
     """Backward compatibility function"""
     return _global_optimizer.delay_window(container, D_terminal, route, terminal)
+
 
 # Run the algorithm and print results if this file is executed directly
 if __name__ == "__main__":

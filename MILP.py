@@ -24,52 +24,51 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
 
-
 class MILP_Algo:
     def __init__(
-            self,
-            # run_name="MILP_Run",
-            run_name="______",
-            qk=[  # Barge capacities in TEU
-                20,         # Barge 0
-                20,         # Barge 1
-                20,         # Barge 2
-                20,         # Barge 3
-                10,         # Barge 4
-                10,         # Barge 5
-                10,         # Barge 6
-            ],
-            h_b=[  # Barge fixed costs in euros
-                1100,      # Barge 0
-                1700,      # Barge 1
-                1800,      # Barge 2
-                1900,      # Barge 3
-                3300,      # Barge 4
-                3300,      # Barge 5
-                3300,      # Barge 6
-            ],
-            seed=25,
-            reduced=False,
-            h_t_40=200_000,                 # 40ft container trucking cost in euros
-            h_t_20=140_000,                 # 20ft container trucking cost in euros
-            handling_time=1/6,              # Container handling time in hours
-            C_range=(150, 175),              # (min, max) number of containers when reduced=False
-            N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
-
-            Oc_range=(24, 190),             # (min, max) opening time in hours
-            Oc_offset_range=(110, 350),      # (min_offset, max_offset) such that
-                                            # Dc is drawn in [Oc + min_offset, Oc + max_offset]
-
-            travel_time_long_range=(60, 100),   # (min, max) travel time between dryport and sea terminals in hours
-            travel_angle = math.pi,             # angle sector for terminal placement
-            travel_time_scale = 15,             # scale down travel times for better layout
-
-            P40_range=(0.2, 0.22),              # (min, max) probability of 40ft container
-            PExport_range=(0.05, 0.75),         # (min, max) probability of export
-            C_range_reduced=(65, 75),           # (min, max) containers when reduced=True
-            N_range_reduced=(6, 6),             # (min, max) terminals when reduced=True
-            gamma=100,                          # penalty per sea terminal visit [euros]
-            big_m=1_000_000                     # big-M
+        self,
+        # run_name="MILP_Run",
+        run_name="______",
+        qk=[  # Barge capacities in TEU
+            20,  # Barge 0
+            20,  # Barge 1
+            20,  # Barge 2
+            20,  # Barge 3
+            10,  # Barge 4
+            10,  # Barge 5
+            10,  # Barge 6
+        ],
+        h_b=[  # Barge fixed costs in euros
+            1100,  # Barge 0
+            1700,  # Barge 1
+            1800,  # Barge 2
+            1900,  # Barge 3
+            3300,  # Barge 4
+            3300,  # Barge 5
+            3300,  # Barge 6
+        ],
+        seed=25,
+        reduced=False,
+        h_t_40=200_000,  # 40ft container trucking cost in euros
+        h_t_20=140_000,  # 20ft container trucking cost in euros
+        handling_time=1 / 6,  # Container handling time in hours
+        C_range=(150, 175),  # (min, max) number of containers when reduced=False
+        N_range=(5, 5),  # (min, max) number of terminals when reduced=False
+        Oc_range=(24, 190),  # (min, max) opening time in hours
+        Oc_offset_range=(110, 350),  # (min_offset, max_offset) such that
+        # Dc is drawn in [Oc + min_offset, Oc + max_offset]
+        travel_time_long_range=(
+            60,
+            100,
+        ),  # (min, max) travel time between dryport and sea terminals in hours
+        travel_angle=math.pi,  # angle sector for terminal placement
+        travel_time_scale=15,  # scale down travel times for better layout
+        P40_range=(0.2, 0.22),  # (min, max) probability of 40ft container
+        PExport_range=(0.05, 0.75),  # (min, max) probability of export
+        C_range_reduced=(65, 75),  # (min, max) containers when reduced=True
+        N_range_reduced=(6, 6),  # (min, max) terminals when reduced=True
+        gamma=100,  # penalty per sea terminal visit [euros]
+        big_m=1_000_000,  # big-M
     ):
         """
         Initialize the MILP optimi zer.
@@ -105,20 +104,19 @@ class MILP_Algo:
             "C_range_reduced": C_range_reduced,
             "N_range_reduced": N_range_reduced,
             "gamma": gamma,
-            "big_m": big_m
+            "big_m": big_m,
         }
         with open(f"Storage/Settings/settings_{self.file_name}.toml", "w") as f:
             toml.dump(dict_settings, f)
 
-        # Parameters 
+        # Parameters
         self.seed = seed
         self.reduced = reduced
-        self.Qk = qk          # barge capacities in TEU
-        self.H_b = h_b        # barge fixed costs in euros
+        self.Qk = qk  # barge capacities in TEU
+        self.H_b = h_b  # barge fixed costs in euros
         self.H_t_40 = h_t_40  # euros per 40ft container
         self.H_t_20 = h_t_20  # euros per 20ft container
         self.Handling_time = handling_time  # hours per container
-
 
         # Ranges (hours / probabilities)
         self.C_range = C_range
@@ -141,25 +139,25 @@ class MILP_Algo:
         self.M = big_m
 
         # Instance data (populated by generate_instance)
-        self.C = 0                  # number of containers
-        self.N = 0                  # number of terminals
-        self.C_list = []            # list of container indices
-        self.N_list = []            # list of terminal indices
-        self.K_list = []            # list of vehicle indices
-        self.K_b = []               # barge indices
-        self.K_t = None             # truck index
+        self.C = 0  # number of containers
+        self.N = 0  # number of terminals
+        self.C_list = []  # list of container indices
+        self.N_list = []  # list of terminal indices
+        self.K_list = []  # list of vehicle indices
+        self.K_b = []  # barge indices
+        self.K_t = None  # truck index
 
-        self.E = []                 # list of export containers
-        self.I = []                 # list of import containers
-        self.W_c = []               # container size in TEU (1 or 2)
-        self.R_c = []               # release times [hours]
-        self.O_c = []               # opening times [hours]
-        self.D_c = []               # closing times [hours]
-        self.H_T = []               # trucking cost per container [euros]
-        self.Z_cj = []              # assignment of container c to terminal j
-        self.C_dict = {}            # same structure as in GreedyAlgo for compatibility
+        self.E = []  # list of export containers
+        self.I = []  # list of import containers
+        self.W_c = []  # container size in TEU (1 or 2)
+        self.R_c = []  # release times [hours]
+        self.O_c = []  # opening times [hours]
+        self.D_c = []  # closing times [hours]
+        self.H_T = []  # trucking cost per container [euros]
+        self.Z_cj = []  # assignment of container c to terminal j
+        self.C_dict = {}  # same structure as in GreedyAlgo for compatibility
 
-        self.T_ij_matrix = []       # travel time matrix [hours]
+        self.T_ij_matrix = []  # travel time matrix [hours]
 
         # Gurobi model and variables
         self.model = None
@@ -233,7 +231,6 @@ class MILP_Algo:
             # Closing time in hours
             Dc_hr = rng.randint(Oc_hr + Oc_off_min_hr, Oc_hr + Oc_off_max_hr)
 
-
             # Probabilities
             P_40 = rng.uniform(P40_min, P40_max)
             P_Export = rng.uniform(PExp_min, PExp_max)
@@ -276,10 +273,10 @@ class MILP_Algo:
             self.Z_cj[c][Terminal] = 1
 
             self.C_dict[c] = {
-                "Rc": Rc_hr,          # ready time in hours (for consistency with GreedyAlgo)
-                "Dc": Dc_hr,          # closing time in hours
-                "Oc": Oc_hr,          # opening time in hours
-                "Wc": W_teu,          # TEU (1 or 2)
+                "Rc": Rc_hr,  # ready time in hours (for consistency with GreedyAlgo)
+                "Dc": Dc_hr,  # closing time in hours
+                "Oc": Oc_hr,  # opening time in hours
+                "Wc": W_teu,  # TEU (1 or 2)
                 "In_or_Out": In_or_Out,
                 "Terminal": Terminal,
             }
@@ -292,7 +289,7 @@ class MILP_Algo:
         Generates:
         - node_xy: list of (x, y) coordinates for each terminal.
         - T_ij_matrix: Euclidean travel times between nodes.
-        
+
         Rules:
         - Dryport (node 0) fixed at (0, 0).
         - Each other node gets:
@@ -307,19 +304,23 @@ class MILP_Algo:
         long_min, long_max = self.travel_time_long_range
 
         node_xy = []
-        node_xy.append((0.0, 0.0))      # Node 0 fixed
+        node_xy.append((0.0, 0.0))  # Node 0 fixed
 
         # ---------------------------
         # Assign coordinates to nodes
         # ---------------------------
         for j in range(1, num_nodes):
             # Sample travel time distance from dryport
-            r = rng.randint(long_min, long_max) / self.travel_time_scale  # scaled down for better layout
+            r = (
+                rng.randint(long_min, long_max) / self.travel_time_scale
+            )  # scaled down for better layout
 
             # Random angle
             # theta = rng.uniform(0, 2 * math.pi)
-            theta = rng.uniform(math.pi*3/4, math.pi*5/4)
-            theta = rng.uniform(math.pi - self.travel_angle, math.pi + self.travel_angle)
+            theta = rng.uniform(math.pi * 3 / 4, math.pi * 5 / 4)
+            theta = rng.uniform(
+                math.pi - self.travel_angle, math.pi + self.travel_angle
+            )
 
             # Cartesian coordinates
             x = r * math.cos(theta)
@@ -341,7 +342,9 @@ class MILP_Algo:
                     T[i][j] = 0.0
                     continue
                 xj, yj = node_xy[j]
-                dist = math.sqrt((xi - xj)**2 + (yi - yj)**2) * self.travel_time_scale  # scale back to time
+                dist = (
+                    math.sqrt((xi - xj) ** 2 + (yi - yj) ** 2) * self.travel_time_scale
+                )  # scale back to time
                 T[i][j] = int(dist)
 
         self.T_ij_matrix = T
@@ -354,7 +357,7 @@ class MILP_Algo:
         """Create Gurobi model and decision variables."""
         self.model = Model("BargeScheduling")
 
-        self.model.Params.MIPFocus = 1   # focus on improving feasible solutions quickly
+        self.model.Params.MIPFocus = 1  # focus on improving feasible solutions quickly
         # Options:
         # 0 = balanced (default)
         # 1 = feasibility
@@ -362,7 +365,6 @@ class MILP_Algo:
         # 3 = bound improvement
 
         # --------------- Gurobi configuration ---------------
-
 
         # Log file with timestamp to avoid overwriting
         self.model.Params.LogFile = f"Storage/Logs/log______{self.file_name}.log"
@@ -377,9 +379,6 @@ class MILP_Algo:
         # self.model.Params.DisplayInterval = 5  # print progress every 5 seconds
         # ----------------------------------------------------
 
-
-
-
         C = self.C_list
         N = self.N_list
         K = self.K_list
@@ -390,15 +389,12 @@ class MILP_Algo:
 
         # x_ijk = 1 if barge k sails from terminal i to j
         # self.x_ijk = self.model.addVars(N, N, K_b, vtype=GRB.BINARY, name="x_ijk")
-        
+
         # Create a list of tuples (i, j, k) ONLY where i != j
         valid_arcs = [(i, j, k) for i in N for j in N for k in K_b if i != j]
 
         # Pass this list to addVars
         self.x_ijk = self.model.addVars(valid_arcs, vtype=GRB.BINARY, name="x_ijk")
-
-
-
 
         # p_jk: import quantity loaded by barge k at terminal j
         # d_jk: export quantity unloaded by barge k at terminal j
@@ -407,8 +403,12 @@ class MILP_Algo:
 
         # y_ijk: import quantity carried by barge k from i to j
         # z_ijk: export quantity carried by barge k from i to j
-        self.y_ijk = self.model.addVars(N, N, K_b, vtype=GRB.INTEGER, lb=0, name="y_ijk")
-        self.z_ijk = self.model.addVars(N, N, K_b, vtype=GRB.INTEGER, lb=0, name="z_ijk")
+        self.y_ijk = self.model.addVars(
+            N, N, K_b, vtype=GRB.INTEGER, lb=0, name="y_ijk"
+        )
+        self.z_ijk = self.model.addVars(
+            N, N, K_b, vtype=GRB.INTEGER, lb=0, name="z_ijk"
+        )
 
         # t_jk: time barge k is at terminal j
         self.t_jk = self.model.addVars(N, K_b, vtype=GRB.CONTINUOUS, name="t_jk")
@@ -444,12 +444,19 @@ class MILP_Algo:
             quicksum(x_ijk[0, j, k] * HkB[k] for k in K_b for j in N if j != 0)
             +
             # 3. Travel cost between terminals
-            quicksum(T[i][j] * x_ijk[i, j, k]
-                     for k in K_b for i in N for j in N if i != j)
+            quicksum(
+                T[i][j] * x_ijk[i, j, k] for k in K_b for i in N for j in N if i != j
+            )
             +
             # 4. Sea terminal visit penalty (j != 0 are sea terminals)
-            quicksum(x_ijk[i, j, k] * Gamma
-                     for k in K_b for i in N for j in N if j != 0 if i != j)
+            quicksum(
+                x_ijk[i, j, k] * Gamma
+                for k in K_b
+                for i in N
+                for j in N
+                if j != 0
+                if i != j
+            )
         )
 
         m.setObjective(objective, GRB.MINIMIZE)
@@ -459,9 +466,7 @@ class MILP_Algo:
     # -----------------------
 
     def add_constraints(
-            self,
-            limit_total_trucked_containers=False,
-            include_time_constraints=True
+        self, limit_total_trucked_containers=False, include_time_constraints=True
     ):
         """Add all MILP constraints to the model."""
         m = self.model
@@ -495,15 +500,13 @@ class MILP_Algo:
         # Optional: limit total trucked containers
         if limit_total_trucked_containers:
             m.addConstr(
-                quicksum(f_ck[c, K_t] for c in C) <= len(C) - 10,
-                name="Trucked_Limit"
+                quicksum(f_ck[c, K_t] for c in C) <= len(C) - 10, name="Trucked_Limit"
             )
 
         # 1. Each container is assigned to exactly one vehicle
         for c in C:
             m.addConstr(
-                quicksum(f_ck[c, k] for k in K) == 1,
-                name=f"Container_Assignment_{c}"
+                quicksum(f_ck[c, k] for k in K) == 1, name=f"Container_Assignment_{c}"
             )
 
         # 2. Flow conservation for barges at each node
@@ -511,15 +514,16 @@ class MILP_Algo:
             for k in K_b:
                 m.addConstr(
                     quicksum(x_ijk[i, j, k] for j in N if j != i)
-                    - quicksum(x_ijk[j, i, k] for j in N if j != i) == 0,
-                    name=f"Flow_Conservation_{i}_{k}"
+                    - quicksum(x_ijk[j, i, k] for j in N if j != i)
+                    == 0,
+                    name=f"Flow_Conservation_{i}_{k}",
                 )
 
         # 3. Each barge leaves dryport (0) at most once
         for k in K_b:
             m.addConstr(
                 quicksum(x_ijk[0, j, k] for j in N if j != 0) <= 1,
-                name=f"Departures_{k}"
+                name=f"Departures_{k}",
             )
 
         # # 4. No self-loops (i -> i)
@@ -531,18 +535,16 @@ class MILP_Algo:
         for k in K_b:
             for j in N[1:]:
                 m.addConstr(
-                    p_jk[j, k] == quicksum(W_c[c] * Z_cj[c][j] * f_ck[c, k]
-                                           for c in I),
-                    name=f"Import_Quantity_{j}_{k}"
+                    p_jk[j, k] == quicksum(W_c[c] * Z_cj[c][j] * f_ck[c, k] for c in I),
+                    name=f"Import_Quantity_{j}_{k}",
                 )
 
         # 6. Export quantity at terminal j for barge k
         for k in K_b:
             for j in N[1:]:
                 m.addConstr(
-                    d_jk[j, k] == quicksum(W_c[c] * Z_cj[c][j] * f_ck[c, k]
-                                           for c in E),
-                    name=f"Export_Quantity_{j}_{k}"
+                    d_jk[j, k] == quicksum(W_c[c] * Z_cj[c][j] * f_ck[c, k] for c in E),
+                    name=f"Export_Quantity_{j}_{k}",
                 )
 
         # 7. Flow balance for import quantities at terminal j for barge k
@@ -552,7 +554,7 @@ class MILP_Algo:
                     quicksum(y_ijk[j, i, k] for i in N if i != j)
                     - quicksum(y_ijk[i, j, k] for i in N if i != j)
                     == p_jk[j, k],
-                    name=f"Import_Balance_{j}_{k}"
+                    name=f"Import_Balance_{j}_{k}",
                 )
 
         # 8. Flow balance for export quantities at terminal j for barge k
@@ -562,7 +564,7 @@ class MILP_Algo:
                     quicksum(z_ijk[i, j, k] for i in N if i != j)
                     - quicksum(z_ijk[j, i, k] for i in N if i != j)
                     == d_jk[j, k],
-                    name=f"Export_Balance_{j}_{k}"
+                    name=f"Export_Balance_{j}_{k}",
                 )
 
         # 9. Barge trip capacity constraint
@@ -573,15 +575,14 @@ class MILP_Algo:
                 for k in K_b:
                     m.addConstr(
                         y_ijk[i, j, k] + z_ijk[i, j, k] <= Qk[k] * x_ijk[i, j, k],
-                        name=f"Flow_Capacity_{i}_{j}_{k}"
+                        name=f"Flow_Capacity_{i}_{j}_{k}",
                     )
 
         # 10. Export containers: departure time at dryport >= release time
         for c in E:
             for k in K_b:
                 m.addConstr(
-                    t_jk[0, k] >= R_c[c] * f_ck[c, k],
-                    name=f"Vehicle_Departure_{c}_{k}"
+                    t_jk[0, k] >= R_c[c] * f_ck[c, k], name=f"Vehicle_Departure_{c}_{k}"
                 )
 
         # Time constraints
@@ -595,14 +596,20 @@ class MILP_Algo:
                         handling_term = quicksum(L * Z_cj[c][i] * f_ck[c, k] for c in C)
 
                         m.addConstr(
-                            t_jk[j, k] >= t_jk[i, k] + handling_term + T[i][j]
+                            t_jk[j, k]
+                            >= t_jk[i, k]
+                            + handling_term
+                            + T[i][j]
                             - (1 - x_ijk[i, j, k]) * M,
-                            name=f"Time_LB_{i}_{j}_{k}"
+                            name=f"Time_LB_{i}_{j}_{k}",
                         )
                         m.addConstr(
-                            t_jk[j, k] <= t_jk[i, k] + handling_term + T[i][j]
+                            t_jk[j, k]
+                            <= t_jk[i, k]
+                            + handling_term
+                            + T[i][j]
                             + (1 - x_ijk[i, j, k]) * M,
-                            name=f"Time_UB_{i}_{j}_{k}"
+                            name=f"Time_UB_{i}_{j}_{k}",
                         )
 
             # 13. Export container service cannot start before opening time
@@ -611,7 +618,7 @@ class MILP_Algo:
                     for k in K_b:
                         m.addConstr(
                             t_jk[j, k] >= O_c[c] * Z_cj[c][j] - (1 - f_ck[c, k]) * M,
-                            name=f"Export_Time_{c}_{j}_{k}"
+                            name=f"Export_Time_{c}_{j}_{k}",
                         )
 
             # 14. All containers must be served before closing time
@@ -620,43 +627,40 @@ class MILP_Algo:
                     for k in K_b:
                         m.addConstr(
                             t_jk[j, k] * Z_cj[c][j] <= D_c[c] + (1 - f_ck[c, k]) * M,
-                            name=f"Demand_Fulfillment_{c}_{j}_{k}"
+                            name=f"Demand_Fulfillment_{c}_{j}_{k}",
                         )
-            
-            
+
         ##############
         #### List ####
         ##############
-            
+
         # 1. Each container is assigned to exactly one vehicle
-    #  print table. 
-            # 2. Flow conservation for barges at each node              #
+
+    #  print table.
+    # 2. Flow conservation for barges at each node              #
     # checked
-            # 3. Each barge leaves dryport (0) at most once             #
+    # 3. Each barge leaves dryport (0) at most once             #
     # checked
-            # 4. No self-loops (i -> i)                                 #
-    # checked           
-            # 5. Import quantity at terminal j for barge k              #
-    # checked           
-            # 6. Export quantity at terminal j for barge k              #
-    # checked           
-            # 7. Flow balance for import quantities at terminal j for barge k           #
+    # 4. No self-loops (i -> i)                                 #
     # checked
-            # 8. Flow balance for export quantities at terminal j for barge k           #
+    # 5. Import quantity at terminal j for barge k              #
     # checked
-            # 9. Barge trip capacity constraint                                         #                                     
+    # 6. Export quantity at terminal j for barge k              #
+    # checked
+    # 7. Flow balance for import quantities at terminal j for barge k           #
+    # checked
+    # 8. Flow balance for export quantities at terminal j for barge k           #
+    # checked
+    # 9. Barge trip capacity constraint                                         #
     # almost checked
-            # 10. Export containers: departure time at dryport >= release time
-    # box plot looking thing. 
-            # 11 & 12. Time propagation along arcs with handling time at arrival
+    # 10. Export containers: departure time at dryport >= release time
+    # box plot looking thing.
+    # 11 & 12. Time propagation along arcs with handling time at arrival
     # boc plot looking thing.
-            # 13. Export container service cannot start before opening time
+    # 13. Export container service cannot start before opening time
     # box plot looking thing
-            # 14. All containers must be served before closing time
-    # box plot looking thing. 
-
-
-
+    # 14. All containers must be served before closing time
+    # box plot looking thing.
 
     # -----------------------
     # Solve
@@ -683,14 +687,21 @@ class MILP_Algo:
         # Standard Gurobi optimization with built-in log
         self.model.optimize()
 
-
-
-        print("\n#######################################################################################################################################################")
-        print("#######################################################################################################################################################")
-        print("################################################################## Optimization Complete ##############################################################")
-        print("#######################################################################################################################################################")
-        print("#######################################################################################################################################################")
-
+        print(
+            "\n#######################################################################################################################################################"
+        )
+        print(
+            "#######################################################################################################################################################"
+        )
+        print(
+            "################################################################## Optimization Complete ##############################################################"
+        )
+        print(
+            "#######################################################################################################################################################"
+        )
+        print(
+            "#######################################################################################################################################################"
+        )
 
     # -----------------------
     # Result printing helpers
@@ -719,18 +730,24 @@ class MILP_Algo:
         export_teu = sum(self.W_c[c] for c in self.E)
 
         # Time-window statistics (in hours)
-        earliest_open = min(self.O_c)  if self.O_c else None
-        latest_close = max(self.D_c)   if self.D_c else None
+        earliest_open = min(self.O_c) if self.O_c else None
+        latest_close = max(self.D_c) if self.D_c else None
 
         print(f"Nodes (terminals):         {num_nodes}")
-        print(f"Containers:                {num_containers}  "
-              f"(Imports: {num_imports}, Exports: {num_exports})")
+        print(
+            f"Containers:                {num_containers}  "
+            f"(Imports: {num_imports}, Exports: {num_exports})"
+        )
         print(f"Barges available:          {num_barges}")
         print(f"Total vehicles (incl. truck): {num_vehicles}")
-        print(f"Total TEU:                 {total_teu}  "
-              f"(Import TEU: {import_teu}, Export TEU: {export_teu})")
+        print(
+            f"Total TEU:                 {total_teu}  "
+            f"(Import TEU: {import_teu}, Export TEU: {export_teu})"
+        )
 
-        print(f"Container time windows:     earliest open = {earliest_open:.1f} h, latest close = {latest_close:.1f} h")
+        print(
+            f"Container time windows:     earliest open = {earliest_open:.1f} h, latest close = {latest_close:.1f} h"
+        )
         print(f"Handling time per container: {self.Handling_time:.2f} hours")
         print(f"Opening time range (param): {self.Oc_range} hours")
         print(f"Opening offset range:        {self.Oc_offset_range} hours")
@@ -750,24 +767,27 @@ class MILP_Algo:
         """
         m = self.model
         if m is None or m.status != GRB.OPTIMAL:
-            print("No optimal solution found. Status:", m.status if m is not None else "No model")
+            print(
+                "No optimal solution found. Status:",
+                m.status if m is not None else "No model",
+            )
             return
 
-        C    = self.C_list
-        N    = self.N_list
-        K_b  = self.K_b
-        K_t  = self.K_t
+        C = self.C_list
+        N = self.N_list
+        K_b = self.K_b
+        K_t = self.K_t
 
         # Data
-        H_T  = self.H_T
-        H_b  = self.H_b
-        T    = self.T_ij_matrix
+        H_T = self.H_T
+        H_b = self.H_b
+        T = self.T_ij_matrix
         Gamma = self.Gamma
-        Qk   = self.Qk
-        W_c  = self.W_c
+        Qk = self.Qk
+        W_c = self.W_c
 
         # Variables
-        f_ck  = self.f_ck
+        f_ck = self.f_ck
         x_ijk = self.x_ijk
 
         # -------------------------
@@ -776,18 +796,20 @@ class MILP_Algo:
         truck_cost = sum(H_T[c] * f_ck[c, K_t].X for c in C)
 
         barge_fixed_cost = sum(
-            H_b[k] * x_ijk[0, j, k].X
-            for k in K_b for j in N if j != 0
+            H_b[k] * x_ijk[0, j, k].X for k in K_b for j in N if j != 0
         )
 
         travel_cost = sum(
-            T[i][j] * x_ijk[i, j, k].X
-            for k in K_b for i in N for j in N if i != j
+            T[i][j] * x_ijk[i, j, k].X for k in K_b for i in N for j in N if i != j
         )
 
         terminal_penalty_cost = sum(
             Gamma * x_ijk[i, j, k].X
-            for k in K_b for i in N for j in N if j != 0 if i != j
+            for k in K_b
+            for i in N
+            for j in N
+            if j != 0
+            if i != j
         )
 
         barge_cost = barge_fixed_cost + travel_cost + terminal_penalty_cost
@@ -801,16 +823,18 @@ class MILP_Algo:
         # Container / TEU breakdown
         # -------------------------
         total_containers = self.C
-        total_terminals  = self.N
+        total_terminals = self.N
 
         trucked_containers = sum(1 for c in C if f_ck[c, K_t].X > 0.5)
-        barge_containers   = total_containers - trucked_containers
+        barge_containers = total_containers - trucked_containers
 
         total_teu = sum(W_c[c] for c in C)
         truck_teu = sum(W_c[c] for c in C if f_ck[c, K_t].X > 0.5)
         barge_teu = total_teu - truck_teu
 
-        trucked_ratio = trucked_containers / total_containers * 100 if total_containers > 0 else 0.0
+        trucked_ratio = (
+            trucked_containers / total_containers * 100 if total_containers > 0 else 0.0
+        )
 
         # -------------------------
         # Barge usage / capacity
@@ -830,22 +854,23 @@ class MILP_Algo:
 
             utilization = teu_on_barge / Qk[k] * 100 if Qk[k] > 0 else 0.0
 
-            barge_rows.append({
-                "Barge": k,
-                "Containers": containers_on_barge,
-                "TEU used": teu_on_barge,
-                "Capacity (TEU)": Qk[k],
-                "Utilization [%]": f"{utilization:5.1f}",
-            })
+            barge_rows.append(
+                {
+                    "Barge": k,
+                    "Containers": containers_on_barge,
+                    "TEU used": teu_on_barge,
+                    "Capacity (TEU)": Qk[k],
+                    "Utilization [%]": f"{utilization:5.1f}",
+                }
+            )
 
         # (barge_teu_check should equal barge_teu if everything is consistent)
         num_barges_total = len(K_b)
-        num_barges_used  = len(used_barges)
+        num_barges_used = len(used_barges)
 
         total_barge_capacity = sum(Qk[k] for k in K_b)
         overall_capacity_util = (
-            barge_teu / total_barge_capacity * 100
-            if total_barge_capacity > 0 else 0.0
+            barge_teu / total_barge_capacity * 100 if total_barge_capacity > 0 else 0.0
         )
 
         # -------------------------
@@ -863,23 +888,35 @@ class MILP_Algo:
         print(f"TEU on barges (model):          {barge_teu:>10d}")
         print(f"Overall barge utilization:      {overall_capacity_util:>9.1f} %")
         print()
-        print(f"Trucked containers:             {trucked_containers:>10d}  "
-              f"({trucked_ratio:>5.1f} % of all containers)")
+        print(
+            f"Trucked containers:             {trucked_containers:>10d}  "
+            f"({trucked_ratio:>5.1f} % of all containers)"
+        )
         print(f"TEU on trucks:                  {truck_teu:>10d}")
         print(f"TEU on barges (via rows):       {barge_teu_check:>10d}")
         print()
         print(f"Total cost:                     {total_cost:>10.0f} Euros")
-        print(f"  ├─ Truck cost:                {truck_cost:>10.0f} Euros  "
-              f"({truck_cost / total_cost_safe * 100:>5.1f} % of total)")
-        print(f"  └─ Barge cost:                {barge_cost:>10.0f} Euros  "
-              f"({barge_cost / total_cost_safe * 100:>5.1f} % of total)")
+        print(
+            f"  ├─ Truck cost:                {truck_cost:>10.0f} Euros  "
+            f"({truck_cost / total_cost_safe * 100:>5.1f} % of total)"
+        )
+        print(
+            f"  └─ Barge cost:                {barge_cost:>10.0f} Euros  "
+            f"({barge_cost / total_cost_safe * 100:>5.1f} % of total)"
+        )
         print()
-        print(f"     Barge fixed cost:          {barge_fixed_cost:>10.0f} Euros  "
-              f"({barge_fixed_cost / barge_cost_safe * 100:>5.1f} % of barge)")
-        print(f"     Travel term:               {travel_cost:>10.0f} Euros  "
-              f"({travel_cost / barge_cost_safe * 100:>5.1f} % of barge)")
-        print(f"     Terminal penalty term:     {terminal_penalty_cost:>10.0f} Euros  "
-              f"({terminal_penalty_cost / barge_cost_safe * 100:>5.1f} % of barge)")
+        print(
+            f"     Barge fixed cost:          {barge_fixed_cost:>10.0f} Euros  "
+            f"({barge_fixed_cost / barge_cost_safe * 100:>5.1f} % of barge)"
+        )
+        print(
+            f"     Travel term:               {travel_cost:>10.0f} Euros  "
+            f"({travel_cost / barge_cost_safe * 100:>5.1f} % of barge)"
+        )
+        print(
+            f"     Terminal penalty term:     {terminal_penalty_cost:>10.0f} Euros  "
+            f"({terminal_penalty_cost / barge_cost_safe * 100:>5.1f} % of barge)"
+        )
 
         # -------------------------
         # Per-barge utilization summary (no table)
@@ -915,11 +952,13 @@ class MILP_Algo:
             else:
                 import_count = sum(1 for c in I if Z_cj[c][node] == 1)
                 export_count = sum(1 for c in E if Z_cj[c][node] == 1)
-            node_data.append({
-                "Node ID": f"Node {node}",
-                "Import Containers": import_count,
-                "Export Containers": export_count,
-            })
+            node_data.append(
+                {
+                    "Node ID": f"Node {node}",
+                    "Import Containers": import_count,
+                    "Export Containers": export_count,
+                }
+            )
 
         df = pd.DataFrame(node_data)
         print("\n\nNode Table")
@@ -933,7 +972,7 @@ class MILP_Algo:
         Distances are in hours.
         """
         if not self.T_ij_matrix:
-            print("Travel time matrix is empty. Did you call generate_travel_times()?") 
+            print("Travel time matrix is empty. Did you call generate_travel_times()?")
             return
 
         N = self.N_list
@@ -944,15 +983,17 @@ class MILP_Algo:
             for j in N:
                 if j <= i:
                     continue  # avoid self-pairs and duplicates
-                distance_data.append({
-                    "From": f"Node {i}",
-                    "To": f"Node {j}",
-                    "Distance [hours]": T[i][j],
-                })
+                distance_data.append(
+                    {
+                        "From": f"Node {i}",
+                        "To": f"Node {j}",
+                        "Distance [hours]": T[i][j],
+                    }
+                )
 
         df = pd.DataFrame(distance_data)
         print("\n\nDistance Table (Unique Node Pairs)")
-        print(    "==================================")
+        print("==================================")
         print(tabulate(df, headers="keys", tablefmt="grid"))
 
     def print_barge_table(self):
@@ -972,8 +1013,8 @@ class MILP_Algo:
         y_ijk = self.y_ijk
         z_ijk = self.z_ijk
         print("\n\n================")
-        print(   f"All Barge tables")
-        print(    "================")
+        print(f"All Barge tables")
+        print("================")
         for k in K_b:
             total_capacity = Qk[k]
             routes = []
@@ -983,14 +1024,18 @@ class MILP_Algo:
                     if i != j and x_ijk[i, j, k].X > 0.5:
                         capacity_used = y_ijk[i, j, k].X + z_ijk[i, j, k].X
                         utilization_percent = (
-                            capacity_used / total_capacity * 100 if total_capacity > 0 else 0
+                            capacity_used / total_capacity * 100
+                            if total_capacity > 0
+                            else 0
                         )
-                        routes.append({
-                            "Route": f"Node {i} -> Node {j}",
-                            "Capacity Used (TEU)": capacity_used,
-                            "Capacity (TEU)": total_capacity,
-                            "Utilization (%)": f"{utilization_percent:.0f}",
-                        })
+                        routes.append(
+                            {
+                                "Route": f"Node {i} -> Node {j}",
+                                "Capacity Used (TEU)": capacity_used,
+                                "Capacity (TEU)": total_capacity,
+                                "Utilization (%)": f"{utilization_percent:.0f}",
+                            }
+                        )
 
             if routes:
                 df = pd.DataFrame(routes)
@@ -1045,26 +1090,31 @@ class MILP_Algo:
             # TEU size -> ft just for display
             size_ft = 20 if W_c[c] == 1 else 40
 
-            container_data.append({
-                "Container ID": c,
-                "Size (ft)": size_ft,
-                "Type": container_type,
-                "Origin": origin,
-                "Destination": destination,
-                "Release Time [hours]": R_c[c],
-                "Opening Time [hours]": O_c[c],
-                "Closing Time [hours]": D_c[c],
-                "Assigned Vehicle": assigned_label,
-                "Sort Node": sort_node,
-                "Sort Type": 0 if container_type == "Export" else 1
-            })
+            container_data.append(
+                {
+                    "Container ID": c,
+                    "Size (ft)": size_ft,
+                    "Type": container_type,
+                    "Origin": origin,
+                    "Destination": destination,
+                    "Release Time [hours]": R_c[c],
+                    "Opening Time [hours]": O_c[c],
+                    "Closing Time [hours]": D_c[c],
+                    "Assigned Vehicle": assigned_label,
+                    "Sort Node": sort_node,
+                    "Sort Type": 0 if container_type == "Export" else 1,
+                }
+            )
 
         df = pd.DataFrame(container_data)
-        df = df.sort_values(by=["Sort Node", "Sort Type"]).drop(columns=["Sort Node", "Sort Type"])
+        df = df.sort_values(by=["Sort Node", "Sort Type"]).drop(
+            columns=["Sort Node", "Sort Type"]
+        )
 
         print("\n\nContainer Table (Grouped by Node and Type)")
         print("==========================================")
         print(tabulate(df, headers="keys", tablefmt="grid"))
+
     def plot_barge_solution_map_report_Without_containers(self):
         """
         Curved-edge barge route map with segment-order alpha encoding.
@@ -1075,11 +1125,9 @@ class MILP_Algo:
         - Minimalistic aesthetic
         """
 
-
-
         def bezier_quad(P0, P1, P2, t):
             """Quadratic Bézier interpolation."""
-            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t ** 2 * P2
+            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t**2 * P2
 
         m = self.model
         if m is None or m.status != GRB.OPTIMAL:
@@ -1110,15 +1158,15 @@ class MILP_Algo:
         # Linestyles for barges
         # --------------------------
         line_styles = [
-            "-",          # solid
-            "--",         # dashed
-            ":",          # dotted
-            "-.",         # dash-dot
-            (0, (1, 1, 2, 1)),    # dot-dash fine
-            (0, (8, 4)),          # long dash
-            (0, (1, 2, 1, 2, 1, 6)),    # custom pattern
-            (0, (2, 6)),                # custom pattern
-            (0, (6, 2, 1, 2, 1, 2)),    # custom pattern
+            "-",  # solid
+            "--",  # dashed
+            ":",  # dotted
+            "-.",  # dash-dot
+            (0, (1, 1, 2, 1)),  # dot-dash fine
+            (0, (8, 4)),  # long dash
+            (0, (1, 2, 1, 2, 1, 6)),  # custom pattern
+            (0, (2, 6)),  # custom pattern
+            (0, (6, 2, 1, 2, 1, 2)),  # custom pattern
         ]
         line_styles = line_styles * 10  # repeat if many barges
 
@@ -1138,21 +1186,34 @@ class MILP_Algo:
             if j == 0:
                 # Dryport = solid square
                 ax.scatter(
-                    x, y, s=800, marker="s",
-                    facecolor="white", edgecolor="black",
+                    x,
+                    y,
+                    s=800,
+                    marker="s",
+                    facecolor="white",
+                    edgecolor="black",
                     zorder=4,
                 )
             else:
                 ax.scatter(
-                    x, y, s=400,
-                    facecolor="white", edgecolor="black",
-                    linewidth=1.2, zorder=3
+                    x,
+                    y,
+                    s=400,
+                    facecolor="white",
+                    edgecolor="black",
+                    linewidth=1.2,
+                    zorder=3,
                 )
 
             ax.text(
-                x, y, f"{j}",
-                ha="center", va="center",
-                fontsize=9, color="black", zorder=5
+                x,
+                y,
+                f"{j}",
+                ha="center",
+                va="center",
+                fontsize=9,
+                color="black",
+                zorder=5,
             )
 
         # --------------------------
@@ -1171,12 +1232,14 @@ class MILP_Algo:
             successors = {i: [] for i in N}
             predecessors = {j: [] for j in N}
 
-            for (i, j) in arcs:
+            for i, j in arcs:
                 successors[i].append(j)
                 predecessors[j].append(i)
 
             # A start node has no predecessors
-            start_candidates = [i for i in N if successors[i] and len(predecessors[i]) == 0]
+            start_candidates = [
+                i for i in N if successors[i] and len(predecessors[i]) == 0
+            ]
 
             if start_candidates:
                 start = start_candidates[0]
@@ -1212,7 +1275,14 @@ class MILP_Algo:
         multi = 3.0
         # curvature_values = [0.2*multi, 0.25*multi, 0.3*multi, 0.35*multi, 0.4*multi, 0.45*multi, -0.2*multi, -0.25*multi, -0.3*multi, -0.35*multi, -0.4*multi, -0.45*multi,]
         # curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi, -0.1*multi, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
-        curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi] #, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
+        curvature_values = [
+            0.1 * multi,
+            0.2 * multi,
+            0.3 * multi,
+            0.4 * multi,
+            0.5 * multi,
+            0.6 * multi,
+        ]  # , -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
 
         legend_lines = []
         legend_labels = []
@@ -1248,14 +1318,14 @@ class MILP_Algo:
                 curve = np.array([bezier_quad(P0, P1, P2, t) for t in ts])
 
                 ax.plot(
-                    curve[:, 0], curve[:, 1],
+                    curve[:, 0],
+                    curve[:, 1],
                     color="black",
                     linewidth=2.5,
                     linestyle=linestyle,
                     alpha=float(alpha),
                     zorder=2,
                 )
-
 
                 t_peak = 0.5
                 peak = bezier_quad(P0, P1, P2, t_peak)
@@ -1285,7 +1355,7 @@ class MILP_Algo:
                         sign_x, sign_y  ∈ { -1, 1 }
                     """
                     # Midpoint of the chord
-                    M = (P0 + P2) / 2     # array([Mx, My])
+                    M = (P0 + P2) / 2  # array([Mx, My])
                     Mx, My = M
 
                     dx = anchor_x - Mx
@@ -1296,26 +1366,23 @@ class MILP_Algo:
                     sign_y = 1 if dy >= 0 else -1
 
                     return sign_x, sign_y
-                
+
                 # sign_x, sign_y = compute_signs(P0, P2, anchor_x, anchor_y)
 
                 # width_scaled = 0.09
                 # plotter = ContainerPlotter(width=width_scaled, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
-       
+
                 # total_capacity = self.Qk[k]
                 # self._draw_segment_stack(ax, plotter, i, j, k,
-                                        #  total_width=5, max_rows=total_capacity / 5)
-
-
+                #  total_width=5, max_rows=total_capacity / 5)
 
             # legend entry for this barge
-            line, = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
+            (line,) = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
             legend_lines.append(line)
             legend_labels.append(f"Barge {k}")
             # ==========================================
             # Add Import / Export container legend icons
             # ==========================================
-
 
         # # Small representative container size
         # legend_w = width_scaled
@@ -1352,13 +1419,14 @@ class MILP_Algo:
 
         # Legend
         ax.legend(
-        legend_lines, legend_labels,
-        loc="upper right",
-        frameon=True,
-        fontsize=15,
-        handlelength= 4.2,      # default is 2 — increase for longer patterns
-        handletextpad=0.8,   # spacing between line and text
-    )
+            legend_lines,
+            legend_labels,
+            loc="upper right",
+            frameon=True,
+            fontsize=15,
+            handlelength=4.2,  # default is 2 — increase for longer patterns
+            handletextpad=0.8,  # spacing between line and text
+        )
 
         plt.tight_layout()
         plt.savefig(f"Storage/Figures/solution_map{self.file_name}_no_cont.pdf")
@@ -1373,11 +1441,9 @@ class MILP_Algo:
         - Minimalistic aesthetic
         """
 
-
-
         def bezier_quad(P0, P1, P2, t):
             """Quadratic Bézier interpolation."""
-            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t ** 2 * P2
+            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t**2 * P2
 
         m = self.model
         if m is None or m.status != GRB.OPTIMAL:
@@ -1392,12 +1458,11 @@ class MILP_Algo:
         K_b = self.K_b
         x_ijk = self.x_ijk
 
-
         # --------------------------
         # Prepare figure
         # --------------------------
         # fig, ax = plt.subplots(figsize=(12, 8))
-        fig, ax = plt.subplots(figsize=((12/1.4), (8/1.4)))
+        fig, ax = plt.subplots(figsize=((12 / 1.4), (8 / 1.4)))
         fig.patch.set_facecolor("white")
         ax.set_facecolor("white")
 
@@ -1410,21 +1475,34 @@ class MILP_Algo:
             if j == 0:
                 # Dryport = solid square
                 ax.scatter(
-                    x, y, s=800, marker="s",
-                    facecolor="white", edgecolor="black",
+                    x,
+                    y,
+                    s=800,
+                    marker="s",
+                    facecolor="white",
+                    edgecolor="black",
                     zorder=4,
                 )
             else:
                 ax.scatter(
-                    x, y, s=400,
-                    facecolor="white", edgecolor="black",
-                    linewidth=1.2, zorder=3
+                    x,
+                    y,
+                    s=400,
+                    facecolor="white",
+                    edgecolor="black",
+                    linewidth=1.2,
+                    zorder=3,
                 )
 
             ax.text(
-                x, y, f"{j}",
-                ha="center", va="center",
-                fontsize=9, color="black", zorder=5
+                x,
+                y,
+                f"{j}",
+                ha="center",
+                va="center",
+                fontsize=9,
+                color="black",
+                zorder=5,
             )
 
         # --------------------------
@@ -1439,20 +1517,22 @@ class MILP_Algo:
 
                 xj, yj = node_xy[j]
 
-                curve = np.array([
-                    [xi, yi],
-                    [xj, yj],
-                ])
+                curve = np.array(
+                    [
+                        [xi, yi],
+                        [xj, yj],
+                    ]
+                )
 
                 ax.plot(
-                    curve[:, 0], curve[:, 1],
+                    curve[:, 0],
+                    curve[:, 1],
                     color="black",
                     linewidth=1.2,
                     linestyle=":",
                     alpha=1.0,
                     zorder=2,
                 )
-
 
         # --------------------------
         # Styling
@@ -1466,15 +1546,6 @@ class MILP_Algo:
         plt.tight_layout()
         plt.savefig(f"Storage/Figures/solution_map{self.file_name}_simple.pdf")
 
-
-
-
-
-
-
-
-
-    
     def plot_barge_solution_map_report_3(self):
         """
         Curved-edge barge route map with segment-order alpha encoding.
@@ -1485,11 +1556,9 @@ class MILP_Algo:
         - Minimalistic aesthetic
         """
 
-
-
         def bezier_quad(P0, P1, P2, t):
             """Quadratic Bézier interpolation."""
-            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t ** 2 * P2
+            return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t**2 * P2
 
         m = self.model
         if m is None or m.status != GRB.OPTIMAL:
@@ -1520,15 +1589,15 @@ class MILP_Algo:
         # Linestyles for barges
         # --------------------------
         line_styles = [
-            "-",          # solid
-            "--",         # dashed
-            ":",          # dotted
-            "-.",         # dash-dot
-            (0, (1, 1, 2, 1)),    # dot-dash fine
-            (0, (8, 4)),          # long dash
-            (0, (1, 2, 1, 2, 1, 6)),    # custom pattern
-            (0, (2, 6)),                # custom pattern
-            (0, (6, 2, 1, 2, 1, 2)),    # custom pattern
+            "-",  # solid
+            "--",  # dashed
+            ":",  # dotted
+            "-.",  # dash-dot
+            (0, (1, 1, 2, 1)),  # dot-dash fine
+            (0, (8, 4)),  # long dash
+            (0, (1, 2, 1, 2, 1, 6)),  # custom pattern
+            (0, (2, 6)),  # custom pattern
+            (0, (6, 2, 1, 2, 1, 2)),  # custom pattern
         ]
         line_styles = line_styles * 10  # repeat if many barges
 
@@ -1549,21 +1618,34 @@ class MILP_Algo:
             if j == 0:
                 # Dryport = solid square
                 ax.scatter(
-                    x, y, s=800, marker="s",
-                    facecolor="white", edgecolor="black",
+                    x,
+                    y,
+                    s=800,
+                    marker="s",
+                    facecolor="white",
+                    edgecolor="black",
                     zorder=4,
                 )
             else:
                 ax.scatter(
-                    x, y, s=400,
-                    facecolor="white", edgecolor="black",
-                    linewidth=1.2, zorder=3
+                    x,
+                    y,
+                    s=400,
+                    facecolor="white",
+                    edgecolor="black",
+                    linewidth=1.2,
+                    zorder=3,
                 )
 
             ax.text(
-                x, y, f"{j}",
-                ha="center", va="center",
-                fontsize=9, color="black", zorder=5
+                x,
+                y,
+                f"{j}",
+                ha="center",
+                va="center",
+                fontsize=9,
+                color="black",
+                zorder=5,
             )
 
         # --------------------------
@@ -1582,12 +1664,14 @@ class MILP_Algo:
             successors = {i: [] for i in N}
             predecessors = {j: [] for j in N}
 
-            for (i, j) in arcs:
+            for i, j in arcs:
                 successors[i].append(j)
                 predecessors[j].append(i)
 
             # A start node has no predecessors
-            start_candidates = [i for i in N if successors[i] and len(predecessors[i]) == 0]
+            start_candidates = [
+                i for i in N if successors[i] and len(predecessors[i]) == 0
+            ]
 
             if start_candidates:
                 start = start_candidates[0]
@@ -1623,7 +1707,14 @@ class MILP_Algo:
         multi = 3.0
         # curvature_values = [0.2*multi, 0.25*multi, 0.3*multi, 0.35*multi, 0.4*multi, 0.45*multi, -0.2*multi, -0.25*multi, -0.3*multi, -0.35*multi, -0.4*multi, -0.45*multi,]
         # curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi, -0.1*multi, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
-        curvature_values = [0.1*multi, 0.2*multi, 0.3*multi, 0.4*multi, 0.5*multi, 0.6*multi] #, -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
+        curvature_values = [
+            0.1 * multi,
+            0.2 * multi,
+            0.3 * multi,
+            0.4 * multi,
+            0.5 * multi,
+            0.6 * multi,
+        ]  # , -0.2*multi, -0.3*multi, -0.4*multi, -0.5*multi, -0.6*multi,]
 
         legend_lines = []
         legend_labels = []
@@ -1659,14 +1750,14 @@ class MILP_Algo:
                 curve = np.array([bezier_quad(P0, P1, P2, t) for t in ts])
 
                 ax.plot(
-                    curve[:, 0], curve[:, 1],
+                    curve[:, 0],
+                    curve[:, 1],
                     color="black",
                     linewidth=2.5,
                     linestyle=linestyle,
                     alpha=float(alpha),
                     zorder=2,
                 )
-
 
                 t_peak = 0.5
                 peak = bezier_quad(P0, P1, P2, t_peak)
@@ -1696,7 +1787,7 @@ class MILP_Algo:
                         sign_x, sign_y  ∈ { -1, 1 }
                     """
                     # Midpoint of the chord
-                    M = (P0 + P2) / 2     # array([Mx, My])
+                    M = (P0 + P2) / 2  # array([Mx, My])
                     Mx, My = M
 
                     dx = anchor_x - Mx
@@ -1707,27 +1798,31 @@ class MILP_Algo:
                     sign_y = 1 if dy >= 0 else -1
 
                     return sign_x, sign_y
-                
+
                 sign_x, sign_y = compute_signs(P0, P2, anchor_x, anchor_y)
 
                 # width_scaled = 0.09
                 width_scaled = 0.16
-                plotter = ContainerPlotter(width=width_scaled, x=anchor_x, y=anchor_y, sign_x=sign_x, sign_y=sign_y)
-       
+                plotter = ContainerPlotter(
+                    width=width_scaled,
+                    x=anchor_x,
+                    y=anchor_y,
+                    sign_x=sign_x,
+                    sign_y=sign_y,
+                )
+
                 total_capacity = self.Qk[k]
-                self._draw_segment_stack(ax, plotter, i, j, k,
-                                         total_width=5, max_rows=total_capacity / 5)
-
-
+                self._draw_segment_stack(
+                    ax, plotter, i, j, k, total_width=5, max_rows=total_capacity / 5
+                )
 
             # legend entry for this barge
-            line, = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
+            (line,) = ax.plot([], [], color="black", linewidth=2.5, linestyle=linestyle)
             legend_lines.append(line)
             legend_labels.append(f"Barge {k}")
             # ==========================================
             # Add Import / Export container legend icons
             # ==========================================
-
 
         # Small representative container size
         legend_w = width_scaled
@@ -1739,7 +1834,7 @@ class MILP_Algo:
             legend_h,
             facecolor="#00A63C",
             edgecolor="#006E28",
-            linewidth=1.5
+            linewidth=1.5,
         )
         export_patch = Rectangle(
             (0, 0),
@@ -1747,7 +1842,7 @@ class MILP_Algo:
             legend_h,
             facecolor="#FF6F00",
             edgecolor="#B23E00",
-            linewidth=1.5
+            linewidth=1.5,
         )
 
         legend_lines.extend([export_patch, import_patch])
@@ -1764,20 +1859,19 @@ class MILP_Algo:
 
         # Legend
         ax.legend(
-        legend_lines, legend_labels,
-        loc="upper right",
-        frameon=True,
-        fontsize=12,
-        handlelength= 4.2,      # default is 2 — increase for longer patterns
-        handletextpad=0.8,   # spacing between line and text
-    )
+            legend_lines,
+            legend_labels,
+            loc="upper right",
+            frameon=True,
+            fontsize=12,
+            handlelength=4.2,  # default is 2 — increase for longer patterns
+            handletextpad=0.8,  # spacing between line and text
+        )
 
         plt.tight_layout()
         plt.savefig(f"Storage/Figures/solution_map{self.file_name}.pdf")
 
-
-    def _draw_segment_stack(self, ax, plotter, i, j, k,
-                            total_width, max_rows):
+    def _draw_segment_stack(self, ax, plotter, i, j, k, total_width, max_rows):
         """
         # used in the plot_barge_solution_map_report_3 function
         Draw a container stack for arc (i, j, k) using actual TEU on that segment.
@@ -1827,9 +1921,10 @@ class MILP_Algo:
                 total_height=max_rows,
                 total_width=total_width,
                 IorE=IorE,
-                W_c=1    # treat each TEU as a 20ft for visualization
+                W_c=1,  # treat each TEU as a 20ft for visualization
             )
             idx += 1
+
     def plot_time_windows(self, row_spacing: float = 0.1):
         """
         Plot container time windows and service times to visually verify time constraints.
@@ -1910,11 +2005,11 @@ class MILP_Algo:
             conts_sorted = sorted(
                 conts,
                 key=lambda c: (
-                    service_time_c[c] is None,     # None -> last
-                    service_time_c[c],             # earlier service first
-                    type_order(c),                 # exports before imports
-                    c                              # tie-breaker by ID
-                )
+                    service_time_c[c] is None,  # None -> last
+                    service_time_c[c],  # earlier service first
+                    type_order(c),  # exports before imports
+                    c,  # tie-breaker by ID
+                ),
             )
             barge_rows.extend(conts_sorted)
 
@@ -1923,11 +2018,11 @@ class MILP_Algo:
         no_barge_sorted = sorted(
             no_barge,
             key=lambda c: (
-                type_order(c),                     # exports before imports
+                type_order(c),  # exports before imports
                 service_time_c[c] is None,
                 service_time_c[c],
-                c
-            )
+                c,
+            ),
         )
 
         # header entry:
@@ -1990,30 +2085,43 @@ class MILP_Algo:
             ax.hlines(y, O, D, colors=color_dark, linewidth=2)
 
             ax.scatter(
-                R, y,
-                marker="s", s=30, facecolor="white",
-                edgecolor="black", linewidth=1.0, zorder=3
+                R,
+                y,
+                marker="s",
+                s=30,
+                facecolor="white",
+                edgecolor="black",
+                linewidth=1.0,
+                zorder=3,
             )
 
             ax.scatter(
-                O, y,
-                marker=">", s=50, facecolor=color,
-                edgecolor=color_dark, linewidth=1.0, zorder=3
+                O,
+                y,
+                marker=">",
+                s=50,
+                facecolor=color,
+                edgecolor=color_dark,
+                linewidth=1.0,
+                zorder=3,
             )
 
             ax.scatter(
-                D, y,
-                marker="<", s=50, facecolor=color,
-                edgecolor=color_dark, linewidth=1.0, zorder=3
+                D,
+                y,
+                marker="<",
+                s=50,
+                facecolor=color,
+                edgecolor=color_dark,
+                linewidth=1.0,
+                zorder=3,
             )
 
             k = assigned_barge.get(c)
             st = service_time_c.get(c)
             if k is not None and k in K_b and st is not None:
                 ax.scatter(
-                    st, y,
-                    marker="2", s=80, facecolor="black",
-                    linewidth=1.6, zorder=4
+                    st, y, marker="2", s=80, facecolor="black", linewidth=1.6, zorder=4
                 )
 
         # --------------------------
@@ -2040,7 +2148,7 @@ class MILP_Algo:
             label = (
                 f"B{str(k_str).rjust(k_width)}".ljust(k_width + 2)
                 + "    |     "
-                + str(c).rjust(c_width, '0')
+                + str(c).rjust(c_width, "0")
                 + "   "
             )
             if k is None:
@@ -2065,11 +2173,22 @@ class MILP_Algo:
         export_window = mlines.Line2D([], [], color="#FF6F00", linewidth=2)
         import_window = mlines.Line2D([], [], color="#00A63C", linewidth=2)
         marker_release = mlines.Line2D(
-            [], [], color="black", marker="s", linestyle="None",
-            markerfacecolor="white", markeredgecolor="black"
+            [],
+            [],
+            color="black",
+            marker="s",
+            linestyle="None",
+            markerfacecolor="white",
+            markeredgecolor="black",
         )
         marker_service = mlines.Line2D(
-            [], [], markeredgecolor="black", marker="2", markersize=10, linewidth=2.0, linestyle="None"
+            [],
+            [],
+            markeredgecolor="black",
+            marker="2",
+            markersize=10,
+            linewidth=2.0,
+            linestyle="None",
         )
 
         legend_handles = [
@@ -2084,7 +2203,6 @@ class MILP_Algo:
             r"Delivery / Pickup time $t_{jk}$",
             r"Release time $R$",
         ]
-
 
         ax.legend(
             legend_handles,
@@ -2103,7 +2221,6 @@ class MILP_Algo:
         outfile = f"Storage/Figures/time_windows{self.file_name}.pdf"
         plt.savefig(outfile, dpi=300)
 
-
     # -----------------------
     # Convenience pipeline
     # -----------------------
@@ -2118,8 +2235,8 @@ class MILP_Algo:
         - print node/container/barge tables
         - plot displacements (optional)
         """
-        self.print_pre_run_results()   
-        
+        self.print_pre_run_results()
+
         self.setup_model()
         self.set_objective()
         self.add_constraints()
@@ -2134,8 +2251,8 @@ class MILP_Algo:
 
             # Ensure directory exists
             import os
-                    # self.name_run = f"Solutions/solved_{run_name}_{self.time}"
 
+            # self.name_run = f"Solutions/solved_{run_name}_{self.time}"
 
             # Model save path (.sol is Gurobi’s recommended solution format)
             save_path = f"Storage/Solutions/solved_{self.file_name}.sol"
@@ -2151,7 +2268,6 @@ class MILP_Algo:
                 print(f"Reloaded optimized model from: {save_path}")
             except Exception as e:
                 print(f"Could not reload saved model: {e}")
-        
 
         if self.model.status == GRB.OPTIMAL:
             # self.print_results_old_format()
@@ -2198,7 +2314,7 @@ class ContainerPlotter:
         self.sign_y = sign_y
 
     # ------------------------------------------------------------------
-    def draw_container(self, ax, index, total_height, total_width, IorE=1, W_c=1 ):
+    def draw_container(self, ax, index, total_height, total_width, IorE=1, W_c=1):
         """
         Draw a single container in a grid layout.
         IDENTICAL to your original function.
@@ -2216,7 +2332,7 @@ class ContainerPlotter:
 
         if self.sign_x == -1:
             x = self.starting_x - (col + 1) * self.width
-        
+
         if self.sign_y == -1:
             y = self.starting_y - total_height * self.height + (row - 1) * self.height
 
@@ -2237,7 +2353,7 @@ class ContainerPlotter:
             self.height,
             facecolor=face,
             edgecolor=edge,
-            linewidth=1.8
+            linewidth=1.8,
         )
         ax.add_patch(rect)
 
@@ -2259,58 +2375,81 @@ class ContainerPlotter:
 
         if self.sign_y == 1:
             ax.plot(
-                [self.starting_x - self.sign_x * margin * 1.1, self.starting_x - self.sign_x * margin * 1.1],
+                [
+                    self.starting_x - self.sign_x * margin * 1.1,
+                    self.starting_x - self.sign_x * margin * 1.1,
+                ],
                 [self.starting_y - margin, self.starting_y + total_h],
-                color=color_gray, linewidth=lw
+                color=color_gray,
+                linewidth=lw,
             )
 
             ax.plot(
-                [self.starting_x - self.sign_x * margin, self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [
+                    self.starting_x - self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
                 [self.starting_y - margin, self.starting_y - margin],
-                color=color_gray, linewidth=lw
+                color=color_gray,
+                linewidth=lw,
             )
 
             ax.plot(
-                [self.starting_x + self.sign_x * total_w + self.sign_x * margin, self.starting_x + self.sign_x * total_w + self.sign_x * margin],
+                [
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
                 [self.starting_y - margin, self.starting_y + total_h],
-                color=color_gray, linewidth=lw
+                color=color_gray,
+                linewidth=lw,
             )
-
-
 
         elif self.sign_y == -1:
             # Left vertical line (flipped vertically)
             ax.plot(
-                [self.starting_x - self.sign_x * margin * 1.1, 
-                self.starting_x - self.sign_x * margin * 1.1],
-                [self.starting_y - total_h - self.height - margin, 
-                self.starting_y - self.height - margin],
-                color=color_gray, linewidth=lw
+                [
+                    self.starting_x - self.sign_x * margin * 1.1,
+                    self.starting_x - self.sign_x * margin * 1.1,
+                ],
+                [
+                    self.starting_y - total_h - self.height - margin,
+                    self.starting_y - self.height - margin,
+                ],
+                color=color_gray,
+                linewidth=lw,
             )
-
 
             # Bottom horizontal line (flipped vertically)
             ax.plot(
-                [self.starting_x - self.sign_x * margin,
-                self.starting_x + self.sign_x * total_w + self.sign_x * margin],
-                [self.starting_y - total_h - self.height - margin, self.starting_y - total_h - self.height- margin],
-                color=color_gray, linewidth=lw
+                [
+                    self.starting_x - self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
+                [
+                    self.starting_y - total_h - self.height - margin,
+                    self.starting_y - total_h - self.height - margin,
+                ],
+                color=color_gray,
+                linewidth=lw,
             )
 
             # Right vertical line (flipped vertically)
             ax.plot(
-                [self.starting_x + self.sign_x * total_w + self.sign_x * margin, 
-                self.starting_x + self.sign_x * total_w + self.sign_x * margin],
-                [self.starting_y - total_h - self.height - margin, 
-                self.starting_y - self.height - margin],
-                color=color_gray, linewidth=lw
+                [
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                    self.starting_x + self.sign_x * total_w + self.sign_x * margin,
+                ],
+                [
+                    self.starting_y - total_h - self.height - margin,
+                    self.starting_y - self.height - margin,
+                ],
+                color=color_gray,
+                linewidth=lw,
             )
-
 
 
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
     print("\n\n\n\n\n\n\n\n\n\n\n")
-    milp = MILP_Algo(reduced=True)   # e.g. smaller instances
+    milp = MILP_Algo(reduced=True)  # e.g. smaller instances
     milp.run(with_plots=True)
-
