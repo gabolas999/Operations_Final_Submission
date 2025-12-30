@@ -57,17 +57,17 @@ class MILP_Algo:
             N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
 
             Oc_range=(24, 190),             # (min, max) opening time in hours
-            Oc_offset_range=(110, 350),      # (min_offset, max_offset) such that
+            Oc_offset_range=(150, 380),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            travel_time_long_range=(60, 100),   # (min, max) travel time between dryport and sea terminals in hours
+            travel_time_long_range=(75, 140),   # (min, max) travel time between dryport and sea terminals in hours
             travel_angle = math.pi,             # angle sector for terminal placement
-            travel_time_scale = 15,             # scale down travel times for better layout
+            travel_time_scale = 18,             # scale down travel times for better layout
 
             P40_range=(0.2, 0.22),              # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.75),         # (min, max) probability of export
-            C_range_reduced=(65, 75),           # (min, max) containers when reduced=True
-            N_range_reduced=(6, 6),             # (min, max) terminals when reduced=True
+            C_range_reduced=(100, 150),           # (min, max) containers when reduced=True
+            N_range_reduced=(7, 7),             # (min, max) terminals when reduced=True
             gamma=100,                          # penalty per sea terminal visit [euros]
             big_m=1_000_000                     # big-M
     ):
