@@ -48,7 +48,7 @@ class MILP_Algo:
                 3300,      # Barge 5
                 3300,      # Barge 6
             ],
-            seed=25,
+            seed=0,
             reduced=False,
             h_t_40=200,                 # 40ft container trucking cost in euros
             h_t_20=140,                 # 20ft container trucking cost in euros
@@ -60,14 +60,14 @@ class MILP_Algo:
             Oc_offset_range=(110, 350),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            travel_time_long_range=(60, 100),   # (min, max) travel time between dryport and sea terminals in hours
+            travel_time_long_range=(84, 140),   # (min, max) travel time between dryport and sea terminals in hours
             travel_angle = math.pi,             # angle sector for terminal placement
-            travel_time_scale = 15,             # scale down travel times for better layout
+            travel_time_scale = 21,             # scale down travel times for better layout
 
             P40_range=(0.2, 0.22),              # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.75),         # (min, max) probability of export
             C_range_reduced=(65, 75),           # (min, max) containers when reduced=True
-            N_range_reduced=(6, 6),             # (min, max) terminals when reduced=True
+            N_range_reduced=(5, 5),             # (min, max) terminals when reduced=True
             gamma=100,                          # penalty per sea terminal visit [euros]
             big_m=1000                          # big-M
     ):
