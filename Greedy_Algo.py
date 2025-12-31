@@ -181,7 +181,7 @@ class GreedyOptimizer:
 
         self.C = 0  # Number of containers
         self.N = 0  # Number of terminals
-        self.T_matrix = []  # Travel time matrix (N x N)
+        self.T_ij_matrix = []  # Travel time matrix (N x N)
         self.Barges = []  # Barge capacities
         self.C_ordered = []  # Ordered containers
         self.master_route = []  # Master route
@@ -196,7 +196,7 @@ class GreedyOptimizer:
         self.total_cost = 0  # Total cost of the solution
         self.truck_cost = 0  # Total trucking cost
         self.barge_cost = 0  # Total barge cost
-        self.xijk = None  # Barge routing matrix
+        self.x_ijk = None  # Barge routing matrix
 
         # Generate instance automatically
         self.generate_instance()
@@ -267,7 +267,7 @@ class GreedyOptimizer:
 
     def generate_travel_times(self):
         """Generate travel time matrix T_matrix"""
-        self.T_matrix = np.zeros((self.N, self.N), dtype=int)
+        self.T_ij_matrix = np.zeros((self.N, self.N), dtype=int)
 
         number_of_sub_terminals = math.floor((self.N - 1) / 3)
 
@@ -290,41 +290,41 @@ class GreedyOptimizer:
         for i in range(self.N):
             for j in range(self.N):
                 if i == j:
-                    self.T_matrix[i][j] = 0
+                    self.T_ij_matrix[i][j] = 0
                 elif i in index_antwerp and j in index_antwerp:
-                    self.T_matrix[i][j] = 1
+                    self.T_ij_matrix[i][j] = 1
                 elif i in index_rotterdam and j in index_rotterdam:
-                    self.T_matrix[i][j] = 1
+                    self.T_ij_matrix[i][j] = 1
                 elif i in index_maasvlakte and j in index_maasvlakte:
-                    self.T_matrix[i][j] = 1
+                    self.T_ij_matrix[i][j] = 1
                 elif (i == 0 or j == 0) and (j in index_antwerp or i in index_antwerp):
-                    self.T_matrix[i][j] = 13
+                    self.T_ij_matrix[i][j] = 13
                 elif (i == 0 or j == 0) and (
                     (j in index_maasvlakte or j in index_rotterdam)
                     or (i in index_maasvlakte or i in index_rotterdam)
                 ):
-                    self.T_matrix[i][j] = 11
+                    self.T_ij_matrix[i][j] = 11
                 elif (i in index_antwerp or j in index_antwerp) and (
                     (j in index_maasvlakte or j in index_rotterdam)
                     or (i in index_maasvlakte or i in index_rotterdam)
                 ):
-                    self.T_matrix[i][j] = 16
+                    self.T_ij_matrix[i][j] = 16
                 elif (i in index_maasvlakte or j in index_maasvlakte) and (
                     i in index_rotterdam or j in index_rotterdam
                 ):
-                    self.T_matrix[i][j] = 4
+                    self.T_ij_matrix[i][j] = 4
                 else:
-                    self.T_matrix[i][j] = 666
+                    self.T_ij_matrix[i][j] = 666
 
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
-        n = len(self.T_matrix)
+        n = len(self.T_ij_matrix)
         G = nx.complete_graph(n)
 
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    G[i][j]["weight"] = self.T_matrix[i][j]
+                    G[i][j]["weight"] = self.T_ij_matrix[i][j]
 
         # Find approximate TSP cycle (returns to start)
         self.master_route = nx.approximation.traveling_salesman_problem(
@@ -402,7 +402,7 @@ class GreedyOptimizer:
         term_arrival_time = 0  # start time at 0
 
         for terminal in route[1:]:
-            travel_time = self.T_matrix[current_terminal][terminal]
+            travel_time = self.T_ij_matrix[current_terminal][terminal]
             handling_time_total = self.Handling_time * sum(
                 1 for c in L_current.values() if c["Terminal"] == terminal
             )
@@ -601,14 +601,14 @@ class GreedyOptimizer:
                 self.truck_cost += self.H_t_40
 
         # Calculate barge routing matrix
-        self.xijk = np.zeros(
+        self.x_ijk = np.zeros(
             (len(self.Barges), self.N, self.N)
         )  # xijk[k][i][j] = 1 if barge k goes from terminal i to terminal j
 
         for barge_idx, route in enumerate(self.route_list):
             for i in range(len(route) - 1):
-                self.xijk[barge_idx][route[i]][route[i + 1]] = 1
-                self.xijk[barge_idx][route[i + 1]][route[i]] = 1
+                self.x_ijk[barge_idx][route[i]][route[i + 1]] = 1
+                self.x_ijk[barge_idx][route[i + 1]][route[i]] = 1
 
         # Calculate barge cost
         self.barge_cost = self.calculate_objective()
@@ -623,7 +623,7 @@ class GreedyOptimizer:
             "f_ck_init": self.f_ck_init,
             "route_list": self.route_list,
             "trucked_containers": self.trucked_containers,
-            "xijk": self.xijk,
+            "xijk": self.x_ijk,
         }
 
     def calculate_objective(self):
@@ -642,12 +642,12 @@ class GreedyOptimizer:
             for j in range(self.N):
                 if j == 0:
                     continue
-                cost += self.xijk[k][0][j] * self.H_b[k]
+                cost += self.x_ijk[k][0][j] * self.H_b[k]
 
             # 2) travel‐time term: sum over all i,j of T[i][j]*x[i][j][k]
             for i in range(self.N):
                 for j in range(self.N):
-                    cost += self.T_matrix[i][j] * self.xijk[k][i][j]
+                    cost += self.T_ij_matrix[i][j] * self.x_ijk[k][i][j]
 
             # 3) extra‐stop term: sum over j≠0, i≠j of x[j][i][k]
             for j in range(self.N):
@@ -656,7 +656,7 @@ class GreedyOptimizer:
                 for i in range(self.N):
                     if i == j:
                         continue
-                    cost += self.xijk[k][i][j] * self.Handling_time
+                    cost += self.x_ijk[k][i][j] * self.Handling_time
 
         return cost
 
@@ -695,7 +695,7 @@ class GreedyOptimizer:
     @property
     def T_ij_list(self):
         """Alias for T_matrix for backward compatibility"""
-        return self.T_matrix
+        return self.T_ij_matrix
 
 
 # Create global instance for backward compatibility
