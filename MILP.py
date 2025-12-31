@@ -281,6 +281,8 @@ class MILP_Algo:
                 "Terminal": Terminal,
             }
 
+        # print("C_dict", "\n", self.C_dict)
+
     # -----------------------
     # Travel time matrix
     # -----------------------

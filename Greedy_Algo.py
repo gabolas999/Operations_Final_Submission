@@ -64,9 +64,6 @@ class GreedyOptimizer(MILP_Algo):
         N_range_reduced : tuple(int, int)
             (min, max) number of terminals when reduced=True
         """
-
-        self.C_dict = {}  # Container information dictionary
-
         self.Barges = []  # Barge capacities
         self.C_ordered = []  # Ordered containers
         self.master_route = []  # Master route
@@ -86,11 +83,10 @@ class GreedyOptimizer(MILP_Algo):
         self.Barges = self.Qk.copy()  # Set barge capacities
 
     def generate_master_route(self):
+        print("running generate_master_route")
         """Generate master route using TSP approximation"""
 
-        print(f"Time matrix {self.T_ij_matrix}")
         n = len(self.T_ij_matrix)
-        print(f"Generating master route for {n} terminals")
         G = nx.complete_graph(n)
 
         for i in range(n):
@@ -98,20 +94,22 @@ class GreedyOptimizer(MILP_Algo):
                 if i != j:
                     G[i][j]["weight"] = self.T_ij_matrix[i][j]
 
-        print(f"network G: {G}")
         # Find approximate TSP cycle (returns to start)
         self.master_route = nx.approximation.traveling_salesman_problem(
             G, cycle=True, weight="weight"
         )
 
     def generate_ordered_containers(self):
+        print("running generate_ordered_containers")
         """Generate ordered list of containers based on master route"""
         self.C_ordered = []
+        condit_satisfies_counter = 0
 
         for i in self.master_route[1:-1]:  # Skip first and last (depot)
-            for j in range(self.C):
-                if self.C_dict[j]["Terminal"] == i:
-                    self.C_ordered.append(j)
+            for c, info in self.C_dict.items():
+                if info["Terminal"] == i:
+                    condit_satisfies_counter += 1
+                    self.C_ordered.append(c)
 
     def get_route(self, L_current):
         """
