@@ -83,7 +83,6 @@ class GreedyOptimizer(MILP_Algo):
         self.Barges = self.Qk.copy()  # Set barge capacities
 
     def generate_master_route(self):
-        print("running generate_master_route")
         """Generate master route using TSP approximation"""
 
         n = len(self.T_ij_matrix)
@@ -100,7 +99,6 @@ class GreedyOptimizer(MILP_Algo):
         )
 
     def generate_ordered_containers(self):
-        print("running generate_ordered_containers")
         """Generate ordered list of containers based on master route"""
         self.C_ordered = []
         condit_satisfies_counter = 0
