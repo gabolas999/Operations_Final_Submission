@@ -23,97 +23,8 @@ class GreedyOptimizer(MILP_Algo):
 
     def __init__(
         self,
-        # ,
-        # qk=[  # Barge capacities in TEU
-        #     104,  # Barge 0
-        #     99,  # Barge 1
-        #     81,  # Barge 2
-        #     52,  # Barge 3
-        #     28,  # Barge 4
-        #     # 1,         # Extensive Barges 5
-        #     # 1,         # Extensive Barges 6
-        #     # 2,         # Extensive Barges 7
-        #     # 3,         # Extensive Barges 8
-        #     # 4,         # Extensive Barges 9
-        #     # 5,         # Extensive Barges 10
-        #     # 6,         # Extensive Barges 11
-        #     # 7,         # Extensive Barges 12
-        #     # 8,         # Extensive Barges 13
-        #     # 9,         # Extensive Barges 14
-        #     # 10,         # Extensive Barges 15
-        #     # 11,         # Extensive Barges 16
-        #     # 12,         # Extensive Barges 17
-        #     # 13,         # Extensive Barges 18
-        #     # 14,         # Extensive Barges 19
-        #     # 15,         # Extensive Barges 20
-        #     # 16,         # Extensive Barges 21
-        #     # 17,         # Extensive Barges 22
-        #     # 18,         # Extensive Barges 23
-        #     # 19,         # Extensive Barges 24
-        #     # 20,         # Extensive Barges 25
-        #     # 21,         # Extensive Barges 26
-        #     # 22,         # Extensive Barges 27
-        #     # 23,         # Extensive Barges 28
-        #     # 24,         # Extensive Barges 29
-        #     # 25,         # Extensive Barges 30
-        # ],
-        # h_b=[  # Barge fixed costs in euros
-        #     3700,  # Barge 0
-        #     3600,  # Barge 1
-        #     3400,  # Barge 2
-        #     2800,  # Barge 3
-        #     1800,  # Barge 4
-        #     # 10,         # Extensive Barges 5
-        #     # 10,         # Extensive Barges 6
-        #     # 10,         # Extensive Barges 7
-        #     # 10,         # Extensive Barges 8
-        #     # 10,         # Extensive Barges 9
-        #     # 10,         # Extensive Barges 10
-        #     # 10,         # Extensive Barges 11
-        #     # 10,         # Extensive Barges 12
-        #     # 10,         # Extensive Barges 13
-        #     # 10,         # Extensive Barges 14
-        #     # 10,         # Extensive Barges 15
-        #     # 10,         # Extensive Barges 16
-        #     # 10,         # Extensive Barges 17
-        #     # 10,         # Extensive Barges 18
-        #     # 10,         # Extensive Barges 19
-        #     # 10,         # Extensive Barges 20
-        #     # 10,         # Extensive Barges 21
-        #     # 10,         # Extensive Barges 22
-        #     # 10,         # Extensive Barges 23
-        #     # 10,         # Extensive Barges 24
-        #     # 10,         # Extensive Barges 25
-        #     # 10,         # Extensive Barges 26
-        #     # 10,         # Extensive Barges 27
-        #     # 10,         # Extensive Barges 28
-        #     # 10,         # Extensive Barges 29
-        #     # 10,         # Extensive Barges 30
-        # ],
-        # seed=100,
         reduced=False,
-        # h_t_40=200,  # 40ft container trucking cost in euros
-        # h_t_20=140,  # 20ft container trucking cost in euros
-        # handling_time=1 / 6,  # Container handling time in hours
-        # C_range=(100, 600),  # (min, max) number of containers
-        # N_range=(10, 20),  # (min, max) number of terminals
-        # Oc_range=(24, 196),  # (min, max) opening time in hours
-        # Oc_offset_range=(
-        #     24,
-        #     120,
-        # ),  # (min_offset, max_offset) such that        # Dc is drawn in [Oc + min_offset, Oc + max_offset]
-        # P40_range=(
-        #     0.75,
-        #     0.9,
-        # ),  # (min, max) for uniform draw of probability of 40ft container
-        # PExport_range=(
-        #     0.05,
-        #     0.7,
-        # ),  # (min, max) for uniform draw of probability of export
-        # C_range_reduced=(33, 200),  # (min, max) number of containers when reduced=True
-        # N_range_reduced=(4, 8),  # (min, max) number of terminals when reduced=True
     ):
-
         super().__init__(reduced=reduced)
         """
         Initialize the greedy optimizer
@@ -153,47 +64,15 @@ class GreedyOptimizer(MILP_Algo):
         N_range_reduced : tuple(int, int)
             (min, max) number of terminals when reduced=True
         """
-        # # Parameters
-        # self.seed = seed
-        # self.reduced = reduced
-        # self.Qk = qk  # TEU
-        # self.H_b = h_b  # euros
-        # self.H_t_40 = h_t_40  # euros
-        # self.H_t_20 = h_t_20  # euros
-        # self.Handling_time = handling_time  # hours
 
-        # # New parameter ranges
-        # self.C_range = C_range
-        # self.N_range = N_range
-        # self.Oc_range = Oc_range
-        # self.Oc_offset_range = Oc_offset_range
-        # self.P40_range = P40_range
-        # self.PExport_range = PExport_range
-
-        # self.C_range_reduced = C_range_reduced
-        # self.N_range_reduced = N_range_reduced
-
-        # Instance data - will be populated by generate_instance()
         self.C_dict = {}  # Container information dictionary
-        # Contains following keys per container:
-        # Rc: ready time
-        # Dc: closing time
-        # Oc: opening time
-        # Wc: weight in TEU (either 1 or 2)
-        # In_or_Out: import (1) or export (2)
-        # Terminal: assigned terminal
 
-        # self.C = 0  # Number of containers
-        # self.N = 0  # Number of terminals
-        # self.T_ij_matrix = []  # Travel time matrix (N x N)
         self.Barges = []  # Barge capacities
         self.C_ordered = []  # Ordered containers
         self.master_route = []  # Master route
 
         # Results storage
-        self.f_ck_init = (
-            None  # It is not a swear word, it uses the same nomenclature as the paper
-        )
+        self.f_ck_init = None
         self.route_list = []
         self.barge_departure_delay = []
         self.trucked_containers = {}
@@ -205,113 +84,6 @@ class GreedyOptimizer(MILP_Algo):
         self.generate_master_route()
         self.generate_ordered_containers()
         self.Barges = self.Qk.copy()  # Set barge capacities
-
-    # def generate_container_info(self):
-    #     """Generate container information based on seed and reduced flag"""
-    #     random.seed(self.seed)
-    #     # Choose ranges based on reduced flag
-    #     if self.reduced:
-    #         C_min, C_max = self.C_range_reduced
-    #         N_min, N_max = self.N_range_reduced
-    #     else:
-    #         C_min, C_max = self.C_range
-    #         N_min, N_max = self.N_range
-
-    #     self.C = random.randint(C_min, C_max)  # number of containers
-    #     self.N = random.randint(N_min, N_max)  # number of terminals
-
-    #     Oc_min, Oc_max = self.Oc_range
-    #     Oc_min_offset, Oc_max_offset = self.Oc_offset_range
-    #     P40_min, P40_max = self.P40_range
-    #     PExport_min, PExport_max = self.PExport_range
-
-    #     self.C_dict = {}
-
-    #     for i in range(self.C):
-    #         Oc = random.randint(Oc_min, Oc_max)  # opening hours
-    #         # Dc is drawn some time after Oc, using configurable offsets
-    #         Dc = random.randint(Oc + Oc_min_offset, Oc + Oc_max_offset)
-
-    #         P_40 = random.uniform(P40_min, P40_max)  # probability of 40ft container
-    #         P_Export = random.uniform(PExport_min, PExport_max)  # probability of export
-
-    #         if random.random() < P_40:
-    #             Wc = 2  # 40ft container
-    #         else:
-    #             Wc = 1  # 20ft container
-
-    #         if random.random() < P_Export:
-    #             In_or_Out = 2  # Export
-    #             Rc = random.randint(0, 24)
-    #             Terminal = random.randint(
-    #                 1, self.N - 1
-    #             )  # assigned delivery terminal location
-    #         else:
-    #             In_or_Out = 1  # Import
-    #             Rc = 0
-    #             Terminal = random.randint(
-    #                 1, self.N - 1
-    #             )  # assigned pickup terminal location
-
-    #         self.C_dict[i] = {
-    #             "Rc": Rc,  # ready time
-    #             "Dc": Dc,  # closing time
-    #             "Oc": Oc,  # opening time
-    #             "Wc": Wc,  # weight in TEU (either 1 or 2)
-    #             "In_or_Out": In_or_Out,  # import or export
-    #             "Terminal": Terminal,  # assigned terminal
-    #         }
-
-    # def generate_travel_times(self):
-    #     """Generate travel time matrix T_matrix"""
-    #     self.T_ij_matrix = np.zeros((self.N, self.N), dtype=int)
-
-    #     number_of_sub_terminals = math.floor((self.N - 1) / 3)
-
-    #     index_antwerp = list(
-    #         range(1, number_of_sub_terminals + 1)
-    #     )  # Antwerp sub-terminals
-    #     index_rotterdam = list(
-    #         range(number_of_sub_terminals + 1, 2 * number_of_sub_terminals + 1)
-    #     )  # Rotterdam sub-terminals
-    #     index_maasvlakte = list(
-    #         range(2 * number_of_sub_terminals + 1, self.N)
-    #     )  # Maasvlakte sub-terminals
-
-    #     if (
-    #         len(index_maasvlakte) == number_of_sub_terminals + 2
-    #     ):  # making sure the length of Maasvlakte is not too different to other two
-    #         index_rotterdam.append(index_maasvlakte[0])
-    #         index_maasvlakte = index_maasvlakte[1:]
-
-    #     for i in range(self.N):
-    #         for j in range(self.N):
-    #             if i == j:
-    #                 self.T_ij_matrix[i][j] = 0
-    #             elif i in index_antwerp and j in index_antwerp:
-    #                 self.T_ij_matrix[i][j] = 1
-    #             elif i in index_rotterdam and j in index_rotterdam:
-    #                 self.T_ij_matrix[i][j] = 1
-    #             elif i in index_maasvlakte and j in index_maasvlakte:
-    #                 self.T_ij_matrix[i][j] = 1
-    #             elif (i == 0 or j == 0) and (j in index_antwerp or i in index_antwerp):
-    #                 self.T_ij_matrix[i][j] = 13
-    #             elif (i == 0 or j == 0) and (
-    #                 (j in index_maasvlakte or j in index_rotterdam)
-    #                 or (i in index_maasvlakte or i in index_rotterdam)
-    #             ):
-    #                 self.T_ij_matrix[i][j] = 11
-    #             elif (i in index_antwerp or j in index_antwerp) and (
-    #                 (j in index_maasvlakte or j in index_rotterdam)
-    #                 or (i in index_maasvlakte or i in index_rotterdam)
-    #             ):
-    #                 self.T_ij_matrix[i][j] = 16
-    #             elif (i in index_maasvlakte or j in index_maasvlakte) and (
-    #                 i in index_rotterdam or j in index_rotterdam
-    #             ):
-    #                 self.T_ij_matrix[i][j] = 4
-    #             else:
-    #                 self.T_ij_matrix[i][j] = 666
 
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
