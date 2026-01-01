@@ -48,7 +48,7 @@ class MILP_Algo:
                 3300,      # Barge 5
                 3300,      # Barge 6
             ],
-            seed=0,
+            seed=998244,               # Random seed for reproducibility
             reduced=False,
             h_t_40=200,                 # 40ft container trucking cost in euros
             h_t_20=140,                 # 20ft container trucking cost in euros
@@ -80,10 +80,10 @@ class MILP_Algo:
         self.time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         self.file_name = f"{run_name}_{self.time}"
 
-        os.makedirs("Storage/Logs", exist_ok=True)
-        os.makedirs("Storage/Solutions", exist_ok=True)
-        os.makedirs("Storage/Settings", exist_ok=True)
-        os.makedirs("Storage/Figures", exist_ok=True)
+        os.makedirs("Storage_orig/Logs", exist_ok=True)
+        os.makedirs("Storage_orig/Solutions", exist_ok=True)
+        os.makedirs("Storage_orig/Settings", exist_ok=True)
+        os.makedirs("Storage_orig/Figures", exist_ok=True)
 
         dict_settings = {
             "run_name": run_name,
@@ -107,7 +107,7 @@ class MILP_Algo:
             "gamma": gamma,
             "big_m": big_m
         }
-        with open(f"Storage/Settings/settings_{self.file_name}.toml", "w") as f:
+        with open(f"Storage_orig/Settings/settings_{self.file_name}.toml", "w") as f:
             toml.dump(dict_settings, f)
 
         # Parameters 
@@ -365,7 +365,7 @@ class MILP_Algo:
 
 
         # Log file with timestamp to avoid overwriting
-        self.model.Params.LogFile = f"Storage/Logs/log______{self.file_name}.log"
+        self.model.Params.LogFile = f"Storage_orig/Logs/log______{self.file_name}.log"
 
         # Stopping criterion: 1% relative MIP gap
         self.model.Params.MIPGap = 0.01
@@ -1405,7 +1405,7 @@ class MILP_Algo:
     )
 
         plt.tight_layout()
-        plt.savefig(f"Storage/Figures/solution_map{self.file_name}_no_cont.pdf")
+        plt.savefig(f"Storage_orig/Figures/solution_map{self.file_name}_no_cont.pdf")
 
     def plot_barge_solution_map_report_ONLY_NODES(self):
         """
@@ -1508,7 +1508,7 @@ class MILP_Algo:
             spine.set_visible(False)
 
         plt.tight_layout()
-        plt.savefig(f"Storage/Figures/solution_map{self.file_name}_simple.pdf")
+        plt.savefig(f"Storage_orig/Figures/solution_map{self.file_name}_simple.pdf")
 
 
 
@@ -1817,7 +1817,7 @@ class MILP_Algo:
     )
 
         plt.tight_layout()
-        plt.savefig(f"Storage/Figures/solution_map{self.file_name}.pdf")
+        plt.savefig(f"Storage_orig/Figures/solution_map{self.file_name}.pdf")
 
 
     def _draw_segment_stack(self, ax, plotter, i, j, k,
@@ -2145,7 +2145,7 @@ class MILP_Algo:
 
         plt.tight_layout()
 
-        outfile = f"Storage/Figures/time_windows{self.file_name}.pdf"
+        outfile = f"Storage_orig/Figures/time_windows{self.file_name}.pdf"
         plt.savefig(outfile, dpi=300)
 
     def plot_barge_specific_split_timelines(self, margin_hours=2.0):
@@ -2315,7 +2315,7 @@ class MILP_Algo:
             
             plt.subplots_adjust(bottom=0.15, wspace=0.1)
             
-            filename = f"Storage/Figures/timeline_split_{self.file_name}_barge_{k}.pdf"
+            filename = f"Storage_orig/Figures/timeline_split_{self.file_name}_barge_{k}.pdf"
             plt.savefig(filename)
             plt.close()
             print(f"Generated split timeline for Barge {k}: {filename}")
@@ -2478,7 +2478,7 @@ class MILP_Algo:
 
 
             # Model save path (.sol is Gurobi’s recommended solution format)
-            save_path = f"Storage/Solutions/solved_{self.file_name}.sol"
+            save_path = f"Storage_orig/Solutions/solved_{self.file_name}.sol"
 
             # Save optimized model
             self.model.write(save_path)
