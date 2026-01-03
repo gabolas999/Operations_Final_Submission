@@ -71,7 +71,7 @@ class MILP_Algo:
         big_m=1000,  # big-M
     ):
         """
-        Initialize the MILP optimi zer.
+        Initialize the MILP optimizer.
 
         Parameters mirror GreedyAlgo so that both can be constructed in the same way.
         Time-related ranges and all internal time variables are in hours.

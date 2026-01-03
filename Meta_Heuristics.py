@@ -153,6 +153,7 @@ class MetaHeuristic:
         self, C_ordered, C_dict, Barges, H_b, H_t_20, H_t_40, T_ij_list, Handling_time
     ):
         # problem data
+        self.Barges = Barges
         self.C_ordered = list(C_ordered)
         self.C_dict = C_dict
 
@@ -196,32 +197,32 @@ class MetaHeuristic:
 
     def initial_solution(self):
         """Greedy fill each barge in master‐order with up to one shift."""
-        barge = 0
+        barge_idx = 0
         to_ignore = []
         dep_delay = 0
         self.f_ck[:] = 0
 
-        while barge < self.K:
+        while barge_idx < self.K:
             for c in self.C_ordered:
                 if c in to_ignore:
                     continue
 
                 # 1) assign
-                self.f_ck[c, barge] = 1
+                self.f_ck[c, barge_idx] = 1
 
                 # 2) build load & cap‐check
-                assigned = [i for i in range(self.C) if self.f_ck[i, barge] == 1]
+                assigned = [i for i in range(self.C) if self.f_ck[i, barge_idx] == 1]
                 Lcur = {i: self.C_dict[i] for i in assigned}
                 route = get_route(Lcur)
-                if not check_for_cap(route, Lcur, self.Barges, barge):
-                    self.f_ck[c, barge] = 0
+                if not check_for_cap(route, Lcur, barge_idx, barges=self.Barges):
+                    self.f_ck[c, barge_idx] = 0
                     continue
 
                 # 3) time‐window w/ up to one shift
                 ok = False
                 delay = dep_delay
                 for attempt in (0, 1):
-                    D, O = get_timing(route, self.T_ij, self.handling, Lcur, delay)
+                    D, O = get_timing(route, Lcur, delay)
                     viol = [
                         v
                         for v in Lcur.values()
@@ -239,16 +240,15 @@ class MetaHeuristic:
                         break
                     if attempt == 0:
                         delay += max(
-                            delay_window(v, O, route, v["Terminal"], self.handling)
-                            for v in viol
+                            delay_window(v, O, route, v["Terminal"]) for v in viol
                         )
                 if ok:
                     dep_delay = delay
                     to_ignore.append(c)
                 else:
-                    self.f_ck[c, barge] = 0
+                    self.f_ck[c, barge_idx] = 0
 
-            barge += 1
+            barge_idx += 1
             dep_delay = 0
 
     def _age_tabu(self):
@@ -338,14 +338,14 @@ class MetaHeuristic:
             route = get_route(Lcur)
 
             # capacity
-            if not check_for_cap(route, Lcur, self.Barges, to_b):
+            if not check_for_cap(route, Lcur, to_b, barges=self.Barges):
                 feasible = False
             else:
                 # up to one departure shift
                 delay = 0
                 fit = False
                 for attempt in (0, 1):
-                    D, O = get_timing(route, self.T_ij, self.handling, Lcur, delay)
+                    D, O = get_timing(route, Lcur, delay)
                     viol = [
                         v
                         for v in Lcur.values()
@@ -363,8 +363,7 @@ class MetaHeuristic:
                         break
                     if attempt == 0:
                         delay = max(
-                            delay_window(v, O, route, v["Terminal"], self.handling)
-                            for v in viol
+                            delay_window(v, O, route, v["Terminal"]) for v in viol
                         )
                 if not fit:
                     feasible = False
@@ -415,12 +414,12 @@ class MetaHeuristic:
                 return True
             Lcur = {i: self.C_dict[i] for i in assigned}
             route = get_route(Lcur)
-            if not check_for_cap(route, Lcur, self.Barges, k):
+            if not check_for_cap(route, Lcur, k, barges=self.Barges):
                 return False
             # one‐shift TW
             delay = 0
             for attempt in (0, 1):
-                D, O = get_timing(route, self.T_ij, self.handling, Lcur, delay)
+                D, O = get_timing(route, Lcur, delay)
                 viol = [
                     v
                     for v in Lcur.values()
@@ -436,10 +435,7 @@ class MetaHeuristic:
                 if not viol:
                     return True
                 if attempt == 0:
-                    delay = max(
-                        delay_window(v, O, route, v["Terminal"], self.handling)
-                        for v in viol
-                    )
+                    delay = max(delay_window(v, O, route, v["Terminal"]) for v in viol)
                 else:
                     return False
             return False

@@ -196,7 +196,7 @@ class GreedyOptimizer(MILP_Algo):
 
         return D_terminal, O_terminal
 
-    def check_for_cap(self, route, L_current, barge_idx):
+    def check_for_cap(self, route, L_current, barge_idx, barges=None):
         """
         Check if current assignment respects barge capacity
 
@@ -208,6 +208,8 @@ class GreedyOptimizer(MILP_Algo):
             Current containers assigned to this barge
         barge_idx : int
             Index of the barge
+        barges : list or None
+            List of barge capacities. If None, use self.Barges.
 
         Returns:
         --------
@@ -233,7 +235,15 @@ class GreedyOptimizer(MILP_Algo):
 
             teu_used.append(sum_teu)
 
-        cap = [True if teu <= self.Barges[barge_idx] else False for teu in teu_used]
+        cap = [
+            (
+                True
+                if teu
+                <= (barges[barge_idx] if barges is not None else self.Barges[barge_idx])
+                else False
+            )
+            for teu in teu_used
+        ]
 
         return all(cap)
 
@@ -484,11 +494,11 @@ H_t_20 = _global_optimizer.H_t_20
 Handling_time = _global_optimizer.Handling_time
 
 
-# Functions for backward compatibility
-def container_info(seed, reduced):
-    """Backward compatibility function"""
-    optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
-    return optimizer.C_dict, optimizer.C, optimizer.N
+# # Functions for backward compatibility
+# def container_info(seed, reduced):
+#     """Backward compatibility function"""
+#     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
+#     return optimizer.C_dict, optimizer.C, optimizer.N
 
 
 def get_route(L_current):
@@ -496,20 +506,17 @@ def get_route(L_current):
     return _global_optimizer.get_route(L_current)
 
 
-def get_timing(route, T_ij_list, handling_time, L_current, delay):
+def get_timing(route, L_current, delay):
     """Backward compatibility function"""
     return _global_optimizer.get_timing(route, L_current, delay)
 
 
-def check_for_cap(route, L_current, barges, idx):
+def check_for_cap(route, L_current, idx, barges=None):
     """Backward compatibility function"""
-    # Create temporary optimizer with given barges
-    temp_optimizer = GreedyOptimizer()
-    temp_optimizer.Barges = barges
-    return temp_optimizer.check_for_cap(route, L_current, idx)
+    return _global_optimizer.check_for_cap(route, L_current, idx, barges)
 
 
-def delay_window(container, D_terminal, route, terminal, handling_time):
+def delay_window(container, D_terminal, route, terminal):
     """Backward compatibility function"""
     return _global_optimizer.delay_window(container, D_terminal, route, terminal)
 
