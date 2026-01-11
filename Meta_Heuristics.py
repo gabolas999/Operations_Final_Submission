@@ -4,22 +4,23 @@ This module does work  #+#+# Gabo
 
 import random
 import numpy as np
-import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 import pulp
 from Greedy_Algo import (
     get_route,
     get_timing,
     check_for_cap,
     delay_window,
-    C_dict,
-    Barges,
-    T_ij_list,
-    Handling_time,
-    Qk,
-    C_ordered,
-    H_b,
-    H_t_20,
-    H_t_40,
+    # C_dict,
+    # Barges,
+    # T_ij_matrix,
+    # Handling_time,
+    # Qk,
+    # C_ordered,
+    # H_b,
+    # H_t_20,
+    # H_t_40,
 )
 
 
@@ -154,16 +155,15 @@ class MetaHeuristic:
         problem_instance,
         init_solution,
     ):
-        # problem data
-        self.Barges = Barges
-        self.C_ordered = list(C_ordered)
-        self.C_dict = C_dict
+        self.instance = problem_instance
+        self.init_solution = init_solution
 
         # 1) compute slacks and pick top‐10% as critical
         slacks = {
-            c: self.C_dict[c]["Dc"] - self.C_dict[c]["Oc"] for c in self.C_ordered
+            c: self.instance.C_dict[c]["Dc"] - self.instance.C_dict[c]["Oc"]
+            for c in self.init_solution.C_ordered
         }
-        ncrit = max(1, int(0.1 * len(self.C_ordered)))
+        ncrit = max(1, int(0.1 * len(self.init_solution.C_ordered)))
         crit_sorted = sorted(slacks, key=slacks.get)
         self.critical = set(crit_sorted[:ncrit])
 
@@ -172,18 +172,13 @@ class MetaHeuristic:
         self.critical_move_prob = 0.6
         self.ten_crit = 30
 
-        self.Barges = Barges
-        self.H_b = H_b
-        self.H_t = {1: H_t_20, 2: H_t_40}
-        self.T_ij = T_ij_list
-        self.handling = Handling_time
+        self.H_t_dict = {1: self.instance.H_t_20, 2: self.instance.H_t_40}
 
-        # sizes
-        self.C = len(C_dict)
-        self.K = len(Barges)
+        self.K = len(self.instance.K_list[:-1])  # exclude the truck
 
         # solution representation
-        self.f_ck = np.zeros((self.C, self.K), dtype=int)
+        # self.f_ck = np.zeros((self.instance.C, self.K), dtype=int)
+        self.f_ck = init_solution.f_ck_init
 
         # tabu structures (move_key -> tenure)
         self.T1 = {}
@@ -197,61 +192,65 @@ class MetaHeuristic:
         self.ten_barban = 10
         self.shake_thr = 100
 
-    def initial_solution(self):
-        """Greedy fill each barge in master‐order with up to one shift."""
-        barge_idx = 0
-        to_ignore = []
-        dep_delay = 0
-        self.f_ck[:] = 0
+    # def initial_solution(self):
+    #     """Greedy fill each barge in master‐order with up to one shift."""
+    #     barge_idx = 0
+    #     to_ignore = []
+    #     dep_delay = 0
+    #     self.f_ck[:] = 0
 
-        while barge_idx < self.K:
-            for c in self.C_ordered:
-                if c in to_ignore:
-                    continue
+    #     while barge_idx < self.K:
+    #         for c in self.init_solution.C_ordered:
+    #             if c in to_ignore:
+    #                 continue
 
-                # 1) assign
-                self.f_ck[c, barge_idx] = 1
+    #             # 1) assign
+    #             self.f_ck[c, barge_idx] = 1
 
-                # 2) build load & cap‐check
-                assigned = [i for i in range(self.C) if self.f_ck[i, barge_idx] == 1]
-                Lcur = {i: self.C_dict[i] for i in assigned}
-                route = get_route(Lcur)
-                if not check_for_cap(route, Lcur, barge_idx, barges=self.Barges):
-                    self.f_ck[c, barge_idx] = 0
-                    continue
+    #             # 2) build load & cap‐check
+    #             assigned = [
+    #                 i for i in range(self.instance.C) if self.f_ck[i, barge_idx] == 1
+    #             ]
+    #             Lcur = {i: self.instance.C_dict[i] for i in assigned}
+    #             route = get_route(Lcur)
+    #             if not check_for_cap(
+    #                 route, Lcur, barge_idx, barges=self.init_solution.Barges
+    #             ):
+    #                 self.f_ck[c, barge_idx] = 0
+    #                 continue
 
-                # 3) time‐window w/ up to one shift
-                ok = False
-                delay = dep_delay
-                for attempt in (0, 1):
-                    D, O = get_timing(route, Lcur, delay)
-                    viol = [
-                        v
-                        for v in Lcur.values()
-                        if not (
-                            O[route.index(v["Terminal"])]
-                            <= v["Oc"]
-                            <= D[route.index(v["Terminal"])]
-                            or O[route.index(v["Terminal"])]
-                            <= v["Dc"]
-                            <= D[route.index(v["Terminal"])]
-                        )
-                    ]
-                    if not viol:
-                        ok = True
-                        break
-                    if attempt == 0:
-                        delay += max(
-                            delay_window(v, O, route, v["Terminal"]) for v in viol
-                        )
-                if ok:
-                    dep_delay = delay
-                    to_ignore.append(c)
-                else:
-                    self.f_ck[c, barge_idx] = 0
+    #             # 3) time‐window w/ up to one shift
+    #             ok = False
+    #             delay = dep_delay
+    #             for attempt in (0, 1):
+    #                 D, O = get_timing(route, Lcur, delay)
+    #                 viol = [
+    #                     v
+    #                     for v in Lcur.values()
+    #                     if not (
+    #                         O[route.index(v["Terminal"])]
+    #                         <= v["Oc"]
+    #                         <= D[route.index(v["Terminal"])]
+    #                         or O[route.index(v["Terminal"])]
+    #                         <= v["Dc"]
+    #                         <= D[route.index(v["Terminal"])]
+    #                     )
+    #                 ]
+    #                 if not viol:
+    #                     ok = True
+    #                     break
+    #                 if attempt == 0:
+    #                     delay += max(
+    #                         delay_window(v, O, route, v["Terminal"]) for v in viol
+    #                     )
+    #             if ok:
+    #                 dep_delay = delay
+    #                 to_ignore.append(c)
+    #             else:
+    #                 self.f_ck[c, barge_idx] = 0
 
-            barge_idx += 1
-            dep_delay = 0
+    #         barge_idx += 1
+    #         dep_delay = 0
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
@@ -273,10 +272,10 @@ class MetaHeuristic:
         for k in range(self.K):
             if k in self.T3:
                 continue
-            assigned = [c for c in range(self.C) if self.f_ck[c, k] == 1]
+            assigned = [c for c in range(self.instance.C) if self.f_ck[c, k] == 1]
             if not assigned:
                 continue
-            Lcur = {c: self.C_dict[c] for c in assigned}
+            Lcur = {c: self.instance.C_dict[c] for c in assigned}
             route = get_route(Lcur)
             loads = []
             load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
@@ -286,7 +285,7 @@ class MetaHeuristic:
                     if cont["Terminal"] == node:
                         load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
                 loads.append(load)
-            util = sum(loads) / (len(loads) * self.Barges[k])
+            util = sum(loads) / (len(loads) * self.init_solution.Barges[k])
             if util < worst:
                 worst, best_k = util, k
         if best_k is not None:
@@ -296,7 +295,7 @@ class MetaHeuristic:
     def operator_move(self):
         # 1) pick c: 60% of the time prefer already‐trucked “critical” candidates
         if random.random() < self.critical_move_prob:
-            trucked = [c for c in range(self.C) if not any(self.f_ck[c])]
+            trucked = [c for c in range(self.instance.C) if not any(self.f_ck[c])]
             # only pick a critical container if available
             crit_trucked = [c for c in trucked if c in self.critical]
             if crit_trucked:
@@ -304,9 +303,9 @@ class MetaHeuristic:
             elif trucked:
                 c = random.choice(trucked)
             else:
-                c = random.randrange(self.C)
+                c = random.randrange(self.instance.C)
         else:
-            c = random.randrange(self.C)
+            c = random.randrange(self.instance.C)
 
         # 2) locate its current barge (if any) and pick a new target
         from_b = next((k for k in range(self.K) if self.f_ck[c, k]), None)
@@ -335,12 +334,12 @@ class MetaHeuristic:
         # 5) quick capacity + 1-shift TW check on receiving barge
         feasible = True
         if to_b != "truck":
-            assigned = [i for i in range(self.C) if self.f_ck[i, to_b] == 1]
-            Lcur = {i: self.C_dict[i] for i in assigned}
+            assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
+            Lcur = {i: self.instance.C_dict[i] for i in assigned}
             route = get_route(Lcur)
 
             # capacity
-            if not check_for_cap(route, Lcur, to_b, barges=self.Barges):
+            if not check_for_cap(route, Lcur, to_b, barges=self.init_solution.Barges):
                 feasible = False
             else:
                 # up to one departure shift
@@ -372,9 +371,13 @@ class MetaHeuristic:
 
         # 6) if quick check failed, try full MILP repair for barge
         if not feasible and to_b != "truck":
-            assigned = [i for i in range(self.C) if self.f_ck[i, to_b] == 1]
+            assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
             new_route = repair_route(
-                assigned, self.C_dict, self.Barges[to_b], self.T_ij, self.handling
+                assigned,
+                self.instance.C_dict,
+                self.init_solution.Barges[to_b],
+                self.instance.T_ij_matrix,
+                self.instance.Handling_time,
             )
             if new_route is None:
                 # unrecoverably infeasible → undo + T1‐tabu
@@ -391,7 +394,7 @@ class MetaHeuristic:
         return True
 
     def operator_swap(self):
-        c1, c2 = random.sample(range(self.C), 2)
+        c1, c2 = random.sample(range(self.instance.C), 2)
         bs1 = [k for k in range(self.K) if self.f_ck[c1, k]]
         bs2 = [k for k in range(self.K) if self.f_ck[c2, k]]
         if not bs1 or not bs2 or bs1[0] == bs2[0]:
@@ -411,12 +414,12 @@ class MetaHeuristic:
         self.f_ck[c2, b1] = 1
 
         def barge_ok(k):
-            assigned = [i for i in range(self.C) if self.f_ck[i, k]]
+            assigned = [i for i in range(self.instance.C) if self.f_ck[i, k]]
             if not assigned:
                 return True
-            Lcur = {i: self.C_dict[i] for i in assigned}
+            Lcur = {i: self.instance.C_dict[i] for i in assigned}
             route = get_route(Lcur)
-            if not check_for_cap(route, Lcur, k, barges=self.Barges):
+            if not check_for_cap(route, Lcur, k, barges=self.init_solution.Barges):
                 return False
             # one‐shift TW
             delay = 0
@@ -449,9 +452,13 @@ class MetaHeuristic:
 
         # quick check failed on at least one barge: call repair on each
         for b in (b1, b2):
-            assigned = [i for i in range(self.C) if self.f_ck[i, b]]
+            assigned = [i for i in range(self.instance.C) if self.f_ck[i, b]]
             new_route = repair_route(
-                assigned, self.C_dict, self.Barges[b], self.T_ij, self.handling
+                assigned,
+                self.instance.C_dict,
+                self.init_solution.Barges[b],
+                self.instance.T_ij_matrix,
+                self.instance.Handling_time,
             )
             if new_route is None:
                 # irreparable swap → undo + tabu
@@ -467,16 +474,17 @@ class MetaHeuristic:
         total_cost = 0
         total_stops = 0
         utils = []
+
         for k in range(self.K):
             assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
             if not assigned:
                 continue
-            total_cost += self.H_b[k]
-            Lcur = {c: self.C_dict[c] for c in assigned}
+            total_cost += self.init_solution.H_b[k]
+            Lcur = {c: self.instance.C_dict[c] for c in assigned}
             route = get_route(Lcur)
             # travel times
             for i in range(len(route) - 1):
-                total_cost += self.T_ij[route[i]][route[i + 1]]
+                total_cost += self.instance.T_ij_matrix[route[i]][route[i + 1]]
             stops = len(route) - 1
             total_stops += stops
             total_cost += stops  # 1€/stop penalty
@@ -488,15 +496,15 @@ class MetaHeuristic:
                     if cont["Terminal"] == node:
                         load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
                 loads.append(load)
-            utils.append(sum(loads) / (len(loads) * self.Barges[k]))
+            utils.append(sum(loads) / (len(loads) * self.init_solution.Barges[k]))
         # truck
         unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
         for c in unassigned:
-            total_cost += self.H_t[self.C_dict[c]["Wc"]]
+            total_cost += self.H_t_dict[self.instance.C_dict[c]["Wc"]]
         return total_cost, total_stops, (sum(utils) / len(utils) if utils else 0)
 
     def local_search(self, max_iters=3000):
-        self.initial_solution()
+        # self.initial_solution()
         self.best_cost, _, _ = self.evaluate()
         best_f = self.f_ck.copy()
         no_improve = 0
@@ -569,7 +577,7 @@ class MetaHeuristic:
         barge_assignments = {k: [] for k in range(self.K)}
         trucked_containers = []
 
-        for c in range(self.C):
+        for c in range(self.instance.C):
             assigned = False
             for k in range(self.K):
                 if self.f_ck[c, k] == 1:
@@ -584,11 +592,11 @@ class MetaHeuristic:
         total_containers_on_barges = 0
 
         for k in range(self.K):
-            print("iterating through self.K:", k)
+            # print("iterating through self.K:", k)
             containers = barge_assignments[k]
             if containers:
                 print(
-                    f"\nBARGE {k+1} (Capacity: {self.Barges[k]} TEU, Fixed cost: €{self.H_b[k]}):"
+                    f"\nBARGE {k+1} (Capacity: {self.init_solution.Barges[k]} TEU, Fixed cost: €{self.init_solution.H_b[k]}):"
                 )
                 print(f"  Assigned containers: {len(containers)}")
 
@@ -598,10 +606,10 @@ class MetaHeuristic:
                 exports = []
                 # terminals_visited = set()
 
-                Lcur = {c: self.C_dict[c] for c in containers}
+                Lcur = {c: self.instance.C_dict[c] for c in containers}
                 route = get_route(Lcur)
 
-                cap = self.Barges[k]
+                cap = self.init_solution.Barges[k]
                 load = sum(
                     info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2
                 )
@@ -626,7 +634,7 @@ class MetaHeuristic:
                 print(f"  Total assigned TEU (not capacity): {total_teu}")
 
                 for c in containers:
-                    container_info = self.C_dict[c]
+                    container_info = self.instance.C_dict[c]
                     # total_teu += container_info["Wc"]
                     # terminals_visited.add(container_info["Terminal"])
 
@@ -636,7 +644,7 @@ class MetaHeuristic:
                         exports.append(c)
 
                 # print(
-                #     f"  Total TEU load: {total_teu}/{self.Barges[k]} ({100*total_teu/self.Barges[k]:.1f}% utilization)"
+                #     f"  Total TEU load: {total_teu}/{self.init_solution.Barges[k]} ({100*total_teu/self.init_solution.Barges[k]:.1f}% utilization)"
                 # )
                 # print(f"  Terminals visited: {sorted(terminals_visited)}")
                 print(f"  Import containers: {len(imports)} containers")
@@ -647,7 +655,7 @@ class MetaHeuristic:
                 ):  # Only show detailed list for small assignments
                     print(f"  Container IDs: {containers}")
 
-                total_barge_cost += self.H_b[k]
+                total_barge_cost += self.init_solution.H_b[k]
                 total_containers_on_barges += len(containers)
 
         # Display trucked containers
@@ -659,18 +667,18 @@ class MetaHeuristic:
             truck_cost_40ft = 0
 
             for c in trucked_containers:
-                container_info = self.C_dict[c]
+                container_info = self.instance.C_dict[c]
                 if container_info["Wc"] == 1:  # 20ft
-                    truck_cost_20ft += self.H_t[1]
+                    truck_cost_20ft += self.H_t_dict[1]
                 else:  # 40ft
-                    truck_cost_40ft += self.H_t[2]
+                    truck_cost_40ft += self.H_t_dict[2]
 
             total_truck_cost = truck_cost_20ft + truck_cost_40ft
             print(
-                f"  20ft containers: {sum(1 for c in trucked_containers if self.C_dict[c]['Wc'] == 1)}"
+                f"  20ft containers: {sum(1 for c in trucked_containers if self.instance.C_dict[c]['Wc'] == 1)}"
             )
             print(
-                f"  40ft containers: {sum(1 for c in trucked_containers if self.C_dict[c]['Wc'] == 2)}"
+                f"  40ft containers: {sum(1 for c in trucked_containers if self.instance.C_dict[c]['Wc'] == 2)}"
             )
             print(f"  Total trucking cost: €{total_truck_cost}")
 
@@ -682,7 +690,7 @@ class MetaHeuristic:
         # Summary
         print(f"\n" + "-" * 50)
         print("SUMMARY:")
-        print(f"  Total containers: {self.C}")
+        print(f"  Total containers: {self.instance.C}")
         print(f"  Containers on barges: {total_containers_on_barges}")
         print(f"  Containers trucked: {len(trucked_containers)}")
         print(f"  Barges used: {sum(1 for k in range(self.K) if barge_assignments[k])}")
@@ -692,13 +700,18 @@ class MetaHeuristic:
 
 if __name__ == "__main__":
     # usage
-    mh = MetaHeuristic(
-        C_ordered, C_dict, Barges, H_b, H_t_20, H_t_40, T_ij_list, Handling_time
-    )
-    mh.initial_solution()
-    print("greedy cost:", mh.evaluate()[0])
+    from MILP import MILP_Algo
+    from Greedy_Algo import GreedyOptimizer
+
+    milp_instance = MILP_Algo(reduced=False)
+    greedy = GreedyOptimizer(problem_instance=milp_instance)
+    init_solution = greedy.solve_greedy()
+
+    mh = MetaHeuristic(problem_instance=milp_instance, init_solution=init_solution)
+    # mh.initial_solution()
+    print("Greedy cost:", init_solution.total_cost, "\n")
     mh.local_search()
-    print("meta-heuristic cost:", mh.best_cost)
+    print("Meta-heuristic cost:", mh.best_cost, "\n")
 
     # Display final allocations
     mh.display_final_allocations()

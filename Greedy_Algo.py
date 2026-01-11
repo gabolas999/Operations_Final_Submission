@@ -15,8 +15,23 @@ import random
 import math
 import networkx as nx
 import numpy as np
+from dataclasses import dataclass
 
 from MILP import MILP_Algo
+
+
+@dataclass
+class GreedySolution:
+    total_cost: float
+    barge_cost: float
+    truck_cost: float
+    f_ck_init: np.ndarray
+    route_list: list
+    trucked_containers: dict
+    xijk: np.ndarray
+    C_ordered: list
+    H_b: list
+    Barges: list
 
 
 class GreedyOptimizer:
@@ -493,15 +508,18 @@ class GreedyOptimizer:
         # Calculate total cost
         self.total_cost = self.barge_cost + self.truck_cost
 
-        return {
-            "total_cost": self.total_cost,
-            "barge_cost": self.barge_cost,
-            "truck_cost": self.truck_cost,
-            "f_ck_init": self.f_ck_init,
-            "route_list": self.route_list,
-            "trucked_containers": self.trucked_containers,
-            "xijk": self.x_ijk,
-        }
+        return GreedySolution(
+            total_cost=self.total_cost,
+            barge_cost=self.barge_cost,
+            truck_cost=self.truck_cost,
+            f_ck_init=self.f_ck_init,
+            route_list=self.route_list,
+            trucked_containers=self.trucked_containers,
+            xijk=self.x_ijk,
+            C_ordered=self.C_ordered,
+            H_b=self.H_b,
+            Barges=self.Barges,
+        )
 
     def calculate_objective(self):
         """
@@ -574,16 +592,16 @@ class GreedyOptimizer:
                     f"{teu_on_barge:>4d}/{self.Barges[k]:<4d} TEU"
                 )
 
-    @property
-    def T_ij_list(self):
-        """Alias for T_matrix for backward compatibility"""
-        return self.instance.T_ij_matrix
+    # @property
+    # def T_ij_list(self):
+    #     """Alias for T_matrix for backward compatibility"""
+    #     return self.instance.T_ij_matrix
 
 
-# # Create global instance for backward compatibility
-# _global_optimizer = GreedyOptimizer()
+# Create global instance for backward compatibility
+_global_optimizer = GreedyOptimizer(problem_instance=MILP_Algo(reduced=False))
 
-# # Global variables for backward compatibility
+# Global variables for backward compatibility
 # C_dict = _global_optimizer.C_dict
 # C = _global_optimizer.C
 # N = _global_optimizer.N
@@ -597,31 +615,31 @@ class GreedyOptimizer:
 # Handling_time = _global_optimizer.Handling_time
 
 
-# # # Functions for backward compatibility
-# # def container_info(seed, reduced):
-# #     """Backward compatibility function"""
-# #     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
-# #     return optimizer.C_dict, optimizer.C, optimizer.N
-
-
-# def get_route(L_current):
+# # Functions for backward compatibility
+# def container_info(seed, reduced):
 #     """Backward compatibility function"""
-#     return _global_optimizer.get_route(L_current)
+#     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
+#     return optimizer.C_dict, optimizer.C, optimizer.N
 
 
-# def get_timing(route, L_current, delay):
-#     """Backward compatibility function"""
-#     return _global_optimizer.get_timing(route, L_current, delay)
+def get_route(L_current):
+    """Backward compatibility function"""
+    return _global_optimizer.get_route(L_current)
 
 
-# def check_for_cap(route, L_current, idx, barges=None):
-#     """Backward compatibility function"""
-#     return _global_optimizer.check_for_cap(route, L_current, idx, barges)
+def get_timing(route, L_current, delay):
+    """Backward compatibility function"""
+    return _global_optimizer.get_timing(route, L_current, delay)
 
 
-# def delay_window(container, O_terminal, route, terminal):
-#     """Backward compatibility function"""
-#     return _global_optimizer.delay_window(container, O_terminal, route, terminal)
+def check_for_cap(route, L_current, idx, barges=None):
+    """Backward compatibility function"""
+    return _global_optimizer.check_for_cap(route, L_current, idx, barges)
+
+
+def delay_window(container, O_terminal, route, terminal):
+    """Backward compatibility function"""
+    return _global_optimizer.delay_window(container, O_terminal, route, terminal)
 
 
 # Run the algorithm and print results if this file is executed directly
