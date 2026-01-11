@@ -189,7 +189,7 @@ class MetaHeuristic:
         self.T3 = {}
 
         # parameters (tune these!)
-        self.critical = {}  # set of your “tightest” containers
+        # self.critical = {}  # set of your “tightest” containers
         self.ten_move = 20
         self.ten_crit = 20
         self.ten_barban = 10
@@ -582,6 +582,7 @@ class MetaHeuristic:
         total_containers_on_barges = 0
 
         for k in range(self.K):
+            print("iterating through self.K:", k)
             containers = barge_assignments[k]
             if containers:
                 print(
@@ -593,22 +594,49 @@ class MetaHeuristic:
                 total_teu = 0
                 imports = []
                 exports = []
-                terminals_visited = set()
+                # terminals_visited = set()
+
+                Lcur = {c: self.C_dict[c] for c in containers}
+                route = get_route(Lcur)
+
+                cap = self.Barges[k]
+                load = sum(
+                    info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2
+                )
+                peak = load
+                for node in route[1:]:
+                    exports_unloaded = sum(
+                        info["Wc"]
+                        for info in Lcur.values()
+                        if info["Terminal"] == node and info["In_or_Out"] == 2
+                    )
+                    imports_loaded = sum(
+                        info["Wc"]
+                        for info in Lcur.values()
+                        if info["Terminal"] == node and info["In_or_Out"] == 1
+                    )
+                    load = load - exports_unloaded + imports_loaded
+                    peak = max(peak, load)
+
+                print(
+                    f"  Peak onboard load: {peak}/{cap} ({100*peak/cap:.1f}% utilization)"
+                )
+                print(f"  Total assigned TEU (not capacity): {total_teu}")
 
                 for c in containers:
                     container_info = self.C_dict[c]
-                    total_teu += container_info["Wc"]
-                    terminals_visited.add(container_info["Terminal"])
+                    # total_teu += container_info["Wc"]
+                    # terminals_visited.add(container_info["Terminal"])
 
                     if container_info["In_or_Out"] == 1:  # Import
                         imports.append(c)
                     else:  # Export
                         exports.append(c)
 
-                print(
-                    f"  Total TEU load: {total_teu}/{self.Barges[k]} ({100*total_teu/self.Barges[k]:.1f}% utilization)"
-                )
-                print(f"  Terminals visited: {sorted(terminals_visited)}")
+                # print(
+                #     f"  Total TEU load: {total_teu}/{self.Barges[k]} ({100*total_teu/self.Barges[k]:.1f}% utilization)"
+                # )
+                # print(f"  Terminals visited: {sorted(terminals_visited)}")
                 print(f"  Import containers: {len(imports)} containers")
                 print(f"  Export containers: {len(exports)} containers")
 

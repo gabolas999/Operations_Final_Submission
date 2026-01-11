@@ -80,7 +80,17 @@ class GreedyOptimizer(MILP_Algo):
 
         self.generate_master_route()
         self.generate_ordered_containers()
-        self.Barges = self.Qk.copy()  # Set barge capacities
+        # self.Barges = self.Qk.copy()  # Set barge capacities
+        self._sort_barges_by_capacity_desc()
+
+    def _sort_barges_by_capacity_desc(self):
+        """Sort barges by decreasing capacity, keeping fixed costs paired (Algorithm 1, line 2)."""
+        pairs = sorted(zip(self.Qk, self.H_b), key=lambda p: p[0], reverse=True)
+        self.Barges = [q for q, _ in pairs]
+        self.H_b = [h for _, h in pairs]
+        # keep inherited attributes consistent
+        self.Qk = self.Barges.copy()
+        self.H_b = self.H_b.copy()
 
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
@@ -109,154 +119,204 @@ class GreedyOptimizer(MILP_Algo):
                     condit_satisfies_counter += 1
                     self.C_ordered.append(c)
 
+    # def get_route(self, L_current):
+    #     """
+    #     Generate route for current barge load
+
+    #     Parameters:
+    #     -----------
+    #     L_current : dict
+    #         Current containers assigned to this barge
+
+    #     Returns:
+    #     --------
+    #     list : Route as list of terminal indices
+    #     """
+    #     route = [0]  # start at terminal 0 (main terminal)
+    #     current_terminal = 0  # start at terminal 0 (main terminal)
+
+    #     for c in L_current.values():
+    #         if c["Terminal"] == current_terminal:
+    #             continue
+    #         else:
+    #             route.append(c["Terminal"])
+    #             current_terminal = c["Terminal"]
+
+    #     return route
     def get_route(self, L_current):
-        """
-        Generate route for current barge load
+        terminals = {c["Terminal"] for c in L_current.values() if c["Terminal"] != 0}
 
-        Parameters:
-        -----------
-        L_current : dict
-            Current containers assigned to this barge
+        route = [0]
+        # Follow the global master route order (unique terminals)
+        if hasattr(self, "master_route") and self.master_route:
+            for t in self.master_route:
+                if t != 0 and t in terminals and t not in route:
+                    route.append(t)
+        else:
+            route.extend(sorted(terminals))
 
-        Returns:
-        --------
-        list : Route as list of terminal indices
-        """
-        route = [0]  # start at terminal 0 (main terminal)
-        current_terminal = 0  # start at terminal 0 (main terminal)
-
-        for c in L_current.values():
-            if c["Terminal"] == current_terminal:
-                continue
-            else:
-                route.append(c["Terminal"])
-                current_terminal = c["Terminal"]
+        route.append(0)  # return to depot
 
         return route
 
-    def get_timing(self, route, L_current, delay):
+    # def get_timing(self, route, L_current, delay):
+    #     """
+    #     Calculate timing for barge route
+
+    #     Parameters:
+    #     -----------
+    #     route : list
+    #         Route as list of terminal indices
+    #     L_current : dict
+    #         Current containers assigned to this barge
+    #     delay : float
+    #         Additional delay in hours
+
+    #     Returns:
+    #     --------
+    #     tuple : (departure_times, arrival_times)
+    #     """
+    #     departure_time = 0
+    #     current_max = 0
+    #     dry_port_handling_time = 0
+
+    #     for c in L_current.values():
+    #         if c["In_or_Out"] == 2:  # Export
+    #             dry_port_handling_time += self.Handling_time
+    #             if c["Rc"] > current_max:
+    #                 current_max = c["Rc"]
+
+    #     departure_time = current_max + dry_port_handling_time
+
+    #     D_terminal = [departure_time]  # time of departure from each terminal
+    #     O_terminal = [0]  # time of arrival at each terminal
+
+    #     current_terminal = 0  # start at terminal 0 (dry port)
+    #     term_departure_time = departure_time  # start time at departure time
+    #     term_arrival_time = 0  # start time at 0
+
+    #     for terminal in route[1:]:
+    #         travel_time = self.T_ij_matrix[current_terminal][terminal]
+    #         handling_time_total = self.Handling_time * sum(
+    #             1 for c in L_current.values() if c["Terminal"] == terminal
+    #         )
+
+    #         term_departure_time += travel_time  # add travel time to next terminal
+    #         term_departure_time += handling_time_total  # add handling time at terminal
+
+    #         term_arrival_time += (
+    #             travel_time + D_terminal[-1]
+    #         )  # arrival time is the same as departure time after handling
+
+    #         D_terminal.append(
+    #             term_departure_time
+    #         )  # append the time of arrival at the terminal
+    #         O_terminal.append(
+    #             term_arrival_time
+    #         )  # append the time of arrival at the terminal
+
+    #         current_terminal = terminal
+
+    #     D_terminal[-1] += delay  # add delay to the last terminal's departure time
+
+    #     return D_terminal, O_terminal
+
+    def get_timing(self, route, L_current, departure_shift):
         """
-        Calculate timing for barge route
-
-        Parameters:
-        -----------
-        route : list
-            Route as list of terminal indices
-        L_current : dict
-            Current containers assigned to this barge
-        delay : float
-            Additional delay in hours
-
         Returns:
-        --------
-        tuple : (departure_times, arrival_times)
+        D_terminal: departure times at each route node (after service)
+        O_terminal: arrival times at each route node (before service)
+
+        Interpretation (per your spec):
+        - Base departure from dry port is max export release time at dry port (or 0 if no exports).
+        - Then we add a uniform departure_shift (>=0) to postpone the whole trip.
+        - Arrival times are propagated iteratively along the route.
         """
-        departure_time = 0
-        current_max = 0
-        dry_port_handling_time = 0
+        # 1) Base departure time from dry port
+        export_release_times = [
+            c["Rc"] for c in L_current.values() if c["In_or_Out"] == 2
+        ]
+        base_departure = max(export_release_times) if export_release_times else 0.0
+        depart_time = base_departure + departure_shift
 
-        for c in L_current.values():
-            if c["In_or_Out"] == 2:  # Export
-                dry_port_handling_time += self.Handling_time
-                if c["Rc"] > current_max:
-                    current_max = c["Rc"]
+        # 2) Iterative propagation
+        O_terminal = [0.0]  # arrival at dry port is time 0 reference
+        D_terminal = [depart_time]  # depart dry port at computed time
 
-        departure_time = current_max + dry_port_handling_time
+        current_node = 0
+        current_depart = depart_time
 
-        D_terminal = [departure_time]  # time of departure from each terminal
-        O_terminal = [0]  # time of arrival at each terminal
+        for node in route[1:]:
+            travel = self.T_ij_matrix[current_node][node]
+            arrival = current_depart + travel
 
-        current_terminal = 0  # start at terminal 0 (dry port)
-        term_departure_time = departure_time  # start time at departure time
-        term_arrival_time = 0  # start time at 0
+            if node == 0:
+                # returning to dry port: no service time
+                service = 0
+            else:
+                # handling time at node
+                n_containers_here = sum(
+                    1 for c in L_current.values() if c["Terminal"] == node
+                )
+                service = self.Handling_time * n_containers_here
 
-        for terminal in route[1:]:
-            travel_time = self.T_ij_matrix[current_terminal][terminal]
-            handling_time_total = self.Handling_time * sum(
-                1 for c in L_current.values() if c["Terminal"] == terminal
-            )
+            depart = arrival + service
 
-            term_departure_time += travel_time  # add travel time to next terminal
-            term_departure_time += handling_time_total  # add handling time at terminal
+            O_terminal.append(arrival)
+            D_terminal.append(depart)
 
-            term_arrival_time += (
-                travel_time + D_terminal[-1]
-            )  # arrival time is the same as departure time after handling
-
-            D_terminal.append(
-                term_departure_time
-            )  # append the time of arrival at the terminal
-            O_terminal.append(
-                term_arrival_time
-            )  # append the time of arrival at the terminal
-
-            current_terminal = terminal
-
-        D_terminal[-1] += delay  # add delay to the last terminal's departure time
+            current_node = node
+            current_depart = depart
 
         return D_terminal, O_terminal
 
     def check_for_cap(self, route, L_current, barge_idx, barges=None):
-        """
-        Check if current assignment respects barge capacity
+        cap = barges[barge_idx] if barges is not None else self.Barges[barge_idx]
 
-        Parameters:
-        -----------
-        route : list
-            Route as list of terminal indices
-        L_current : dict
-            Current containers assigned to this barge
-        barge_idx : int
-            Index of the barge
-        barges : list or None
-            List of barge capacities. If None, use self.Barges.
+        # Start at depot: all exports are loaded
+        load = sum(c["Wc"] for c in L_current.values() if c["In_or_Out"] == 2)
+        if load > cap:
+            return False
+        if load < 0:
+            return False
 
-        Returns:
-        --------
-        bool : True if capacity is respected, False otherwise
-        """
-        teu_used = []
+        # Visit terminals once in the given route
+        for terminal in route[1:]:
+            if terminal == 0:
+                continue
 
-        for i in range(len(route)):
-            terminal = route[i]
-            sum_teu = 0
-
-            for c in L_current.values():
-                if (
-                    c["Terminal"] == terminal and terminal > 0 and c["In_or_Out"] == 1
-                ):  # import containers are loaded on the barge
-                    sum_teu += c["Wc"]
-                elif (
-                    c["Terminal"] == terminal and terminal > 0 and c["In_or_Out"] == 2
-                ):  # export containers are unloaded from the barge
-                    sum_teu -= c["Wc"]
-                elif i == 0 and c["In_or_Out"] == 2:  # export at depot
-                    sum_teu += c["Wc"]
-
-            teu_used.append(sum_teu)
-
-        cap = [
-            (
-                True
-                if teu
-                <= (barges[barge_idx] if barges is not None else self.Barges[barge_idx])
-                else False
+            exports_unloaded = sum(
+                c["Wc"]
+                for c in L_current.values()
+                if c["Terminal"] == terminal and c["In_or_Out"] == 2
             )
-            for teu in teu_used
-        ]
+            imports_loaded = sum(
+                c["Wc"]
+                for c in L_current.values()
+                if c["Terminal"] == terminal and c["In_or_Out"] == 1
+            )
 
-        return all(cap)
+            load -= exports_unloaded
+            load += imports_loaded
 
-    def delay_window(self, container, D_terminal, route, terminal):
+            if load > cap:
+                return False
+            if load < 0:
+                return False
+
+        return True
+
+    def delay_window(self, container, O_terminal, route, terminal):
         """
-        Calculate delay needed for time window constraint
+        Calculate delay needed for container to fit in time window if the arrival is too early.
+        Late arrivals are not adjusted as any delay would make the issue worse, so we return 0 in that case.
 
         Parameters:
         -----------
         container : dict
             Container information
-        D_terminal : list
-            Departure times at each terminal
+        O_terminal : list
+            Arrival times at each terminal
         route : list
             Route as list of terminal indices
         terminal : int
@@ -267,13 +327,31 @@ class GreedyOptimizer(MILP_Algo):
         float : Required delay in hours
         """
         Oc = container["Oc"]
-        D_term = D_terminal[route.index(terminal)]
+        arrival = O_terminal[route.index(terminal)]
+        return max(0.0, Oc - arrival)
 
-        if Oc - D_term > 0:
-            delay = (Oc - D_term) + self.Handling_time
-            return delay
-        else:
-            return 0
+        # ok = Oc <= O_term <= Dc
+
+        # if ok:
+        #     return 0
+        # if O_term < Oc:
+        #     delay = Oc - O_term  # need to delay arrival
+        #     assert delay > 0
+        #     return delay
+        # elif O_term > Dc:
+        #     delay = (
+        #         Dc - O_term
+        #     )  # this is negative as we dont need to delay but to advance
+        #     assert delay < 0
+        #     return delay
+        # else:
+        #     return 0
+
+        # if Oc - O_term > 0:
+        #     delay = (Oc - O_term) + self.Handling_time
+        #     return delay
+        # else:
+        #     return 0
 
     def solve_greedy(self):
         """
@@ -323,32 +401,53 @@ class GreedyOptimizer(MILP_Algo):
                     D_term, O_term = self.get_timing(route, L_current, delay)
 
                     # find any containers that now violate
-                    violations = []
+                    early_arrival_violations = []
+                    late = False
                     for cont in L_current.values():
                         t = cont["Terminal"]
-                        if not (
-                            O_term[route.index(t)]
-                            <= cont["Oc"]
-                            <= D_term[route.index(t)]
-                            or O_term[route.index(t)]
-                            <= cont["Dc"]
-                            <= D_term[route.index(t)]
-                        ):
-                            violations.append(cont)
+                        # if not (
+                        #     O_term[route.index(t)]
+                        #     <= cont["Oc"]
+                        #     <= D_term[route.index(t)]
+                        #     or O_term[route.index(t)]
+                        #     <= cont["Dc"]
+                        #     <= D_term[route.index(t)]
+                        # ):
+                        #     violations.append(cont)
 
-                    if not violations:
+                        arrival = O_term[route.index(t)]
+
+                        # if not (cont["Oc"] <= arrival <= cont["Dc"]):
+                        #     violations.append(cont)
+
+                        if arrival < cont["Oc"]:
+                            early_arrival_violations.append(cont)
+                        elif arrival > cont["Dc"]:
+                            late = True
+                            break
+
+                    if late:
+                        success = False
+                        break
+
+                    if not early_arrival_violations:
                         # everyone fits under this `delay`
                         success = True
                         break
 
                     # if we still have our one "shift" left, compute the shift
                     if attempt == 0:
-                        # largest extra wait needed
-                        needed = [
-                            self.delay_window(v, O_term, route, v["Terminal"])
-                            for v in violations
+                        # largest extra wait delay_needed
+                        delay_needed = [
+                            self.delay_window(
+                                container=v,
+                                O_terminal=O_term,
+                                route=route,
+                                terminal=v["Terminal"],
+                            )
+                            for v in early_arrival_violations
                         ]
-                        delay += max(needed)  # accumulate shift
+                        delay += max(delay_needed)  # accumulate shift
                     else:
                         # second pass and still violations → fail
                         break
@@ -361,8 +460,15 @@ class GreedyOptimizer(MILP_Algo):
                     # undo assignment
                     self.f_ck_init[c, barge_idx] = 0
 
-            # move on to next barge (with its own fresh departure_delay)
-            self.route_list.append(route)
+            # move on to next barge: store the FINAL route for this barge
+            assigned_idx = np.where(self.f_ck_init[:, barge_idx] == 1)[0].tolist()
+            if assigned_idx:
+                L_final = {cont: self.C_dict[cont] for cont in assigned_idx}
+                route_final = self.get_route(L_final)
+            else:
+                route_final = [0, 0]
+
+            self.route_list.append(route_final)
             self.barge_departure_delay.append(departure_delay)
             barge_idx += 1
             departure_delay = 0
@@ -386,8 +492,9 @@ class GreedyOptimizer(MILP_Algo):
 
         for barge_idx, route in enumerate(self.route_list):
             for i in range(len(route) - 1):
-                self.x_ijk[barge_idx][route[i]][route[i + 1]] = 1
-                self.x_ijk[barge_idx][route[i + 1]][route[i]] = 1
+                if route[i] != route[i + 1]:
+                    self.x_ijk[barge_idx][route[i]][route[i + 1]] = 1
+                # self.x_ijk[barge_idx][route[i + 1]][route[i]] = 1
 
         # Calculate barge cost
         self.barge_cost = self.calculate_objective()
@@ -428,14 +535,19 @@ class GreedyOptimizer(MILP_Algo):
                 for j in range(self.N):
                     cost += self.T_ij_matrix[i][j] * self.x_ijk[k][i][j]
 
-            # 3) extra‐stop term: sum over j≠0, i≠j of x[j][i][k]
-            for j in range(self.N):
-                if j == 0:
-                    continue
-                for i in range(self.N):
-                    if i == j:
-                        continue
-                    cost += self.x_ijk[k][i][j] * self.Handling_time
+            # # 3) extra‐stop term: sum over j≠0, i≠j of x[j][i][k]
+            # for j in range(self.N):
+            #     if j == 0:
+            #         continue
+            #     for i in range(self.N):
+            #         if i == j:
+            #             continue
+            #         cost += self.x_ijk[k][i][j] * self.Handling_time
+
+            # 3) stop penalty: count once per visited sea terminal (j != 0)
+            for j in range(1, self.N):
+                if self.x_ijk[k][:, j].sum() > 0:
+                    cost += self.Handling_time
 
         return cost
 
@@ -516,9 +628,9 @@ def check_for_cap(route, L_current, idx, barges=None):
     return _global_optimizer.check_for_cap(route, L_current, idx, barges)
 
 
-def delay_window(container, D_terminal, route, terminal):
+def delay_window(container, O_terminal, route, terminal):
     """Backward compatibility function"""
-    return _global_optimizer.delay_window(container, D_terminal, route, terminal)
+    return _global_optimizer.delay_window(container, O_terminal, route, terminal)
 
 
 # Run the algorithm and print results if this file is executed directly

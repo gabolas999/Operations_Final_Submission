@@ -29,23 +29,41 @@ class MILP_Algo:
         self,
         # run_name="MILP_Run",
         run_name="______",
+        # qk=[  # Barge capacities in TEU
+        #     20,  # Barge 0
+        #     20,  # Barge 1
+        #     20,  # Barge 2
+        #     20,  # Barge 3
+        #     10,  # Barge 4
+        #     10,  # Barge 5
+        #     10,  # Barge 6
+        # ],
+        # h_b=[  # Barge fixed costs in euros
+        #     1100,  # Barge 0
+        #     1700,  # Barge 1
+        #     1800,  # Barge 2
+        #     1900,  # Barge 3
+        #     3300,  # Barge 4
+        #     3300,  # Barge 5
+        #     3300,  # Barge 6
+        # ],
         qk=[  # Barge capacities in TEU
-            20,  # Barge 0
-            20,  # Barge 1
-            20,  # Barge 2
-            20,  # Barge 3
-            10,  # Barge 4
-            10,  # Barge 5
-            10,  # Barge 6
+            104,  # Barge 0
+            99,  # Barge 1
+            81,  # Barge 2
+            52,  # Barge 3
+            28,  # Barge 4
+            # 10,  # Barge 5
+            # 10,  # Barge 6
         ],
         h_b=[  # Barge fixed costs in euros
-            1100,  # Barge 0
-            1700,  # Barge 1
-            1800,  # Barge 2
-            1900,  # Barge 3
-            3300,  # Barge 4
-            3300,  # Barge 5
-            3300,  # Barge 6
+            3700,  # Barge 0
+            3600,  # Barge 1
+            3400,  # Barge 2
+            2800,  # Barge 3
+            1800,  # Barge 4
+            # 3300,  # Barge 5
+            # 3300,  # Barge 6
         ],
         seed=0,
         reduced=False,
