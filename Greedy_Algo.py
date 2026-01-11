@@ -622,24 +622,24 @@ _global_optimizer = GreedyOptimizer(problem_instance=MILP_Algo(reduced=False))
 #     return optimizer.C_dict, optimizer.C, optimizer.N
 
 
-def get_route(L_current):
-    """Backward compatibility function"""
-    return _global_optimizer.get_route(L_current)
+# def get_route(L_current):
+#     """Backward compatibility function"""
+#     return _global_optimizer.get_route(L_current)
 
 
-def get_timing(route, L_current, delay):
-    """Backward compatibility function"""
-    return _global_optimizer.get_timing(route, L_current, delay)
+# def get_timing(route, L_current, delay):
+#     """Backward compatibility function"""
+#     return _global_optimizer.get_timing(route, L_current, delay)
 
 
-def check_for_cap(route, L_current, idx, barges=None):
-    """Backward compatibility function"""
-    return _global_optimizer.check_for_cap(route, L_current, idx, barges)
+# def check_for_cap(route, L_current, idx, barges=None):
+#     """Backward compatibility function"""
+#     return _global_optimizer.check_for_cap(route, L_current, idx, barges)
 
 
-def delay_window(container, O_terminal, route, terminal):
-    """Backward compatibility function"""
-    return _global_optimizer.delay_window(container, O_terminal, route, terminal)
+# def delay_window(container, O_terminal, route, terminal):
+#     """Backward compatibility function"""
+#     return _global_optimizer.delay_window(container, O_terminal, route, terminal)
 
 
 # Run the algorithm and print results if this file is executed directly

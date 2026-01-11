@@ -4,24 +4,7 @@ This module does work  #+#+# Gabo
 
 import random
 import numpy as np
-
-# import matplotlib.pyplot as plt
 import pulp
-from Greedy_Algo import (
-    get_route,
-    get_timing,
-    check_for_cap,
-    delay_window,
-    # C_dict,
-    # Barges,
-    # T_ij_matrix,
-    # Handling_time,
-    # Qk,
-    # C_ordered,
-    # H_b,
-    # H_t_20,
-    # H_t_40,
-)
 
 
 def repair_route(assigned, C_dict, Qk, Tij, Handling_time):
@@ -154,7 +137,17 @@ class MetaHeuristic:
         self,
         problem_instance,
         init_solution,
+        get_route,
+        get_timing,
+        check_for_cap,
+        delay_window,
     ):
+
+        self.get_route = get_route
+        self.get_timing = get_timing
+        self.check_for_cap = check_for_cap
+        self.delay_window = delay_window
+
         self.instance = problem_instance
         self.init_solution = init_solution
 
@@ -212,8 +205,8 @@ class MetaHeuristic:
     #                 i for i in range(self.instance.C) if self.f_ck[i, barge_idx] == 1
     #             ]
     #             Lcur = {i: self.instance.C_dict[i] for i in assigned}
-    #             route = get_route(Lcur)
-    #             if not check_for_cap(
+    #             route = self.get_route(Lcur)
+    #             if not self.check_for_cap(
     #                 route, Lcur, barge_idx, barges=self.init_solution.Barges
     #             ):
     #                 self.f_ck[c, barge_idx] = 0
@@ -223,7 +216,7 @@ class MetaHeuristic:
     #             ok = False
     #             delay = dep_delay
     #             for attempt in (0, 1):
-    #                 D, O = get_timing(route, Lcur, delay)
+    #                 D, O = self.get_timing(route, Lcur, delay)
     #                 viol = [
     #                     v
     #                     for v in Lcur.values()
@@ -241,7 +234,7 @@ class MetaHeuristic:
     #                     break
     #                 if attempt == 0:
     #                     delay += max(
-    #                         delay_window(v, O, route, v["Terminal"]) for v in viol
+    #                         self.delay_window(v, O, route, v["Terminal"]) for v in viol
     #                     )
     #             if ok:
     #                 dep_delay = delay
@@ -276,7 +269,7 @@ class MetaHeuristic:
             if not assigned:
                 continue
             Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = get_route(Lcur)
+            route = self.get_route(Lcur)
             loads = []
             load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
             loads.append(load)
@@ -336,17 +329,19 @@ class MetaHeuristic:
         if to_b != "truck":
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
             Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = get_route(Lcur)
+            route = self.get_route(Lcur)
 
             # capacity
-            if not check_for_cap(route, Lcur, to_b, barges=self.init_solution.Barges):
+            if not self.check_for_cap(
+                route, Lcur, to_b, barges=self.init_solution.Barges
+            ):
                 feasible = False
             else:
                 # up to one departure shift
                 delay = 0
                 fit = False
                 for attempt in (0, 1):
-                    D, O = get_timing(route, Lcur, delay)
+                    D, O = self.get_timing(route, Lcur, delay)
                     viol = [
                         v
                         for v in Lcur.values()
@@ -364,7 +359,7 @@ class MetaHeuristic:
                         break
                     if attempt == 0:
                         delay = max(
-                            delay_window(v, O, route, v["Terminal"]) for v in viol
+                            self.delay_window(v, O, route, v["Terminal"]) for v in viol
                         )
                 if not fit:
                     feasible = False
@@ -418,13 +413,13 @@ class MetaHeuristic:
             if not assigned:
                 return True
             Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = get_route(Lcur)
-            if not check_for_cap(route, Lcur, k, barges=self.init_solution.Barges):
+            route = self.get_route(Lcur)
+            if not self.check_for_cap(route, Lcur, k, barges=self.init_solution.Barges):
                 return False
             # one‐shift TW
             delay = 0
             for attempt in (0, 1):
-                D, O = get_timing(route, Lcur, delay)
+                D, O = self.get_timing(route, Lcur, delay)
                 viol = [
                     v
                     for v in Lcur.values()
@@ -440,7 +435,9 @@ class MetaHeuristic:
                 if not viol:
                     return True
                 if attempt == 0:
-                    delay = max(delay_window(v, O, route, v["Terminal"]) for v in viol)
+                    delay = max(
+                        self.delay_window(v, O, route, v["Terminal"]) for v in viol
+                    )
                 else:
                     return False
             return False
@@ -481,7 +478,7 @@ class MetaHeuristic:
                 continue
             total_cost += self.init_solution.H_b[k]
             Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = get_route(Lcur)
+            route = self.get_route(Lcur)
             # travel times
             for i in range(len(route) - 1):
                 total_cost += self.instance.T_ij_matrix[route[i]][route[i + 1]]
@@ -607,7 +604,7 @@ class MetaHeuristic:
                 # terminals_visited = set()
 
                 Lcur = {c: self.instance.C_dict[c] for c in containers}
-                route = get_route(Lcur)
+                route = self.get_route(Lcur)
 
                 cap = self.init_solution.Barges[k]
                 load = sum(
