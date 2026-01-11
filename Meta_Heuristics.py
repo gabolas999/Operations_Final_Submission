@@ -108,7 +108,7 @@ def repair_route(assigned, C_dict, Qk, Tij, Handling_time):
     for i in N:
         for j in N:
             if i != j and (i, j) in x:
-                # t[j] ≥ t[i] + handling_time*(#boxes at i) + Tij[i][j] - M(1 - x[i,j])
+                # t[j] ≥ t[i] + handling_time*(#boxes at i) + Tij[i][j] - M(1 - x[i, j])
                 service_i = Handling_time * (p[i] + d[i])
                 prob += t[j] >= t[i] + service_i + Tij[i][j] - bigM * (1 - x[(i, j)])
     # and container TWs at each node
@@ -150,7 +150,9 @@ def repair_route(assigned, C_dict, Qk, Tij, Handling_time):
 
 class MetaHeuristic:
     def __init__(
-        self, C_ordered, C_dict, Barges, H_b, H_t_20, H_t_40, T_ij_list, Handling_time
+        self,
+        problem_instance,
+        init_solution,
     ):
         # problem data
         self.Barges = Barges

@@ -15,17 +15,19 @@ import random
 import math
 import networkx as nx
 import numpy as np
+
 from MILP import MILP_Algo
 
 
-class GreedyOptimizer(MILP_Algo):
+class GreedyOptimizer:
     """Unified greedy algorithm class for container allocation optimization"""
 
     def __init__(
         self,
-        reduced=False,
+        # reduced=False,
+        problem_instance=None,
     ):
-        super().__init__(reduced=reduced)
+        # super().__init__(reduced=reduced)
         """
         Initialize the greedy optimizer
 
@@ -64,44 +66,31 @@ class GreedyOptimizer(MILP_Algo):
         N_range_reduced : tuple(int, int)
             (min, max) number of terminals when reduced=True
         """
-        self.Barges = []  # Barge capacities
-        self.C_ordered = []  # Ordered containers
-        self.master_route = []  # Master route
 
-        # Results storage
-        self.f_ck_init = None
-        self.route_list = []
-        self.barge_departure_delay = []
-        self.trucked_containers = {}
-        self.total_cost = 0  # Total cost of the solution
-        self.truck_cost = 0  # Total trucking cost
-        self.barge_cost = 0  # Total barge cost
-        # self.x_ijk = None  # Barge routing matrix
+        self.instance = problem_instance
 
         self.generate_master_route()
         self.generate_ordered_containers()
-        # self.Barges = self.Qk.copy()  # Set barge capacities
         self._sort_barges_by_capacity_desc()
 
     def _sort_barges_by_capacity_desc(self):
         """Sort barges by decreasing capacity, keeping fixed costs paired (Algorithm 1, line 2)."""
-        pairs = sorted(zip(self.Qk, self.H_b), key=lambda p: p[0], reverse=True)
+        pairs = sorted(
+            zip(self.instance.Qk, self.instance.H_b), key=lambda p: p[0], reverse=True
+        )
         self.Barges = [q for q, _ in pairs]
         self.H_b = [h for _, h in pairs]
-        # keep inherited attributes consistent
-        self.Qk = self.Barges.copy()
-        self.H_b = self.H_b.copy()
 
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
 
-        n = len(self.T_ij_matrix)
+        n = len(self.instance.T_ij_matrix)
         G = nx.complete_graph(n)
 
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    G[i][j]["weight"] = self.T_ij_matrix[i][j]
+                    G[i][j]["weight"] = self.instance.T_ij_matrix[i][j]
 
         # Find approximate TSP cycle (returns to start)
         self.master_route = nx.approximation.traveling_salesman_problem(
@@ -114,7 +103,7 @@ class GreedyOptimizer(MILP_Algo):
         condit_satisfies_counter = 0
 
         for i in self.master_route[1:-1]:  # Skip first and last (depot)
-            for c, info in self.C_dict.items():
+            for c, info in self.instance.C_dict.items():
                 if info["Terminal"] == i:
                     condit_satisfies_counter += 1
                     self.C_ordered.append(c)
@@ -182,7 +171,7 @@ class GreedyOptimizer(MILP_Algo):
 
     #     for c in L_current.values():
     #         if c["In_or_Out"] == 2:  # Export
-    #             dry_port_handling_time += self.Handling_time
+    #             dry_port_handling_time += self.instance.Handling_time
     #             if c["Rc"] > current_max:
     #                 current_max = c["Rc"]
 
@@ -196,8 +185,8 @@ class GreedyOptimizer(MILP_Algo):
     #     term_arrival_time = 0  # start time at 0
 
     #     for terminal in route[1:]:
-    #         travel_time = self.T_ij_matrix[current_terminal][terminal]
-    #         handling_time_total = self.Handling_time * sum(
+    #         travel_time = self.instance.T_ij_matrix[current_terminal][terminal]
+    #         handling_time_total = self.instance.Handling_time * sum(
     #             1 for c in L_current.values() if c["Terminal"] == terminal
     #         )
 
@@ -247,7 +236,7 @@ class GreedyOptimizer(MILP_Algo):
         current_depart = depart_time
 
         for node in route[1:]:
-            travel = self.T_ij_matrix[current_node][node]
+            travel = self.instance.T_ij_matrix[current_node][node]
             arrival = current_depart + travel
 
             if node == 0:
@@ -258,7 +247,7 @@ class GreedyOptimizer(MILP_Algo):
                 n_containers_here = sum(
                     1 for c in L_current.values() if c["Terminal"] == node
                 )
-                service = self.Handling_time * n_containers_here
+                service = self.instance.Handling_time * n_containers_here
 
             depart = arrival + service
 
@@ -348,7 +337,7 @@ class GreedyOptimizer(MILP_Algo):
         #     return 0
 
         # if Oc - O_term > 0:
-        #     delay = (Oc - O_term) + self.Handling_time
+        #     delay = (Oc - O_term) + self.instance.Handling_time
         #     return delay
         # else:
         #     return 0
@@ -362,7 +351,7 @@ class GreedyOptimizer(MILP_Algo):
         dict : Solution results including costs and assignments
         """
         self.f_ck_init = np.zeros(
-            (self.C, len(self.Barges))
+            (self.instance.C, len(self.Barges))
         )  # matrix for container to barge assignment
 
         barge_idx = 0
@@ -381,7 +370,7 @@ class GreedyOptimizer(MILP_Algo):
 
                 # 2) Build the current load
                 L_current = {
-                    cont: self.C_dict[cont]
+                    cont: self.instance.C_dict[cont]
                     for cont in self.C_ordered
                     if self.f_ck_init[cont, barge_idx] == 1
                 }
@@ -463,7 +452,7 @@ class GreedyOptimizer(MILP_Algo):
             # move on to next barge: store the FINAL route for this barge
             assigned_idx = np.where(self.f_ck_init[:, barge_idx] == 1)[0].tolist()
             if assigned_idx:
-                L_final = {cont: self.C_dict[cont] for cont in assigned_idx}
+                L_final = {cont: self.instance.C_dict[cont] for cont in assigned_idx}
                 route_final = self.get_route(L_final)
             else:
                 route_final = [0, 0]
@@ -475,19 +464,21 @@ class GreedyOptimizer(MILP_Algo):
 
         # Calculate trucked containers
         index_to_be_trucked = np.where(np.sum(self.f_ck_init, axis=1) == 0)[0].tolist()
-        self.trucked_containers = {i: self.C_dict[i] for i in index_to_be_trucked}
+        self.trucked_containers = {
+            i: self.instance.C_dict[i] for i in index_to_be_trucked
+        }
 
         # Calculate trucking cost
         self.truck_cost = 0
         for i in self.trucked_containers:
-            if self.C_dict[i]["Wc"] == 1:  # 20ft container
+            if self.instance.C_dict[i]["Wc"] == 1:  # 20ft container
                 self.truck_cost += self.H_t_20
             else:  # 40ft container
                 self.truck_cost += self.H_t_40
 
         # Calculate barge routing matrix
         self.x_ijk = np.zeros(
-            (len(self.Barges), self.N, self.N)
+            (len(self.Barges), self.instance.N, self.instance.N)
         )  # xijk[k][i][j] = 1 if barge k goes from terminal i to terminal j
 
         for barge_idx, route in enumerate(self.route_list):
@@ -525,29 +516,29 @@ class GreedyOptimizer(MILP_Algo):
 
         for k in range(K):
             # 1) fixed‐cost term: sum over j≠0 of x[0][j][k]*H_b[k]
-            for j in range(self.N):
+            for j in range(self.instance.N):
                 if j == 0:
                     continue
                 cost += self.x_ijk[k][0][j] * self.H_b[k]
 
             # 2) travel‐time term: sum over all i,j of T[i][j]*x[i][j][k]
-            for i in range(self.N):
-                for j in range(self.N):
-                    cost += self.T_ij_matrix[i][j] * self.x_ijk[k][i][j]
+            for i in range(self.instance.N):
+                for j in range(self.instance.N):
+                    cost += self.instance.T_ij_matrix[i][j] * self.x_ijk[k][i][j]
 
             # # 3) extra‐stop term: sum over j≠0, i≠j of x[j][i][k]
-            # for j in range(self.N):
+            # for j in range(self.instance.N):
             #     if j == 0:
             #         continue
-            #     for i in range(self.N):
+            #     for i in range(self.instance.N):
             #         if i == j:
             #             continue
-            #         cost += self.x_ijk[k][i][j] * self.Handling_time
+            #         cost += self.x_ijk[k][i][j] * self.instance.Handling_time
 
             # 3) stop penalty: count once per visited sea terminal (j != 0)
-            for j in range(1, self.N):
+            for j in range(1, self.instance.N):
                 if self.x_ijk[k][:, j].sum() > 0:
-                    cost += self.Handling_time
+                    cost += self.instance.Handling_time
 
         return cost
 
@@ -560,21 +551,21 @@ class GreedyOptimizer(MILP_Algo):
         print(
             f"Truck cost: {self.truck_cost:>10.0f} Euros             ({self.truck_cost / self.total_cost * 100:>5.1f}% )"
         )
-        print(f"Containers: {self.C:>10d}")
-        print(f"Terminals: {self.N:>10d}")
+        print(f"Containers: {self.instance.C:>10d}")
+        print(f"Terminals: {self.instance.N:>10d}")
         print(
-            f"Trucked containers: {len(self.trucked_containers):>10d}           ({len(self.trucked_containers) / self.C * 100:>5.1f}% )"
+            f"Trucked containers: {len(self.trucked_containers):>10d}           ({len(self.trucked_containers) / self.instance.C * 100:>5.1f}% )"
         )
 
         # Print barge utilization
         for k, route in enumerate(self.route_list):
             if len(route) > 1:  # Only print if barge is used
                 containers_on_barge = sum(
-                    1 for c in range(self.C) if self.f_ck_init[c][k] == 1
+                    1 for c in range(self.instance.C) if self.f_ck_init[c][k] == 1
                 )
                 teu_on_barge = sum(
-                    self.C_dict[c]["Wc"]
-                    for c in range(self.C)
+                    self.instance.C_dict[c]["Wc"]
+                    for c in range(self.instance.C)
                     if self.f_ck_init[c][k] == 1
                 )
                 print(
@@ -586,55 +577,56 @@ class GreedyOptimizer(MILP_Algo):
     @property
     def T_ij_list(self):
         """Alias for T_matrix for backward compatibility"""
-        return self.T_ij_matrix
+        return self.instance.T_ij_matrix
 
 
-# Create global instance for backward compatibility
-_global_optimizer = GreedyOptimizer()
+# # Create global instance for backward compatibility
+# _global_optimizer = GreedyOptimizer()
 
-# Global variables for backward compatibility
-C_dict = _global_optimizer.C_dict
-C = _global_optimizer.C
-N = _global_optimizer.N
-T_ij_list = _global_optimizer.T_ij_matrix
-Barges = _global_optimizer.Barges
-C_ordered = _global_optimizer.C_ordered
-Qk = _global_optimizer.Qk
-H_b = _global_optimizer.H_b
-H_t_40 = _global_optimizer.H_t_40
-H_t_20 = _global_optimizer.H_t_20
-Handling_time = _global_optimizer.Handling_time
+# # Global variables for backward compatibility
+# C_dict = _global_optimizer.C_dict
+# C = _global_optimizer.C
+# N = _global_optimizer.N
+# T_ij_list = _global_optimizer.T_ij_matrix
+# Barges = _global_optimizer.Barges
+# C_ordered = _global_optimizer.C_ordered
+# Qk = _global_optimizer.Qk
+# H_b = _global_optimizer.H_b
+# H_t_40 = _global_optimizer.H_t_40
+# H_t_20 = _global_optimizer.H_t_20
+# Handling_time = _global_optimizer.Handling_time
 
 
-# # Functions for backward compatibility
-# def container_info(seed, reduced):
+# # # Functions for backward compatibility
+# # def container_info(seed, reduced):
+# #     """Backward compatibility function"""
+# #     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
+# #     return optimizer.C_dict, optimizer.C, optimizer.N
+
+
+# def get_route(L_current):
 #     """Backward compatibility function"""
-#     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
-#     return optimizer.C_dict, optimizer.C, optimizer.N
+#     return _global_optimizer.get_route(L_current)
 
 
-def get_route(L_current):
-    """Backward compatibility function"""
-    return _global_optimizer.get_route(L_current)
+# def get_timing(route, L_current, delay):
+#     """Backward compatibility function"""
+#     return _global_optimizer.get_timing(route, L_current, delay)
 
 
-def get_timing(route, L_current, delay):
-    """Backward compatibility function"""
-    return _global_optimizer.get_timing(route, L_current, delay)
+# def check_for_cap(route, L_current, idx, barges=None):
+#     """Backward compatibility function"""
+#     return _global_optimizer.check_for_cap(route, L_current, idx, barges)
 
 
-def check_for_cap(route, L_current, idx, barges=None):
-    """Backward compatibility function"""
-    return _global_optimizer.check_for_cap(route, L_current, idx, barges)
-
-
-def delay_window(container, O_terminal, route, terminal):
-    """Backward compatibility function"""
-    return _global_optimizer.delay_window(container, O_terminal, route, terminal)
+# def delay_window(container, O_terminal, route, terminal):
+#     """Backward compatibility function"""
+#     return _global_optimizer.delay_window(container, O_terminal, route, terminal)
 
 
 # Run the algorithm and print results if this file is executed directly
 if __name__ == "__main__":
-    optimizer = GreedyOptimizer(reduced=False)
+    milp_instance = MILP_Algo(reduced=False)
+    optimizer = GreedyOptimizer(problem_instance=milp_instance)
     results = optimizer.solve_greedy()
     optimizer.print_results()
