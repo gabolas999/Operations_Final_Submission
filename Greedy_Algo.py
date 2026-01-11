@@ -431,7 +431,6 @@ class GreedyOptimizer:
                             break
 
                     if late:
-                        success = False
                         break
 
                     if not early_arrival_violations:

@@ -326,42 +326,62 @@ class MetaHeuristic:
 
         # 5) quick capacity + 1-shift TW check on receiving barge
         feasible = True
+
         if to_b != "truck":
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
             Lcur = {i: self.instance.C_dict[i] for i in assigned}
             route = self.get_route(Lcur)
 
-            # capacity
+            # ---- capacity check ----
             if not self.check_for_cap(
                 route, Lcur, to_b, barges=self.init_solution.Barges
             ):
                 feasible = False
             else:
-                # up to one departure shift
-                delay = 0
-                fit = False
-                for attempt in (0, 1):
-                    D, O = self.get_timing(route, Lcur, delay)
-                    viol = [
-                        v
-                        for v in Lcur.values()
-                        if not (
-                            O[route.index(v["Terminal"])]
-                            <= v["Oc"]
-                            <= D[route.index(v["Terminal"])]
-                            or O[route.index(v["Terminal"])]
-                            <= v["Dc"]
-                            <= D[route.index(v["Terminal"])]
-                        )
-                    ]
-                    if not viol:
-                        fit = True
+                # ---- time-window check (identical logic to Greedy) ----
+                success = False
+                delay = 0.0
+
+                for attempt in range(2):  # at most one shift
+                    D_term, O_term = self.get_timing(route, Lcur, delay)
+
+                    early_arrival_violations = []
+                    late = False
+
+                    for cont in Lcur.values():
+                        t = cont["Terminal"]
+                        arrival = O_term[route.index(t)]
+
+                        if arrival < cont["Oc"]:
+                            early_arrival_violations.append(cont)
+                        elif arrival > cont["Dc"]:
+                            late = True
+                            break
+
+                    if late:
+                        success = False
                         break
+
+                    if not early_arrival_violations:
+                        success = True
+                        break
+
+                    # apply the single allowed shift
                     if attempt == 0:
-                        delay = max(
-                            self.delay_window(v, O, route, v["Terminal"]) for v in viol
-                        )
-                if not fit:
+                        delay_needed = [
+                            self.delay_window(
+                                container=v,
+                                O_terminal=O_term,
+                                route=route,
+                                terminal=v["Terminal"],
+                            )
+                            for v in early_arrival_violations
+                        ]
+                        delay += max(delay_needed)
+                    else:
+                        break
+
+                if not success:
                     feasible = False
 
         # 6) if quick check failed, try full MILP repair for barge
