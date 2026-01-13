@@ -31,43 +31,37 @@ class MILP_Algo:
             # run_name="MILP_Run",
             run_name="______",
             qk=[  # Barge capacities in TEU
-                20,         # Barge 0
-                20,         # Barge 1
-                20,         # Barge 2
+                100,         # Barge 0
+                60,         # Barge 1
+                40,         # Barge 2
                 20,         # Barge 3
-                10,         # Barge 4
-                10,         # Barge 5
-                10,         # Barge 6
             ],
             h_b=[  # Barge fixed costs in euros
-                1100,      # Barge 0
-                1700,      # Barge 1
-                1800,      # Barge 2
-                1900,      # Barge 3
-                3300,      # Barge 4
-                3300,      # Barge 5
-                3300,      # Barge 6
+                4000,      # Barge 0
+                3200,      # Barge 1
+                1800,      # Barge 0
+                1000,      # Barge 1
             ],
-            seed=998244,               # Random seed for reproducibility
+            seed=0,               # Random seed for reproducibility
             reduced=False,
-            h_t_40=200,                 # 40ft container trucking cost in euros
-            h_t_20=140,                 # 20ft container trucking cost in euros
+            h_t_40=200e3,                 # 40ft container trucking cost in euros
+            h_t_20=140e3,                 # 20ft container trucking cost in euros
             handling_time=1/6,              # Container handling time in hours
             C_range=(150, 175),              # (min, max) number of containers when reduced=False
-            N_range=(5, 5),                 # (min, max) number of terminals when reduced=False
+            N_range=(20, 20),                 # (min, max) number of terminals when reduced=False
 
-            Oc_range=(24, 190),             # (min, max) opening time in hours
-            Oc_offset_range=(110, 350),      # (min_offset, max_offset) such that
+            Oc_range=(0, 48),             # (min, max) opening time in hours
+            Oc_offset_range=(48, 96),      # (min_offset, max_offset) such that
                                             # Dc is drawn in [Oc + min_offset, Oc + max_offset]
 
-            travel_time_long_range=(84, 140),   # (min, max) travel time between dryport and sea terminals in hours
-            travel_angle = math.pi,             # angle sector for terminal placement
-            travel_time_scale = 21,             # scale down travel times for better layout
+            travel_time_long_range=(9, 13),   # (min, max) travel time between dryport and sea terminals in hours
+            travel_angle = math.pi/8,             # angle sector for terminal placement
+            travel_time_scale = 2,             # scale down travel times for better layout
 
             P40_range=(0.2, 0.22),              # (min, max) probability of 40ft container
             PExport_range=(0.05, 0.75),         # (min, max) probability of export
-            C_range_reduced=(65, 75),           # (min, max) containers when reduced=True
-            N_range_reduced=(5, 5),             # (min, max) terminals when reduced=True
+            C_range_reduced=(100, 100),           # (min, max) containers when reduced=True
+            N_range_reduced=(7, 7),             # (min, max) terminals when reduced=True
             gamma=100,                          # penalty per sea terminal visit [euros]
             big_m=1000                          # big-M
     ):
@@ -173,7 +167,8 @@ class MILP_Algo:
 
         # Generate instance automatically (data only, no optimization yet)
         self.generate_instance()
-        self.generate_travel_times()
+        # self.generate_travel_times()
+        self.generate_travel_times_fazi_case_study()
 
     # -----------------------
     # Instance generation
@@ -345,6 +340,201 @@ class MILP_Algo:
                 T[i][j] = int(dist)
 
         self.T_ij_matrix = T
+
+
+    def generate_travel_times_fazi_case_study(self):
+        """
+        Generates T_ij matrix and node coordinates based strictly on 
+        Fazi et al. (2015) Case Study (Table 2 & Section 3.3).
+        
+        Logic:
+        - Node 0 is the Inland Terminal (Veghel).
+        - Remaining nodes are distributed among 3 Sea Clusters:
+          1. Maasvlakte (Rotterdam West)
+          2. City Terminal (Rotterdam East)
+          3. Antwerp
+        
+        Travel Times (Hours):
+        - Within same cluster (different quays): 1 h
+        - Veghel <-> Maasvlakte/City: 11 h
+        - Veghel <-> Antwerp: 13 h
+        - Maasvlakte <-> City: 4 h
+        - Antwerp <-> Rotterdam (Maas/City): 16 h
+        """
+        import math
+        import random
+
+        num_nodes = self.N
+        
+        # ---------------------------------------------------------
+        # 1. Assign Nodes to Clusters
+        # ---------------------------------------------------------
+        # Cluster IDs:
+        # 0: Dry Port (Veghel)
+        # 1: Maasvlakte
+        # 2: City Terminal
+        # 3: Antwerp
+        
+        node_cluster = {0: 0}
+        
+        # Distribute remaining nodes (quays) among the 3 sea clusters
+        # We assume a balanced distribution for verification
+        sea_clusters = [1, 2, 3]
+        for i in range(1, num_nodes):
+            # Round robin assignment: 1, 2, 3, 1, 2...
+            node_cluster[i] = sea_clusters[(i - 1) % len(sea_clusters)]
+
+        # ---------------------------------------------------------
+        # 2. Define Inter-Cluster Travel Times (Table 2 of Paper)
+        # ---------------------------------------------------------
+        # (Cluster A, Cluster B) -> Hours
+        cluster_dist = {
+            # Dry Port Connections
+            (0, 1): 11.0, # Veghel - Maasvlakte
+            (0, 2): 11.0, # Veghel - City
+            (0, 3): 13.0, # Veghel - Antwerp
+            
+            # Inter-Sea-Terminal Connections
+            (1, 2): 4.0,  # Maasvlakte - City
+            (1, 3): 16.0, # Maasvlakte - Antwerp
+            (2, 3): 16.0, # City - Antwerp
+        }
+
+        # ---------------------------------------------------------
+        # 3. Build T_ij Matrix
+        # ---------------------------------------------------------
+        T = [[0.0 for _ in range(num_nodes)] for _ in range(num_nodes)]
+
+        for i in range(num_nodes):
+            for j in range(num_nodes):
+                if i == j:
+                    T[i][j] = 0.0
+                    continue
+                
+                c_i = node_cluster[i]
+                c_j = node_cluster[j]
+                
+                if c_i == c_j:
+                    # Assumption (i): "Within a cluster all quays are equidistant (1 h)"
+                    T[i][j] = 1.0
+                else:
+                    # Look up inter-cluster distance (symmetric)
+                    dist = cluster_dist.get((c_i, c_j))
+                    if dist is None:
+                        dist = cluster_dist.get((c_j, c_i))
+                    T[i][j] = dist
+
+        self.T_ij_matrix = T
+
+        # ---------------------------------------------------------
+        # 4. Generate Coordinates for Plotting (Schematic Map)
+        # ---------------------------------------------------------
+        # We manually define center points for clusters to match geography
+        # (Relative positions: Veghel East, Maasvlakte West, Antwerp South)
+        cluster_centers = {
+            0: (12.0, 0.0),   # Veghel (Right/East)
+            1: (-8.0, 5.0),   # Maasvlakte (Top-Left/North-West)
+            2: (-2.0, 3.0),   # City (Mid-Left)
+            3: (-6.0, -6.0)   # Antwerp (Bottom-Left/South)
+        }
+        
+        node_xy = []
+        rng = random.Random(self.seed)
+        
+        for i in range(num_nodes):
+            c_id = node_cluster[i]
+            cx, cy = cluster_centers[c_id]
+            
+            if i == 0:
+                # Dry port is fixed
+                node_xy.append((cx, cy))
+            else:
+                # Add small random jitter so quays in same cluster don't overlap
+                # Radius = 1.0 to represent the "1 hour" proximity visually
+                angle = rng.uniform(0, 2 * math.pi)
+                r = rng.uniform(0.5, 1.5)
+                x = cx + r * math.cos(angle)
+                y = cy + r * math.sin(angle)
+                node_xy.append((x, y))
+
+        self.node_xy = node_xy
+
+    def plot_topography_preview(self):
+        """
+        Plots the physical layout of the terminals based on node_xy.
+        - Node 0 (Dry Port) is highlighted.
+        - Sea Terminals are plotted.
+        - Lines are drawn between quays in the SAME cluster (T_ij == 1) 
+          to visually verify the clustering logic.
+        """
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+
+        if not hasattr(self, 'node_xy') or not self.node_xy:
+            print("No coordinates found. Run generate_travel_times first.")
+            return
+
+        # Setup Figure
+        fig, ax = plt.subplots(figsize=(10, 8))
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("#f0f8ff") # AliceBlue background for "Water/Land" feel
+
+        # Extract coords
+        xs = [p[0] for p in self.node_xy]
+        ys = [p[1] for p in self.node_xy]
+
+        # -------------------------------------------------------
+        # 1. Draw Clusters (Connect nodes with T_ij == 1.0)
+        # -------------------------------------------------------
+        # This visualizes the "Same Terminal" assumption
+        for i in range(self.N):
+            for j in range(i + 1, self.N):
+                # If travel time is exactly 1 hour, they are in the same cluster
+                if abs(self.T_ij_matrix[i][j] - 1.0) < 0.01:
+                    ax.plot([xs[i], xs[j]], [ys[i], ys[j]], 
+                            color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+
+        # -------------------------------------------------------
+        # 2. Plot Nodes
+        # -------------------------------------------------------
+        # Plot Dry Port (Node 0)
+        ax.scatter(xs[0], ys[0], s=300, marker='s', color='#e74c3c', 
+                   edgecolor='black', zorder=10, label='Dry Port (Veghel)')
+        ax.text(xs[0], ys[0]+0.8, "Dry Port\n(0)", ha='center', fontweight='bold')
+
+        # Plot Sea Terminals (Nodes 1..N)
+        ax.scatter(xs[1:], ys[1:], s=150, marker='o', color='#3498db', 
+                   edgecolor='black', zorder=5, label='Sea Quays')
+
+        for i in range(1, self.N):
+            ax.text(xs[i], ys[i]+0.4, str(i), ha='center', fontsize=9)
+
+        # -------------------------------------------------------
+        # 3. Annotate Fazi Regions (Heuristic labeling based on coords)
+        # -------------------------------------------------------
+        # These coords match the generate_travel_times_fazi_case_study logic
+        ax.text(-8, 7, "Maasvlakte\nCluster", color='navy', ha='center', fontsize=12, fontweight='bold')
+        ax.text(-2, 5, "City\nCluster", color='navy', ha='center', fontsize=12, fontweight='bold')
+        ax.text(-6, -8, "Antwerp\nCluster", color='navy', ha='center', fontsize=12, fontweight='bold')
+
+        # -------------------------------------------------------
+        # 4. Styling
+        # -------------------------------------------------------
+        ax.set_title("Network Topography Preview\n(Fazi et al. Case Study)", fontsize=14)
+        ax.set_xlabel("Relative Longitude")
+        ax.set_ylabel("Relative Latitude")
+        ax.legend(loc='upper right')
+        ax.grid(True, linestyle=':', alpha=0.6)
+        
+        # Equal aspect ratio so distances look real
+        ax.set_aspect('equal', 'datalim')
+
+        # Save
+        outfile = f"Storage_orig/Figures/topography_preview_{self.file_name}.pdf"
+        plt.tight_layout()
+        plt.savefig(outfile)
+        print(f"Topography preview saved to: {outfile}")
+        plt.show()
 
     # -----------------------
     # Model setup
@@ -2654,5 +2844,7 @@ class ContainerPlotter:
 if __name__ == "__main__":
     print("\n\n\n\n\n\n\n\n\n\n\n")
     milp = MILP_Algo(reduced=True)   # e.g. smaller instances
+    # milp.generate_travel_times_fazi_case_study()
+    # milp.plot_topography_preview()
     milp.run(with_plots=True)
 

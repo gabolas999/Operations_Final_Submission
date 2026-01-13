@@ -6,7 +6,7 @@ from gurobipy import GRB
 
 # Import your existing class
 # Assuming your main file is named MILP.py
-from MILP import MILP_Algo 
+from MILP import MILP_Algo
 
 class SensitivityAnalysis:
     def __init__(self, toml_path):
@@ -31,9 +31,6 @@ class SensitivityAnalysis:
             pd.DataFrame: Collected results.
         """
         results = []
-        
-        # Initialize the "previous solution" with your file for the first run
-        # If initial_sol_file is None, it starts from scratch.
         previous_solution = initial_sol_file 
         
         print(f"\nStarting Experiment: {run_label}")
@@ -42,33 +39,48 @@ class SensitivityAnalysis:
         for val in param_values:
             print(f"Running {run_label} | {param_name} = {val} ...")
             
+            # Create a fresh copy of settings
             current_settings = self.base_settings.copy()
-            current_settings[param_name] = val
+            
+            # --- SPECIAL LOGIC FOR TRUCK MULTIPLIER ---
+            if param_name == "truck_cost_multiplier":
+                # Get base costs (defaulting to 200/140 if not in toml)
+                base_40 = self.base_settings.get('h_t_40', 200)
+                base_20 = self.base_settings.get('h_t_20', 140)
+                
+                # Apply Multiplier
+                current_settings['h_t_40'] = base_40 * val
+                current_settings['h_t_20'] = base_20 * val
+                
+                # We do NOT pass 'truck_cost_multiplier' to MILP_Algo, 
+                # as the class doesn't accept that argument.
+                # We just modified the h_t_... arguments it expects.
+            else:
+                # Standard behavior for other parameters (Gamma, Time, etc.)
+                current_settings[param_name] = val
+            
+            # Update run name for logging
             current_settings['run_name'] = f"Sens_{param_name}_{val}"
             
             try:
-                # 1. Initialize
+                # Initialize
                 solver = MILP_Algo(**current_settings)
                 
-                # 2. Run with Warm Start
-                # (Passes the file path on 1st loop, and dict on later loops)
+                # Run with Warm Start
                 solver.run(with_plots=False, warm_start_sol=previous_solution)
                 
-                # 3. Extract Metrics
+                # Extract Metrics
                 metrics = self._extract_metrics(solver, param_name, val)
                 results.append(metrics)
                 
-                # 4. CAPTURE SOLUTION for next iteration
+                # Capture Solution
                 if metrics["Status"] == "Optimal":
-                    # Switch to using in-memory dictionary for speed
                     previous_solution = solver.get_solution_dict()
                 else:
                     previous_solution = None 
                 
             except Exception as e:
                 print(f"  Error running scenario {val}: {e}")
-                # Keep using the old file if the current run failed, 
-                # or reset to None? Usually resetting is safer.
                 previous_solution = None
                 
         self.results_df = pd.DataFrame(results)
@@ -283,23 +295,107 @@ class SensitivityAnalysis:
         plt.close()
 
 if __name__ == "__main__":
-    toml_file = "Storage/Settings/settings________2025_12_28_09_00_01.toml"
+    import os
     
-    # Path to your EXISTING solution file
-    my_sol_file = "Storage/Solutions/solved________2025_12_28_09_00_01.sol" 
+    # ==========================================
+    # CONFIGURATION & SETTINGS
+    # ==========================================
     
-    analyzer = SensitivityAnalysis(toml_file)
+    # Path to base settings file
+    toml_file = "Storage_orig/Settings/settings________2026_01_05_13_50_51.toml"
     
-    gammas = [50, 100, 200, 300, 500]
-    
-    df = analyzer.run_experiment(
-        param_name="gamma", 
-        param_values=gammas, 
-        run_label="Gamma_Analysis",
-        initial_sol_file=my_sol_file  # <--- Pass your file here
-    )
+    # Path to EXISTING solution file (set to None if not available)
+    initial_sol = "Storage_orig/Solutions/solved________2026_01_05_13_50_51.sol" 
 
-    print("\nExperiment Results:")
-    print(df)
+    # Experiment Flags (Set to True to run)
+    RUN_GAMMA_ANALYSIS = False       # Exp 1: Topology (Stops vs Cost)
+    RUN_MODAL_SHIFT    = True      # Exp 2: Economic (Truck Cost)
+    RUN_CONGESTION     = False      # Exp 3: Time (Handling Speed)
+    RUN_SATURATION     = False      # Exp 4: Demand (Capacity Limit)
+
+    # Initialize Analyzer
+    analyzer = SensitivityAnalysis(toml_file)
+
+    # =========================================================
+    # EXPERIMENT 1: GAMMA SENSITIVITY (Topology Trade-off)
+    # =========================================================
+    if RUN_GAMMA_ANALYSIS:
+        print("\n\n>>> RUNNING EXPERIMENT 1: GAMMA (TOPOLOGY) <<<")
+        # Range: 0 (Bus) -> 200 (Tipping Point) -> 1000 (Shuttle)
+        gammas = [0, 50, 100, 200, 300, 500, 750, 1000]
+        
+        analyzer.run_experiment(
+            param_name="gamma",
+            param_values=gammas,
+            run_label="Exp1_Gamma",
+            initial_sol_file=initial_sol
+        )
+        analyzer.plot_topology_tradeoff("Exp1_Gamma_Tradeoff")
+
+
+    # =========================================================
+    # EXPERIMENT 2: ECONOMIC SENSITIVITY (Modal Shift)
+    # =========================================================
+    if RUN_MODAL_SHIFT:
+        print("\n\n>>> RUNNING EXPERIMENT 2: MODAL SHIFT (COST MULTIPLIER) <<<")
+        
+        # Multipliers relative to base price (€200/€140)
+        multipliers = [0.5, 0.75, 1.0, 1.25, 1.5, 2]
+        
+        analyzer.run_experiment(
+            param_name="truck_cost_multiplier",
+            param_values=multipliers,
+            run_label="Exp2_CostMultiplier",
+            initial_sol_file=initial_sol
+        )
+        
+        # The plot will now show "Parameter: truck_cost_multiplier" on the X-axis
+        analyzer.plot_modal_shift("Exp2_Modal_Shift_Multiplier")
+
+
+    # =========================================================
+    # EXPERIMENT 3: TIME SENSITIVITY (Congestion)
+    # =========================================================
+    if RUN_CONGESTION:
+        print("\n\n>>> RUNNING EXPERIMENT 3: HANDLING TIME (CONGESTION) <<<")
+        # Range: 6 mins (0.1h) to 42 mins (0.7h) per container
+        handling_times = [0.1, 0.2, 0.3, 0.5, 0.75, 1]
+        
+        analyzer.run_experiment(
+            param_name="handling_time",
+            param_values=handling_times,
+            run_label="Exp3_Time",
+            initial_sol_file=initial_sol
+        )
+        analyzer.plot_performance_curve("Exp3_Congestion_Curve")
+
+
+    # =========================================================
+    # EXPERIMENT 4: DEMAND SATURATION (Capacity)
+    # =========================================================
+    if RUN_SATURATION:
+        print("\n\n>>> RUNNING EXPERIMENT 4: DEMAND SATURATION <<<")
+        # Range: 50 to 300 containers
+        # Format: (min, max) tuples to force exact numbers
+        demand_levels = [(50, 50), (100, 100), (150, 150), (200, 200), (250, 250), (300, 300)]
+        
+        df_demand = analyzer.run_experiment(
+            param_name="C_range",
+            param_values=demand_levels,
+            run_label="Exp4_Capacity",
+            initial_sol_file=None # Warm start invalid here (variable size changes)
+        )
+        
+        # Post-processing for plotting (Tuple -> Int)
+        if not df_demand.empty:
+            df_demand['Container_Count'] = df_demand['C_range'].apply(lambda x: x[0])
+            df_demand.drop(columns=['C_range'], inplace=True)
+            # Reorder cols to make 'Container_Count' the first column (x-axis)
+            cols = ['Container_Count'] + [c for c in df_demand.columns if c != 'Container_Count']
+            analyzer.results_df = df_demand[cols]
+            
+            analyzer.plot_modal_shift("Exp4_Fleet_Saturation")
     
-    analyzer.plot_topology_tradeoff("Gamma_Analysis_Plot")
+    print("\n\n------------------------------------------------")
+    print("All requested sensitivity experiments completed.")
+    print("------------------------------------------------")
