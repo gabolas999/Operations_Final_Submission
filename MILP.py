@@ -18,11 +18,9 @@ from sklearn.manifold import MDS
 import numpy as np
 import pandas as pd
 from tabulate import tabulate
-from matplotlib.patches import FancyArrowPatch
+from matplotlib.patches import FancyArrowPatch, Rectangle
 import math
-from matplotlib.patches import Rectangle
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+
 
 
 
@@ -2945,10 +2943,6 @@ class ContainerPlotter:
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
     import sys
-    import argparse
-    
-    # Simple argument parsing (we avoid argparse for --plot-only to keep it simple)
-    # but we add a note about parameters
     
     if len(sys.argv) > 1 and sys.argv[1] == "--plot-only":
         print("\n" + "="*60)
@@ -2956,7 +2950,10 @@ if __name__ == "__main__":
         print("="*60)
         
         # Get solution file from command line or auto-detect
-        solution_file = sys.argv[2] if len(sys.argv) > 2 else None
+        # Check if argv[2] exists and doesn't start with '--' (i.e., it's a file path)
+        solution_file = None
+        if len(sys.argv) > 2 and not sys.argv[2].startswith('--'):
+            solution_file = sys.argv[2]
         
         # Parse optional parameters
         # Format: --plot-only [file] [--seed N] [--no-reduced]
@@ -2964,6 +2961,7 @@ if __name__ == "__main__":
         reduced = True
         
         # Simple parameter parsing
+        # Start from index 3 if we found a solution_file, otherwise from index 2
         i = 3 if solution_file else 2
         while i < len(sys.argv):
             if sys.argv[i] == "--seed" and i + 1 < len(sys.argv):
