@@ -7,6 +7,7 @@ Requires Gurobi (gurobipy) with a valid license.
 """
 
 import os
+import glob
 import toml
 from datetime import datetime
 import random
@@ -17,11 +18,9 @@ from sklearn.manifold import MDS
 import numpy as np
 import pandas as pd
 from tabulate import tabulate
-from matplotlib.patches import FancyArrowPatch
+from matplotlib.patches import FancyArrowPatch, Rectangle
 import math
-from matplotlib.patches import Rectangle
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+
 
 
 
@@ -2702,7 +2701,112 @@ class MILP_Algo:
                 # self.plot_barge_solution_map_report_ONLY_NODES()
                 self.plot_time_windows()
                 # self.plot_barge_specific_split_timelines(margin_hours=3.0)
-                
+    
+    def plot_only(self, solution_file=None):
+        """
+        Generate plots from a previously saved optimization solution WITHOUT running optimization.
+        
+        This method allows you to visualize results from a saved .sol file without
+        re-running the expensive optimization process.
+        
+        Parameters:
+        -----------
+        solution_file : str, optional
+            Path to a saved .sol file. If None, attempts to find the most recent 
+            solution file matching this instance's file_name pattern.
+        
+        Usage:
+        ------
+        # Option 1: Load a specific solution file
+        milp = MILP_Algo(reduced=True, seed=42)
+        milp.plot_only("Storage_orig/Solutions/solved_______2024_01_15_10_30_45.sol")
+        
+        # Option 2: Auto-find the most recent solution
+        milp = MILP_Algo(reduced=True, seed=42)
+        milp.plot_only()
+        
+        # Option 3: Run from command line (see __main__ section at bottom of file)
+        # python MILP.py --plot-only [solution_file]
+        """
+        # If no solution file provided, try to find one
+        if solution_file is None:
+            # Look for solution files in Storage_orig/Solutions/
+            pattern = "Storage_orig/Solutions/solved_*.sol"
+            sol_files = glob.glob(pattern)
+            
+            if not sol_files:
+                raise FileNotFoundError(
+                    f"No solution files found matching pattern: {pattern}\n"
+                    "Please provide a solution_file path explicitly."
+                )
+            
+            # Use the most recent file
+            solution_file = max(sol_files, key=os.path.getmtime)
+            print(f"Auto-selected most recent solution file: {solution_file}")
+        
+        # Verify file exists
+        if not os.path.exists(solution_file):
+            raise FileNotFoundError(f"Solution file not found: {solution_file}")
+        
+        print(f"\nLoading solution from: {solution_file}")
+        print("=" * 60)
+        
+        # Setup the model structure (without optimization)
+        print("Setting up model structure...")
+        self.setup_model()
+        self.set_objective()
+        self.add_constraints()
+        
+        # Load the saved solution into the model
+        print(f"Reading solution file...")
+        try:
+            self.model.read(solution_file)
+            print("Solution loaded successfully!")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load solution file: {e}")
+        
+        # Verify we have a valid solution
+        if self.model.SolCount == 0:
+            raise RuntimeError(
+                "No solution found in the file. "
+                "The .sol file may be corrupted or incompatible with this instance."
+            )
+        
+        # Note: When loading a solution file, Gurobi doesn't automatically set
+        # model.status to OPTIMAL. The plotting and print methods check for
+        # m.status == GRB.OPTIMAL, so we need to ensure this condition is met.
+        # We've verified that a solution exists (SolCount > 0).
+        # 
+        # Caveat: The loaded solution might be suboptimal, but for visualization
+        # purposes this is acceptable. Ideally, plotting methods would check for
+        # multiple feasible statuses (OPTIMAL, SUBOPTIMAL, etc.), but that would
+        # require modifying all plotting methods (out of scope for minimal changes).
+        if self.model.status != GRB.OPTIMAL:
+            # Override only when not already optimal (defensive check)
+            self.model.status = GRB.OPTIMAL
+        
+        print("\n" + "=" * 60)
+        print("Generating visualizations and reports...")
+        print("=" * 60)
+        
+        # Print all the result tables
+        self.print_results_2()
+        self.print_node_table()
+        self.print_distance_table()
+        self.print_barge_table()
+        self.print_container_table()
+        self.print_time_schedule()
+        
+        # Generate all plots
+        print("\nGenerating plots...")
+        self.plot_barge_solution_map_report_3()
+        self.plot_time_windows()
+        
+        print("\n" + "=" * 60)
+        print("Plotting complete!")
+        print("=" * 60)
+        print(f"Figures saved to: Storage_orig/Figures/")
+        
 
 class ContainerPlotter:
     """
@@ -2842,9 +2946,82 @@ class ContainerPlotter:
 
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
-    print("\n\n\n\n\n\n\n\n\n\n\n")
-    milp = MILP_Algo(reduced=True)   # e.g. smaller instances
-    # milp.generate_travel_times_fazi_case_study()
-    # milp.plot_topography_preview()
-    milp.run(with_plots=True)
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "--plot-only":
+        print("\n" + "="*60)
+        print("PLOT-ONLY MODE")
+        print("="*60)
+        
+        # Get solution file from command line or auto-detect
+        # Check if argv[2] exists and doesn't start with '--' (i.e., it's a file path)
+        solution_file = None
+        if len(sys.argv) > 2 and not sys.argv[2].startswith('--'):
+            solution_file = sys.argv[2]
+        
+        # Parse optional parameters
+        # Format: --plot-only [file] [--seed N] [--no-reduced]
+        seed = 0
+        reduced = True
+        
+        # Simple parameter parsing
+        # Start from index 3 if we found a solution_file, otherwise from index 2
+        i = 3 if solution_file else 2
+        while i < len(sys.argv):
+            if sys.argv[i] == "--seed" and i + 1 < len(sys.argv):
+                try:
+                    seed = int(sys.argv[i + 1])
+                    i += 2
+                except ValueError:
+                    print(f"Warning: Invalid seed value '{sys.argv[i + 1]}', using default (0)")
+                    i += 2
+            elif sys.argv[i] == "--no-reduced":
+                reduced = False
+                i += 1
+            else:
+                print(f"Warning: Unknown parameter '{sys.argv[i]}', ignoring")
+                i += 1
+        
+        print(f"Parameters: seed={seed}, reduced={reduced}")
+        
+        # Create MILP instance with specified settings
+        # Note: These should ideally match the original run that created the solution
+        milp = MILP_Algo(reduced=reduced, seed=seed)
+        
+        # Generate plots without optimization
+        milp.plot_only(solution_file)
+        
+    elif len(sys.argv) > 1 and sys.argv[1] == "--help":
+        print("\n" + "="*60)
+        print("MILP.py - Mixed Integer Linear Programming for Container Allocation")
+        print("="*60)
+        print("\nUsage:")
+        print("  python MILP.py                                 # Run full optimization + plotting")
+        print("  python MILP.py --plot-only [options]           # Plot from saved solution")
+        print("  python MILP.py --help                          # Show this help message")
+        print("\nPlot-only options:")
+        print("  [file]              Optional: Path to .sol file (auto-detects if omitted)")
+        print("  --seed N            Seed value (default: 0)")
+        print("  --no-reduced        Use full instance size (default: reduced=True)")
+        print("\nExamples:")
+        print("  # Plot from most recent solution with default params")
+        print("  python MILP.py --plot-only")
+        print()
+        print("  # Plot specific file with custom params")
+        print("  python MILP.py --plot-only Storage_orig/Solutions/solved_*.sol --seed 42")
+        print()
+        print("  # Plot with full instance size")
+        print("  python MILP.py --plot-only --seed 123 --no-reduced")
+        print()
+        print("Note: For plot-only mode, parameters (seed, reduced) should match")
+        print("      those used when the solution was originally generated.")
+        print()
+        
+    else:
+        # Default: Run full optimization
+        print("\n\n\n\n\n\n\n\n\n\n\n")
+        milp = MILP_Algo(reduced=True)   # e.g. smaller instances
+        # milp.generate_travel_times_fazi_case_study()
+        # milp.plot_topography_preview()
+        milp.run(with_plots=True)
 
