@@ -2774,8 +2774,14 @@ class MILP_Algo:
                 "The .sol file may be corrupted or incompatible with this instance."
             )
         
-        # Mark model as optimal so plotting methods work
-        self.model.status = GRB.OPTIMAL
+        # Note: When loading a solution file, Gurobi doesn't automatically set
+        # model.status to OPTIMAL. The plotting and print methods check for
+        # m.status == GRB.OPTIMAL, so we need to ensure this condition is met.
+        # We've verified that a solution exists (SolCount > 0), so it's safe
+        # to update the status to reflect this.
+        if self.model.status != GRB.OPTIMAL:
+            # Only override if not already optimal (defensive check)
+            self.model.status = GRB.OPTIMAL
         
         print("\n" + "=" * 60)
         print("Generating visualizations and reports...")
@@ -2939,8 +2945,11 @@ class ContainerPlotter:
 # Optional quick test if you run MILP.py directly:
 if __name__ == "__main__":
     import sys
+    import argparse
     
-    # Check if plot-only mode is requested
+    # Simple argument parsing (we avoid argparse for --plot-only to keep it simple)
+    # but we add a note about parameters
+    
     if len(sys.argv) > 1 and sys.argv[1] == "--plot-only":
         print("\n" + "="*60)
         print("PLOT-ONLY MODE")
@@ -2949,9 +2958,33 @@ if __name__ == "__main__":
         # Get solution file from command line or auto-detect
         solution_file = sys.argv[2] if len(sys.argv) > 2 else None
         
-        # Create MILP instance with same settings used for the solution
-        # Note: The seed and reduced flag should match the original run
-        milp = MILP_Algo(reduced=True, seed=0)
+        # Parse optional parameters
+        # Format: --plot-only [file] [--seed N] [--reduced]
+        seed = 0
+        reduced = True
+        
+        # Simple parameter parsing
+        i = 3 if solution_file else 2
+        while i < len(sys.argv):
+            if sys.argv[i] == "--seed" and i + 1 < len(sys.argv):
+                try:
+                    seed = int(sys.argv[i + 1])
+                    i += 2
+                except ValueError:
+                    print(f"Warning: Invalid seed value '{sys.argv[i + 1]}', using default (0)")
+                    i += 2
+            elif sys.argv[i] == "--no-reduced":
+                reduced = False
+                i += 1
+            else:
+                print(f"Warning: Unknown parameter '{sys.argv[i]}', ignoring")
+                i += 1
+        
+        print(f"Parameters: seed={seed}, reduced={reduced}")
+        
+        # Create MILP instance with specified settings
+        # Note: These should ideally match the original run that created the solution
+        milp = MILP_Algo(reduced=reduced, seed=seed)
         
         # Generate plots without optimization
         milp.plot_only(solution_file)
@@ -2961,13 +2994,25 @@ if __name__ == "__main__":
         print("MILP.py - Mixed Integer Linear Programming for Container Allocation")
         print("="*60)
         print("\nUsage:")
-        print("  python MILP.py                    # Run full optimization + plotting")
-        print("  python MILP.py --plot-only        # Plot from most recent solution")
-        print("  python MILP.py --plot-only <file> # Plot from specific solution file")
-        print("  python MILP.py --help             # Show this help message")
+        print("  python MILP.py                                 # Run full optimization + plotting")
+        print("  python MILP.py --plot-only [options]           # Plot from saved solution")
+        print("  python MILP.py --help                          # Show this help message")
+        print("\nPlot-only options:")
+        print("  [file]              Optional: Path to .sol file (auto-detects if omitted)")
+        print("  --seed N            Seed value (default: 0)")
+        print("  --no-reduced        Use full instance size (default: reduced=True)")
         print("\nExamples:")
-        print("  python MILP.py --plot-only Storage_orig/Solutions/solved_______2024_01_15_10_30_45.sol")
+        print("  # Plot from most recent solution with default params")
         print("  python MILP.py --plot-only")
+        print()
+        print("  # Plot specific file with custom params")
+        print("  python MILP.py --plot-only Storage_orig/Solutions/solved_*.sol --seed 42")
+        print()
+        print("  # Plot with full instance size")
+        print("  python MILP.py --plot-only --seed 123 --no-reduced")
+        print()
+        print("Note: For plot-only mode, parameters (seed, reduced) should match")
+        print("      those used when the solution was originally generated.")
         print()
         
     else:
