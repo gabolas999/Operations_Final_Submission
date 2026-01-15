@@ -2775,8 +2775,12 @@ class MILP_Algo:
         # Note: When loading a solution file, Gurobi doesn't automatically set
         # model.status to OPTIMAL. The plotting and print methods check for
         # m.status == GRB.OPTIMAL, so we need to ensure this condition is met.
-        # We've verified that a solution exists (SolCount > 0), so it's safe
-        # to update the status to reflect this.
+        # We've verified that a solution exists (SolCount > 0).
+        # 
+        # Caveat: The loaded solution might be suboptimal, but for visualization
+        # purposes this is acceptable. Ideally, plotting methods would check for
+        # multiple feasible statuses (OPTIMAL, SUBOPTIMAL, etc.), but that would
+        # require modifying all plotting methods (out of scope for minimal changes).
         if self.model.status != GRB.OPTIMAL:
             # Override only when not already optimal (defensive check)
             self.model.status = GRB.OPTIMAL
