@@ -7,6 +7,7 @@ Requires Gurobi (gurobipy) with a valid license.
 """
 
 import os
+import glob
 import toml
 from datetime import datetime
 import random
@@ -2729,8 +2730,6 @@ class MILP_Algo:
         # Option 3: Run from command line (see __main__ section at bottom of file)
         # python MILP.py --plot-only <solution_file>
         """
-        import glob
-        
         # If no solution file provided, try to find one
         if solution_file is None:
             # Look for solution files in Storage_orig/Solutions/

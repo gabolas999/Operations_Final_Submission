@@ -15,12 +15,11 @@ def test_plot_only_function_exists():
     try:
         from MILP import MILP_Algo
         
-        # Check if plot_only method exists
+        # Check if plot_only method exists on the class
         assert hasattr(MILP_Algo, 'plot_only'), "plot_only method not found in MILP_Algo class"
         
-        # Check if it's callable
-        milp_instance = MILP_Algo.__new__(MILP_Algo)  # Create without __init__
-        assert callable(getattr(milp_instance, 'plot_only', None)), "plot_only is not callable"
+        # Check if it's callable (test on class, not instance)
+        assert callable(getattr(MILP_Algo, 'plot_only', None)), "plot_only is not callable"
         
         print("✓ plot_only() method exists and is callable")
         return True
