@@ -2728,7 +2728,7 @@ class MILP_Algo:
         milp.plot_only()
         
         # Option 3: Run from command line (see __main__ section at bottom of file)
-        # python MILP.py --plot-only <solution_file>
+        # python MILP.py --plot-only [solution_file]
         """
         # If no solution file provided, try to find one
         if solution_file is None:
@@ -2780,7 +2780,7 @@ class MILP_Algo:
         # We've verified that a solution exists (SolCount > 0), so it's safe
         # to update the status to reflect this.
         if self.model.status != GRB.OPTIMAL:
-            # Only override if not already optimal (defensive check)
+            # Override only when not already optimal (defensive check)
             self.model.status = GRB.OPTIMAL
         
         print("\n" + "=" * 60)
@@ -2959,7 +2959,7 @@ if __name__ == "__main__":
         solution_file = sys.argv[2] if len(sys.argv) > 2 else None
         
         # Parse optional parameters
-        # Format: --plot-only [file] [--seed N] [--reduced]
+        # Format: --plot-only [file] [--seed N] [--no-reduced]
         seed = 0
         reduced = True
         
