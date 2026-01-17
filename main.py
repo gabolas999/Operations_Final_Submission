@@ -279,8 +279,6 @@ def main(
 
     init_solution = greedy.solve_greedy()
 
-    print(f"Initial greedy solution cost: €{np.round(init_solution.total_cost, 2)}")
-
     mh = MetaHeuristic(
         problem_instance=milp_instance,
         init_solution=init_solution,
