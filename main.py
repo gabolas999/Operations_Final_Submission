@@ -100,7 +100,7 @@ def print_instance_summary(csv_path: str | Path):
 def export_instance_tables(
     C_dict: dict,
     K_list: list,
-    output_dir=Path("./instance_tables"),
+    output_dir=Path("./Storage"),
     scenario_name=None,
 ):
     """
@@ -255,13 +255,13 @@ def toml_to_input_dict(toml_path: str) -> dict:
 
 
 def main(
-    scenario_path=None,
+    scenario_info_toml_file_path=None,
     input_scenario_dict=None,
     scenario_name=None,
 ):
 
-    if input_scenario_dict is None and scenario_path is not None:
-        input_dict = toml_to_input_dict(scenario_path)
+    if input_scenario_dict is None and scenario_info_toml_file_path is not None:
+        input_dict = toml_to_input_dict(scenario_info_toml_file_path)
     else:
         input_dict = input_scenario_dict
 
@@ -290,9 +290,11 @@ def main(
 
     mh.local_search()
 
-    mh.display_final_allocations(scenario_name=scenario_name)
+    result_dict, result_yaml_path = mh.display_final_allocations(
+        scenario_name=scenario_name
+    )
 
-    return mh.best_cost, init_solution.total_cost
+    return mh.best_cost, init_solution.total_cost, result_dict
 
 
 if __name__ == "__main__":
@@ -301,7 +303,7 @@ if __name__ == "__main__":
         (SCENARIO_II, "Scenario II"),
         (SCENARIO_III, "Scenario III"),
     ]:
-        final_cost_mh, final_cost_greedy = main(
+        final_cost_mh, final_cost_greedy, result_dict = main(
             input_scenario_dict=scenario, scenario_name=scenario_name
         )
         print(f"Final cost of the operations: €{np.round(final_cost_mh, 2)}")

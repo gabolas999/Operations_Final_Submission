@@ -671,13 +671,10 @@ class MetaHeuristic:
 
         return report
 
-    def display_final_allocations(
-        self, scenario_name, yaml_path="final_allocations.yaml"
-    ):
+    def display_final_allocations(self, scenario_name, yaml_dir="./Storage"):
         import yaml
 
-        yaml_path = f"{scenario_name}_{yaml_path}.yaml"
-
+        yaml_path = f"{yaml_dir}/{scenario_name}_final_allocations.yaml"
         report = self.build_final_allocation_report()
 
         # Pretty print (terminal)
@@ -704,6 +701,8 @@ class MetaHeuristic:
         # Save YAML
         with open(yaml_path, "w") as f:
             yaml.safe_dump(report, f, sort_keys=False)
+
+        return report, yaml_path
 
 
 if __name__ == "__main__":
