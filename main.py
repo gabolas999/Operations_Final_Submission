@@ -292,7 +292,7 @@ def main(
 
     mh.local_search()
 
-    mh.display_final_allocations()
+    mh.display_final_allocations(scenario_name=scenario_name)
 
     return mh.best_cost, init_solution.total_cost
 
