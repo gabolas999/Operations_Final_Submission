@@ -42,45 +42,6 @@ class GreedyOptimizer:
         # reduced=False,
         problem_instance=None,
     ):
-        # super().__init__(reduced=reduced)
-        """
-        Initialize the greedy optimizer
-
-        Parameters:
-        -----------
-        qk : list
-            Barge capacities in TEU
-        h_b : list
-            Barge fixed costs in euros
-        seed : int
-            Random seed for instance generation
-        reduced : bool
-            If True, generate smaller instances for testing
-        h_t_40 : float
-            40ft container trucking cost in euros
-        h_t_20 : float
-            20ft container trucking cost in euros
-        handling_time : float
-            Container handling time in hours
-        C_range : tuple(int, int)
-            (min, max) number of containers when reduced=False
-        N_range : tuple(int, int)
-            (min, max) number of terminals when reduced=False
-        Oc_range : tuple(int, int)
-            (min, max) opening time in hours
-        Oc_offset_range : tuple(int, int)
-            (min_offset, max_offset) such that
-            Dc is drawn in [Oc + min_offset, Oc + max_offset]
-        P40_range : tuple(float, float)
-            (min, max) for uniform draw of probability of 40ft container
-        PExport_range : tuple(float, float)
-            (min, max) for uniform draw of probability of export
-
-        C_range_reduced : tuple(int, int)
-            (min, max) number of containers when reduced=True
-        N_range_reduced : tuple(int, int)
-            (min, max) number of terminals when reduced=True
-        """
 
         self.instance = problem_instance
 
@@ -123,30 +84,6 @@ class GreedyOptimizer:
                     condit_satisfies_counter += 1
                     self.C_ordered.append(c)
 
-    # def get_route(self, L_current):
-    #     """
-    #     Generate route for current barge load
-
-    #     Parameters:
-    #     -----------
-    #     L_current : dict
-    #         Current containers assigned to this barge
-
-    #     Returns:
-    #     --------
-    #     list : Route as list of terminal indices
-    #     """
-    #     route = [0]  # start at terminal 0 (main terminal)
-    #     current_terminal = 0  # start at terminal 0 (main terminal)
-
-    #     for c in L_current.values():
-    #         if c["Terminal"] == current_terminal:
-    #             continue
-    #         else:
-    #             route.append(c["Terminal"])
-    #             current_terminal = c["Terminal"]
-
-    #     return route
     def get_route(self, L_current):
         terminals = {c["Terminal"] for c in L_current.values() if c["Terminal"] != 0}
 
@@ -162,68 +99,6 @@ class GreedyOptimizer:
         route.append(0)  # return to depot
 
         return route
-
-    # def get_timing(self, route, L_current, delay):
-    #     """
-    #     Calculate timing for barge route
-
-    #     Parameters:
-    #     -----------
-    #     route : list
-    #         Route as list of terminal indices
-    #     L_current : dict
-    #         Current containers assigned to this barge
-    #     delay : float
-    #         Additional delay in hours
-
-    #     Returns:
-    #     --------
-    #     tuple : (departure_times, arrival_times)
-    #     """
-    #     departure_time = 0
-    #     current_max = 0
-    #     dry_port_handling_time = 0
-
-    #     for c in L_current.values():
-    #         if c["In_or_Out"] == 2:  # Export
-    #             dry_port_handling_time += self.instance.Handling_time
-    #             if c["Rc"] > current_max:
-    #                 current_max = c["Rc"]
-
-    #     departure_time = current_max + dry_port_handling_time
-
-    #     D_terminal = [departure_time]  # time of departure from each terminal
-    #     O_terminal = [0]  # time of arrival at each terminal
-
-    #     current_terminal = 0  # start at terminal 0 (dry port)
-    #     term_departure_time = departure_time  # start time at departure time
-    #     term_arrival_time = 0  # start time at 0
-
-    #     for terminal in route[1:]:
-    #         travel_time = self.instance.T_ij_matrix[current_terminal][terminal]
-    #         handling_time_total = self.instance.Handling_time * sum(
-    #             1 for c in L_current.values() if c["Terminal"] == terminal
-    #         )
-
-    #         term_departure_time += travel_time  # add travel time to next terminal
-    #         term_departure_time += handling_time_total  # add handling time at terminal
-
-    #         term_arrival_time += (
-    #             travel_time + D_terminal[-1]
-    #         )  # arrival time is the same as departure time after handling
-
-    #         D_terminal.append(
-    #             term_departure_time
-    #         )  # append the time of arrival at the terminal
-    #         O_terminal.append(
-    #             term_arrival_time
-    #         )  # append the time of arrival at the terminal
-
-    #         current_terminal = terminal
-
-    #     D_terminal[-1] += delay  # add delay to the last terminal's departure time
-
-    #     return D_terminal, O_terminal
 
     def get_timing(self, route, L_current, departure_shift):
         """
@@ -334,29 +209,6 @@ class GreedyOptimizer:
         arrival = O_terminal[route.index(terminal)]
         return max(0.0, Oc - arrival)
 
-        # ok = Oc <= O_term <= Dc
-
-        # if ok:
-        #     return 0
-        # if O_term < Oc:
-        #     delay = Oc - O_term  # need to delay arrival
-        #     assert delay > 0
-        #     return delay
-        # elif O_term > Dc:
-        #     delay = (
-        #         Dc - O_term
-        #     )  # this is negative as we dont need to delay but to advance
-        #     assert delay < 0
-        #     return delay
-        # else:
-        #     return 0
-
-        # if Oc - O_term > 0:
-        #     delay = (Oc - O_term) + self.instance.Handling_time
-        #     return delay
-        # else:
-        #     return 0
-
     def solve_greedy(self):
         """
         Solve the container allocation problem using greedy algorithm
@@ -409,20 +261,8 @@ class GreedyOptimizer:
                     late = False
                     for cont in L_current.values():
                         t = cont["Terminal"]
-                        # if not (
-                        #     O_term[route.index(t)]
-                        #     <= cont["Oc"]
-                        #     <= D_term[route.index(t)]
-                        #     or O_term[route.index(t)]
-                        #     <= cont["Dc"]
-                        #     <= D_term[route.index(t)]
-                        # ):
-                        #     violations.append(cont)
 
                         arrival = O_term[route.index(t)]
-
-                        # if not (cont["Oc"] <= arrival <= cont["Dc"]):
-                        #     violations.append(cont)
 
                         if arrival < cont["Oc"]:
                             early_arrival_violations.append(cont)
@@ -557,15 +397,6 @@ class GreedyOptimizer:
                 for j in range(self.instance.N):
                     cost += self.instance.T_ij_matrix[i][j] * self.x_ijk[k][i][j]
 
-            # # 3) extra‐stop term: sum over j≠0, i≠j of x[j][i][k]
-            # for j in range(self.instance.N):
-            #     if j == 0:
-            #         continue
-            #     for i in range(self.instance.N):
-            #         if i == j:
-            #             continue
-            #         cost += self.x_ijk[k][i][j] * self.instance.Handling_time
-
             # 3) stop penalty: count once per visited sea terminal (j != 0)
             for j in range(1, self.instance.N):
                 if self.x_ijk[k][:, j].sum() > 0:
@@ -605,57 +436,7 @@ class GreedyOptimizer:
                     f"{teu_on_barge:>4d}/{self.Barges[k]:<4d} TEU"
                 )
 
-    # @property
-    # def T_ij_list(self):
-    #     """Alias for T_matrix for backward compatibility"""
-    #     return self.instance.T_ij_matrix
 
-
-# Create global instance for backward compatibility
-_global_optimizer = GreedyOptimizer(problem_instance=MILP_Algo(reduced=False))
-
-# Global variables for backward compatibility
-# C_dict = _global_optimizer.C_dict
-# C = _global_optimizer.C
-# N = _global_optimizer.N
-# T_ij_list = _global_optimizer.T_ij_matrix
-# Barges = _global_optimizer.Barges
-# C_ordered = _global_optimizer.C_ordered
-# Qk = _global_optimizer.Qk
-# H_b = _global_optimizer.H_b
-# H_t_40 = _global_optimizer.H_t_40
-# H_t_20 = _global_optimizer.H_t_20
-# Handling_time = _global_optimizer.Handling_time
-
-
-# # Functions for backward compatibility
-# def container_info(seed, reduced):
-#     """Backward compatibility function"""
-#     optimizer = GreedyOptimizer(seed=seed, reduced=reduced)
-#     return optimizer.C_dict, optimizer.C, optimizer.N
-
-
-# def get_route(L_current):
-#     """Backward compatibility function"""
-#     return _global_optimizer.get_route(L_current)
-
-
-# def get_timing(route, L_current, delay):
-#     """Backward compatibility function"""
-#     return _global_optimizer.get_timing(route, L_current, delay)
-
-
-# def check_for_cap(route, L_current, idx, barges=None):
-#     """Backward compatibility function"""
-#     return _global_optimizer.check_for_cap(route, L_current, idx, barges)
-
-
-# def delay_window(container, O_terminal, route, terminal):
-#     """Backward compatibility function"""
-#     return _global_optimizer.delay_window(container, O_terminal, route, terminal)
-
-
-# Run the algorithm and print results if this file is executed directly
 if __name__ == "__main__":
     milp_instance = MILP_Algo(reduced=False)
     optimizer = GreedyOptimizer(problem_instance=milp_instance)
