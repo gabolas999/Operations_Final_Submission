@@ -507,7 +507,7 @@ class GreedyOptimizer:
         # Calculate total cost
         self.total_cost = self.barge_cost + self.truck_cost
 
-        return GreedySolution(
+        solution = GreedySolution(
             total_cost=self.total_cost,
             barge_cost=self.barge_cost,
             truck_cost=self.truck_cost,
@@ -519,6 +519,20 @@ class GreedyOptimizer:
             H_b=self.H_b,
             Barges=self.Barges,
         )
+
+        print("\n---- Greedy solution computed ----")
+        print("----------------------------------")
+        print(f"Total cost: €{np.round(self.total_cost, 2)}")
+        print(f"Barge cost: €{np.round(self.barge_cost, 2)}")
+        print(f"Truck cost: €{np.round(self.truck_cost, 2)}")
+        print("----------------------------------")
+        number_of_trucked = len(self.trucked_containers)
+        print(f"Number of trucked containers: {number_of_trucked}")
+        number_of_barged = self.instance.C - number_of_trucked
+        print(f"Number of barged containers: {number_of_barged}")
+        print("---------------------------------- \n")
+
+        return solution
 
     def calculate_objective(self):
         """
