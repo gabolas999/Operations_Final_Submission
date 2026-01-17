@@ -1,0 +1,19 @@
+[Table A]
+N,5
+C_total,71
+C_import,34
+C_export,37
+Total_TEU,86
+TimeWindow_start,28
+TimeWindow_end,500
+K_total,8
+K_barges,7
+K_trucks,1
+
+[Table B]
+Node,Import,Export
+1,8,6
+2,8,11
+3,7,12
+4,5,2
+5,6,6
