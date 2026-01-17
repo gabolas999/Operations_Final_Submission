@@ -312,6 +312,6 @@ if __name__ == "__main__":
             f"Improvement from greedy to meta heuristic: €{((final_cost_greedy - final_cost_mh)/final_cost_greedy)*100:.2f}%"
         )
         if final_cost_greedy - final_cost_mh > 0:
-            print("A positive value means we got cheaper. GOOD \n")
+            print("A positive improvement means we got cheaper. GOOD \n")
         else:
-            print("A negative value means we got more expensive. BAD \n")
+            print("A negative improvement means we got more expensive. BAD \n")
