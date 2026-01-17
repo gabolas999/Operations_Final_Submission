@@ -486,9 +486,9 @@ class GreedyOptimizer:
         self.truck_cost = 0
         for i in self.trucked_containers:
             if self.instance.C_dict[i]["Wc"] == 1:  # 20ft container
-                self.truck_cost += self.H_t_20
+                self.truck_cost += self.instance.H_t_20
             else:  # 40ft container
-                self.truck_cost += self.H_t_40
+                self.truck_cost += self.instance.H_t_40
 
         # Calculate barge routing matrix
         self.x_ijk = np.zeros(

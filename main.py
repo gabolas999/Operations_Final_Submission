@@ -3,20 +3,105 @@ from MILP import MILP_Algo
 from Greedy_Algo import GreedyOptimizer
 from Meta_Heuristics import MetaHeuristic
 
+from collections import defaultdict
+from pathlib import Path
+import csv
+
+import numpy as np
+
+from scenarios import SCENARIO_II, SCENARIO_III
+
 SCENARIO_SETTINGS_PATH_DEFAULT = Path(
     "./Storage/Settings/settings________2025_12_22_18_01_10.toml"
 )
 
-
-from collections import defaultdict
 from pathlib import Path
-import csv
+
+
+def print_instance_summary(csv_path: str | Path):
+    """
+    Read instance_tables.csv and print a formatted instance summary.
+    """
+
+    csv_path = Path(csv_path)
+
+    table_a = {}
+    table_b = []
+
+    section = None
+
+    with csv_path.open() as f:
+        for raw_line in f:
+            line = raw_line.strip()
+
+            if not line:
+                continue
+
+            if line == "[Table A]":
+                section = "A"
+                continue
+            elif line == "[Table B]":
+                section = "B"
+                continue
+
+            if section == "A":
+                key, value = line.split(",", 1)
+                table_a[key] = value
+
+            elif section == "B":
+                if line.startswith("Node"):
+                    continue  # header
+                node, imp, exp = line.split(",")
+                table_b.append((int(node), int(imp), int(exp)))
+
+    # -----------------------------
+    # Pretty print
+    # -----------------------------
+    print("=" * 60)
+    print("INSTANCE SUMMARY")
+    print("=" * 60)
+    print()
+
+    print("GLOBAL PARAMETERS")
+    print("-" * 17)
+    print(f"Number of terminals (N)      : {table_a['N']}")
+    print(f"Total containers (C)         : {table_a['C_total']}")
+    print(f"  - Imports                  : {table_a['C_import']}")
+    print(f"  - Exports                  : {table_a['C_export']}")
+    print(f"Total TEU                    : {table_a['Total_TEU']}")
+    print(
+        f"Time window                  : "
+        f"[{table_a['TimeWindow_start']}, {table_a['TimeWindow_end']}] h"
+    )
+    print(f"Available vehicles (K)       : {table_a['K_total']}")
+    print(f"  - Barges                   : {table_a['K_barges']}")
+    print(f"  - Trucks                   : {table_a['K_trucks']}")
+    print()
+
+    print("CONTAINER DISTRIBUTION PER NODE")
+    print("-" * 31)
+
+    total_imp = int(table_a["C_import"])
+    total_exp = int(table_a["C_export"])
+
+    print(
+        f"Node  0 (Dry port)           : " f"Import = {total_imp}, Export = {total_exp}"
+    )
+
+    for node, imp, exp in table_b:
+        print(
+            f"Node {node:2d} (Sea terminal)       : "
+            f"Import = {imp:3d}, Export = {exp:3d}"
+        )
+
+    print("=" * 60)
 
 
 def export_instance_tables(
     C_dict: dict,
     K_list: list,
     output_dir=Path("./instance_tables"),
+    scenario_name=None,
 ):
     """
     Export Table A (global parameters) and Table B (container distribution)
@@ -69,7 +154,7 @@ def export_instance_tables(
     # Write CSV
     # -----------------------------
 
-    output_path_csv = output_dir / "instance_data.csv"
+    output_path_csv = output_dir / f"instance_data_{scenario_name}.csv"
     with output_path_csv.open("w", newline="") as f:
         writer = csv.writer(f)
 
@@ -96,7 +181,7 @@ def export_instance_tables(
     # -----------------------------
     # Write LaTeX (camera-ready)
     # -----------------------------
-    output_path_tex = output_dir / "instance_latex_table.tex"
+    output_path_tex = output_dir / f"instance_latex_table_{scenario_name}.tex"
     with output_path_tex.open("w") as f:
         f.write(
             r"""\begin{table}[htbp]
@@ -170,23 +255,31 @@ def toml_to_input_dict(toml_path: str) -> dict:
 
 
 def main(
-    scenario_path=SCENARIO_SETTINGS_PATH_DEFAULT,
+    scenario_path=None,
+    input_scenario_dict=None,
+    scenario_name=None,
 ):
 
-    input_dict = toml_to_input_dict(scenario_path)
+    if input_scenario_dict is None and scenario_path is not None:
+        input_dict = toml_to_input_dict(scenario_path)
+    else:
+        input_dict = input_scenario_dict
 
     milp_instance = MILP_Algo(**input_dict)
 
-    export_instance_tables(
+    csv_path, _ = export_instance_tables(
         C_dict=milp_instance.C_dict,
         K_list=milp_instance.K_list,
+        scenario_name=scenario_name,
     )
+
+    print_instance_summary(csv_path=csv_path)
 
     greedy = GreedyOptimizer(problem_instance=milp_instance)
 
     init_solution = greedy.solve_greedy()
 
-    print("Initial greedy solution cost: €" + str(init_solution.total_cost))
+    print(f"Initial greedy solution cost: €{np.round(init_solution.total_cost, 2)}")
 
     mh = MetaHeuristic(
         problem_instance=milp_instance,
@@ -205,13 +298,20 @@ def main(
 
 
 if __name__ == "__main__":
-    final_cost_mh, final_cost_greedy = main()
-    print(f"Final cost of the operations: €{final_cost_mh}")
 
-    print(
-        f"Improvement from greedy to meta heuristic: €{((final_cost_greedy - final_cost_mh)/final_cost_greedy)*100:.2f}%"
-    )
-    if final_cost_greedy - final_cost_mh > 0:
-        print("A positive value means we got cheaper. GOOD")
-    else:
-        print("A negative value means we got more expensive. BAD")
+    for scenario, scenario_name in [
+        (SCENARIO_II, "Scenario II"),
+        (SCENARIO_III, "Scenario III"),
+    ]:
+        final_cost_mh, final_cost_greedy = main(
+            input_scenario_dict=scenario, scenario_name=scenario_name
+        )
+        print(f"Final cost of the operations: €{np.round(final_cost_mh, 2)}")
+
+        print(
+            f"Improvement from greedy to meta heuristic: €{((final_cost_greedy - final_cost_mh)/final_cost_greedy)*100:.2f}%"
+        )
+        if final_cost_greedy - final_cost_mh > 0:
+            print("A positive value means we got cheaper. GOOD \n")
+        else:
+            print("A negative value means we got more expensive. BAD \n")
