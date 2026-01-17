@@ -117,6 +117,7 @@ class MILP_Algo:
             "Oc_offset_range": Oc_offset_range,
             "travel_time_long_range": travel_time_long_range,
             "travel_angle": travel_angle,
+            "travel_time_scale": travel_time_scale,
             "P40_range": P40_range,
             "PExport_range": PExport_range,
             "C_range_reduced": C_range_reduced,
