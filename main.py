@@ -25,9 +25,14 @@ def main(reduced=False):
 
     mh.display_final_allocations()
 
-    return mh.best_cost
+    return mh.best_cost, init_solution.total_cost
 
 
 if __name__ == "__main__":
-    final_cost = main(reduced=False)
-    print(f"Final cost of the operations: €{final_cost}")
+    final_cost_mh, final_cost_greedy = main(reduced=False)
+    print(f"Final cost of the operations: €{final_cost_mh}")
+
+    print(
+        f"Improvement from greedy to meta heuristic: €{((final_cost_greedy - final_cost_mh)/final_cost_greedy)*100:.2f}%"
+    )
+    print("A positive value means we got cheaper, so that is a good thing!")
