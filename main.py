@@ -1,10 +1,29 @@
+from pathlib import Path
 from MILP import MILP_Algo
 from Greedy_Algo import GreedyOptimizer
 from Meta_Heuristics import MetaHeuristic
 
+SCENARIO_SETTINGS_PATH_DEFAULT = Path(
+    "./Storage/Settings/settings________2025_12_22_18_01_10.toml"
+)
 
-def main(reduced=False):
-    milp_instance = MILP_Algo(reduced=reduced)
+
+def toml_to_input_dict(toml_path: str) -> dict:
+    import toml
+
+    with open(toml_path, "r") as f:
+        input_dict = toml.load(f)
+
+    return input_dict
+
+
+def main(
+    scenario_path=SCENARIO_SETTINGS_PATH_DEFAULT,
+):
+
+    input_dict = toml_to_input_dict(scenario_path)
+
+    milp_instance = MILP_Algo(**input_dict)
 
     greedy = GreedyOptimizer(problem_instance=milp_instance)
 
