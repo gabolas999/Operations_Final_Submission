@@ -12,9 +12,6 @@ import numpy as np
 
 from scenarios import SCENARIO_II, SCENARIO_III
 
-SCENARIO_SETTINGS_PATH_DEFAULT = Path(
-    "./Storage/Settings/settings________2025_12_22_18_01_10.toml"
-)
 
 from pathlib import Path
 
@@ -101,7 +98,7 @@ def print_instance_summary(csv_path: str | Path):
 def export_instance_tables(
     C_dict: dict,
     K_list: list,
-    output_dir=Path("./Storage"),
+    output_dir=Path("./Storage/theo_results"),
     scenario_name=None,
 ):
     """

@@ -671,7 +671,9 @@ class MetaHeuristic:
 
         return report
 
-    def display_final_allocations(self, scenario_name, yaml_dir="./Storage"):
+    def display_final_allocations(
+        self, scenario_name, yaml_dir="./Storage/theo_results"
+    ):
         import yaml
 
         yaml_path = f"{yaml_dir}/{scenario_name}_final_allocations.yaml"

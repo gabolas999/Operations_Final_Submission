@@ -6,7 +6,7 @@ def plot_sensitivity_pie_grid(
     dataset: List[Dict],
     n_rows: int = 7,
     n_cols: int = 3,
-    output_path: str = "./Storage/sensitivity_pies.png",
+    output_path: str = "./Storage/theo_results/sensitivity_pies.png",
     dpi: int = 300,
 ):
     """
@@ -128,7 +128,7 @@ def generate_sensitivity_pie_charts(
     results: dict,
     n_rows: int = 7,
     n_cols: int = 3,
-    output_path: str = "./Storage/sensitivity_pies.png",
+    output_path: str = "./Storage/theo_results/sensitivity_pies.png",
     dpi: int = 600,
 ):
     """
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     from pathlib import Path
 
     # Load results
-    results_path = Path("./Storage/sensitivity_analysis_results.json")
+    results_path = Path("./Storage/theo_results/sensitivity_analysis_results.json")
     with open(results_path, "r") as f:
         results = json.load(f)
 
@@ -171,6 +171,6 @@ if __name__ == "__main__":
         results=results,
         n_rows=7,
         n_cols=3,
-        output_path="./Storage/sensitivity_pies.png",
+        output_path="./Storage/theo_results/sensitivity_pies.png",
         dpi=600,
     )
