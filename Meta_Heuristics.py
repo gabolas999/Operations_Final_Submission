@@ -1,11 +1,8 @@
-"""
-This module does work  #+#+# Gabo
-"""
-
 from matplotlib import pyplot as plt
 import random
 import numpy as np
 import pulp
+import copy
 
 
 def repair_route(assigned, C_dict, Qk, Tij, Handling_time):
@@ -142,12 +139,14 @@ class MetaHeuristic:
         get_timing,
         check_for_cap,
         delay_window,
+        calculate_objective,
     ):
 
         self.get_route = get_route
         self.get_timing = get_timing
         self.check_for_cap = check_for_cap
         self.delay_window = delay_window
+        self.calculate_objective = calculate_objective
 
         self.instance = problem_instance
         self.init_solution = init_solution
@@ -170,9 +169,13 @@ class MetaHeuristic:
 
         self.K = len(self.instance.K_list[:-1])  # exclude the truck
 
+        self.H_b = self.init_solution.H_b
+
         # solution representation
         # self.f_ck = np.zeros((self.instance.C, self.K), dtype=int)
-        self.f_ck = init_solution.f_ck_init
+        self.f_ck_greedy = init_solution.f_ck_init
+
+        self.f_ck = copy.deepcopy(self.f_ck_greedy)
 
         # tabu structures (move_key -> tenure)
         self.T1 = {}
@@ -184,7 +187,7 @@ class MetaHeuristic:
         self.ten_move = 20
         self.ten_crit = 20
         self.ten_barban = 10
-        self.shake_thr = 100
+        self.shake_thr = 50
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
@@ -250,16 +253,24 @@ class MetaHeuristic:
 
         move = (c, from_b, to_b)
         # 3) check all tabu‐lists
-        if (
+
+        old_row = self.f_ck[c].copy()
+
+        is_tabu = (
             move in self.T1
             or move in self.T2
             or (from_b in self.T3)
             or (to_b in self.T3)
-        ):
+        )
+
+        # tentatively apply move first
+        cost, _, _ = self.evaluate()
+
+        if is_tabu and cost >= self.best_cost:
+            self.f_ck[c] = old_row
             return False
 
         # 4) tentatively apply
-        old_row = self.f_ck[c].copy()
         if from_b is not None:
             self.f_ck[c, from_b] = 0
         if to_b != "truck":
@@ -428,24 +439,58 @@ class MetaHeuristic:
         # both repairs succeeded
         return True
 
+    # def evaluate(self):
+    #     total_cost = 0
+    #     total_stops = 0
+    #     utils = []
+
+    #     for k in range(self.K):
+    #         assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
+    #         if not assigned:
+    #             continue
+    #         total_cost += self.init_solution.H_b[k]
+    #         Lcur = {c: self.instance.C_dict[c] for c in assigned}
+    #         route = self.get_route(Lcur)
+    #         # travel times
+    #         for i in range(len(route) - 1):
+    #             total_cost += self.instance.T_ij_matrix[route[i]][route[i + 1]]
+    #         stops = len(route) - 1
+    #         total_stops += stops
+    #         total_cost += stops * self.instance.Gamma  # Gamma €/stop penalty
+    #         # util
+    #         load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
+    #         loads = [load]
+    #         for node in route[1:]:
+    #             for cont in Lcur.values():
+    #                 if cont["Terminal"] == node:
+    #                     load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
+    #             loads.append(load)
+    #         utils.append(sum(loads) / (len(loads) * self.init_solution.Barges[k]))
+    #     # truck
+    #     unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
+    #     for c in unassigned:
+    #         total_cost += self.H_t_dict[self.instance.C_dict[c]["Wc"]]
+    #     return total_cost, total_stops, (sum(utils) / len(utils) if utils else 0)
+
     def evaluate(self):
         total_cost = 0
         total_stops = 0
         utils = []
+        self.x_ijk = np.zeros(
+            (len(self.init_solution.Barges), self.instance.N, self.instance.N)
+        )
 
         for k in range(self.K):
             assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
             if not assigned:
                 continue
-            total_cost += self.init_solution.H_b[k]
             Lcur = {c: self.instance.C_dict[c] for c in assigned}
             route = self.get_route(Lcur)
-            # travel times
+
             for i in range(len(route) - 1):
-                total_cost += self.instance.T_ij_matrix[route[i]][route[i + 1]]
-            stops = len(route) - 1
-            total_stops += stops
-            total_cost += stops * self.instance.Gamma  # Gamma €/stop penalty
+                if route[i] != route[i + 1]:
+                    self.x_ijk[k][route[i]][route[i + 1]] = 1
+
             # util
             load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
             loads = [load]
@@ -455,6 +500,9 @@ class MetaHeuristic:
                         load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
                 loads.append(load)
             utils.append(sum(loads) / (len(loads) * self.init_solution.Barges[k]))
+        # barge cost
+        total_cost += self.calculate_objective()
+
         # truck
         unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
         for c in unassigned:
@@ -462,7 +510,7 @@ class MetaHeuristic:
         return total_cost, total_stops, (sum(utils) / len(utils) if utils else 0)
 
     def local_search(self, max_iters=3000):
-        # self.initial_solution()
+
         self.best_cost, _, _ = self.evaluate()
         best_f = self.f_ck.copy()
         no_improve = 0

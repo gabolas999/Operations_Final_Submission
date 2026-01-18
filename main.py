@@ -297,9 +297,10 @@ def main(
         get_timing=greedy.get_timing,
         check_for_cap=greedy.check_for_cap,
         delay_window=greedy.delay_window,
+        calculate_objective=greedy.calculate_objective,
     )
 
-    mh.local_search(max_iters=1000)
+    mh.local_search(max_iters=5000)
 
     result_dict, result_yaml_path = mh.display_final_allocations(
         scenario_name=scenario_name
