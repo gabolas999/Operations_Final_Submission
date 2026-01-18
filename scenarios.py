@@ -27,7 +27,7 @@ SCENARIO_II = config = {
     "C_range": (65, 75),  # when reduced=False
     "N_range": (5, 5),  # when reduced=False
     "Oc_range": (24, 190),  # opening time in hours
-    "Oc_offset_range": (100, 350),
+    "Oc_offset_range": (110, 350),
     # Travel parameters
     "travel_time_long_range": (84, 140),  # hours
     "travel_angle": math.pi,

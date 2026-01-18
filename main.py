@@ -299,7 +299,7 @@ def main(
         delay_window=greedy.delay_window,
     )
 
-    mh.local_search()
+    mh.local_search(max_iters=5000)
 
     result_dict, result_yaml_path = mh.display_final_allocations(
         scenario_name=scenario_name
@@ -312,7 +312,7 @@ if __name__ == "__main__":
 
     for scenario, scenario_name in [
         (SCENARIO_II, "Scenario II"),
-        (SCENARIO_III, "Scenario III"),
+        # (SCENARIO_III, "Scenario III"),
     ]:
         final_cost_mh, final_cost_greedy, result_dict = main(
             input_scenario_dict=scenario, scenario_name=scenario_name

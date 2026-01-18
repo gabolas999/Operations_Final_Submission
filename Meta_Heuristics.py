@@ -544,6 +544,7 @@ class MetaHeuristic:
         for it in range(max_iters):
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
+                print(f"  Current best cost: {self.best_cost}")
             if random.random() < 0.8:
                 moved = self.operator_move()
             else:
