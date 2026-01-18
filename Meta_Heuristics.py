@@ -2,6 +2,7 @@
 This module does work  #+#+# Gabo
 """
 
+from matplotlib import pyplot as plt
 import random
 import numpy as np
 import pulp
@@ -184,66 +185,6 @@ class MetaHeuristic:
         self.ten_crit = 20
         self.ten_barban = 10
         self.shake_thr = 100
-
-    # def initial_solution(self):
-    #     """Greedy fill each barge in master‐order with up to one shift."""
-    #     barge_idx = 0
-    #     to_ignore = []
-    #     dep_delay = 0
-    #     self.f_ck[:] = 0
-
-    #     while barge_idx < self.K:
-    #         for c in self.init_solution.C_ordered:
-    #             if c in to_ignore:
-    #                 continue
-
-    #             # 1) assign
-    #             self.f_ck[c, barge_idx] = 1
-
-    #             # 2) build load & cap‐check
-    #             assigned = [
-    #                 i for i in range(self.instance.C) if self.f_ck[i, barge_idx] == 1
-    #             ]
-    #             Lcur = {i: self.instance.C_dict[i] for i in assigned}
-    #             route = self.get_route(Lcur)
-    #             if not self.check_for_cap(
-    #                 route, Lcur, barge_idx, barges=self.init_solution.Barges
-    #             ):
-    #                 self.f_ck[c, barge_idx] = 0
-    #                 continue
-
-    #             # 3) time‐window w/ up to one shift
-    #             ok = False
-    #             delay = dep_delay
-    #             for attempt in (0, 1):
-    #                 D, O = self.get_timing(route, Lcur, delay)
-    #                 viol = [
-    #                     v
-    #                     for v in Lcur.values()
-    #                     if not (
-    #                         O[route.index(v["Terminal"])]
-    #                         <= v["Oc"]
-    #                         <= D[route.index(v["Terminal"])]
-    #                         or O[route.index(v["Terminal"])]
-    #                         <= v["Dc"]
-    #                         <= D[route.index(v["Terminal"])]
-    #                     )
-    #                 ]
-    #                 if not viol:
-    #                     ok = True
-    #                     break
-    #                 if attempt == 0:
-    #                     delay += max(
-    #                         self.delay_window(v, O, route, v["Terminal"]) for v in viol
-    #                     )
-    #             if ok:
-    #                 dep_delay = delay
-    #                 to_ignore.append(c)
-    #             else:
-    #                 self.f_ck[c, barge_idx] = 0
-
-    #         barge_idx += 1
-    #         dep_delay = 0
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
@@ -504,7 +445,7 @@ class MetaHeuristic:
                 total_cost += self.instance.T_ij_matrix[route[i]][route[i + 1]]
             stops = len(route) - 1
             total_stops += stops
-            total_cost += stops  # 1€/stop penalty
+            total_cost += stops * self.instance.Gamma  # Gamma €/stop penalty
             # util
             load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
             loads = [load]
@@ -533,11 +474,11 @@ class MetaHeuristic:
         # # Set up interactive plotting
         # plt.ion()
         # fig, ax = plt.subplots()
-        # line1, = ax.plot([], [], label='Current Cost')
-        # line2, = ax.plot([], [], label='Best Cost', linestyle='--')
-        # ax.set_xlabel('Iteration')
-        # ax.set_ylabel('Cost')
-        # ax.set_title('Meta-Heuristic Cost Over Iterations')
+        # (line1,) = ax.plot([], [], label="Current Cost")
+        # (line2,) = ax.plot([], [], label="Best Cost", linestyle="--")
+        # ax.set_xlabel("Iteration")
+        # ax.set_ylabel("Cost")
+        # ax.set_title("Meta-Heuristic Cost Over Iterations")
         # ax.legend()
         # ax.grid(True)
 

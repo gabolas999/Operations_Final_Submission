@@ -335,7 +335,12 @@ class GreedyOptimizer:
             (len(self.Barges), self.instance.N, self.instance.N)
         )  # xijk[k][i][j] = 1 if barge k goes from terminal i to terminal j
 
+        self.stop_cost = 0
+
         for barge_idx, route in enumerate(self.route_list):
+            self.stop_cost += (
+                len(route) - 2
+            ) * self.instance.Gamma  # exclude depot stops
             for i in range(len(route) - 1):
                 if route[i] != route[i + 1]:
                     self.x_ijk[barge_idx][route[i]][route[i + 1]] = 1
@@ -345,7 +350,7 @@ class GreedyOptimizer:
         self.barge_cost = self.calculate_objective()
 
         # Calculate total cost
-        self.total_cost = self.barge_cost + self.truck_cost
+        self.total_cost = self.barge_cost + self.truck_cost + self.stop_cost
 
         solution = GreedySolution(
             total_cost=self.total_cost,

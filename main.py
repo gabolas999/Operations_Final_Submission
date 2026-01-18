@@ -299,7 +299,7 @@ def main(
         delay_window=greedy.delay_window,
     )
 
-    mh.local_search(max_iters=5000)
+    mh.local_search(max_iters=1000)
 
     result_dict, result_yaml_path = mh.display_final_allocations(
         scenario_name=scenario_name
