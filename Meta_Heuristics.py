@@ -171,6 +171,12 @@ class MetaHeuristic:
 
         self.H_b = self.init_solution.H_b
 
+        print(self.H_b)
+
+        self.H_b = [self.H_b[k] * 0.6 for k in range(len(self.H_b))]
+
+        print(self.H_b)
+
         # solution representation
         # self.f_ck = np.zeros((self.instance.C, self.K), dtype=int)
         self.f_ck_greedy = init_solution.f_ck_init
@@ -182,12 +188,20 @@ class MetaHeuristic:
         self.T2 = {}
         self.T3 = {}
 
+        self.route_dict = {}
+
+        self.move_accepts = 0
+        self.swap_accepts = 0
+        self.milp_calls = 0
+        self.shake_count = 0
+        self.milp_repairs = 0
+
         # parameters (tune these!)
         # self.critical = {}  # set of your “tightest” containers
         self.ten_move = 20
         self.ten_crit = 20
         self.ten_barban = 10
-        self.shake_thr = 50
+        self.shake_thr = 100
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
@@ -252,10 +266,18 @@ class MetaHeuristic:
             return False
 
         move = (c, from_b, to_b)
-        # 3) check all tabu‐lists
 
-        old_row = self.f_ck[c].copy()
+        old_row = self.f_ck[c, :].copy()
 
+        # 3) tentatively apply
+        if from_b is not None:
+            self.f_ck[c, from_b] = 0
+            self.route_dict.pop(from_b, None)
+        if to_b != "truck":
+            self.f_ck[c, to_b] = 1
+            self.route_dict.pop(to_b, None)
+
+        # 4) check all tabu‐lists
         is_tabu = (
             move in self.T1
             or move in self.T2
@@ -263,18 +285,9 @@ class MetaHeuristic:
             or (to_b in self.T3)
         )
 
-        # tentatively apply move first
-        cost, _, _ = self.evaluate()
-
-        if is_tabu and cost >= self.best_cost:
-            self.f_ck[c] = old_row
+        if is_tabu:
+            self.f_ck[c, :] = old_row
             return False
-
-        # 4) tentatively apply
-        if from_b is not None:
-            self.f_ck[c, from_b] = 0
-        if to_b != "truck":
-            self.f_ck[c, to_b] = 1
 
         # 5) quick capacity + 1-shift TW check on receiving barge
         feasible = True
@@ -282,7 +295,7 @@ class MetaHeuristic:
         if to_b != "truck":
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
             Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = self.get_route(Lcur)
+            route = self.route_dict.get(to_b, self.get_route(Lcur))
 
             # ---- capacity check ----
             if not self.check_for_cap(
@@ -346,12 +359,31 @@ class MetaHeuristic:
                 self.instance.T_ij_matrix,
                 self.instance.Handling_time,
             )
+
+            self.milp_calls += 1
             if new_route is None:
                 # unrecoverably infeasible → undo + T1‐tabu
                 self.f_ck[c] = old_row
                 self.T1[move] = self.ten_move
                 return False
-            # else: repair succeeded, we keep the move
+            else:  # repair succeeded, we keep the move
+                self.milp_repairs += 1
+                L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
+
+                old_route = self.get_route(L_cur_temp)
+                old_cost = sum(
+                    self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
+                    for i in range(len(old_route) - 1)
+                )
+
+                new_cost = sum(
+                    self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
+                    for i in range(len(new_route) - 1)
+                )
+
+                if new_cost >= old_cost:
+                    print("MILP routing not better:", old_cost, "→", new_cost)
+                self.route_dict[to_b] = new_route
 
         # 7) at this point move is accepted
         #    if it was a critical→truck, tabu it in T2
@@ -380,38 +412,84 @@ class MetaHeuristic:
         self.f_ck[c2, b2] = 0
         self.f_ck[c2, b1] = 1
 
+        # invalidate routes affected by the swap
+        self.route_dict.pop(b1, None)
+        self.route_dict.pop(b2, None)
+
         def barge_ok(k):
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, k]]
             if not assigned:
                 return True
             Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = self.get_route(Lcur)
+            route = self.route_dict.get(k, self.get_route(Lcur))
             if not self.check_for_cap(route, Lcur, k, barges=self.init_solution.Barges):
                 return False
             # one‐shift TW
-            delay = 0
-            for attempt in (0, 1):
-                D, O = self.get_timing(route, Lcur, delay)
-                viol = [
-                    v
-                    for v in Lcur.values()
-                    if not (
-                        O[route.index(v["Terminal"])]
-                        <= v["Oc"]
-                        <= D[route.index(v["Terminal"])]
-                        or O[route.index(v["Terminal"])]
-                        <= v["Dc"]
-                        <= D[route.index(v["Terminal"])]
-                    )
-                ]
-                if not viol:
-                    return True
+            # ---- time-window check (identical logic to Greedy) ----
+            delay = 0.0
+
+            for attempt in range(2):  # at most one shift
+                D_term, O_term = self.get_timing(route, Lcur, delay)
+
+                early_arrival_violations = []
+                late = False
+
+                for cont in Lcur.values():
+                    t = cont["Terminal"]
+                    arrival = O_term[route.index(t)]
+
+                    if arrival < cont["Oc"]:
+                        early_arrival_violations.append(cont)
+                    elif arrival > cont["Dc"]:
+                        late = True
+                        break
+
+                if late:
+                    success = False
+                    break
+
+                if not early_arrival_violations:
+                    success = True
+                    break
+
+                # apply the single allowed shift
                 if attempt == 0:
-                    delay = max(
-                        self.delay_window(v, O, route, v["Terminal"]) for v in viol
-                    )
+                    delay_needed = [
+                        self.delay_window(
+                            container=v,
+                            O_terminal=O_term,
+                            route=route,
+                            terminal=v["Terminal"],
+                        )
+                        for v in early_arrival_violations
+                    ]
+                    delay += max(delay_needed)
                 else:
                     return False
+
+            # delay = 0
+            # for attempt in (0, 1):
+            #     D, O = self.get_timing(route, Lcur, delay)
+            #     viol = [
+            #         v
+            #         for v in Lcur.values()
+            #         if not (
+            #             O[route.index(v["Terminal"])]
+            #             <= v["Oc"]
+            #             <= D[route.index(v["Terminal"])]
+            #             or O[route.index(v["Terminal"])]
+            #             <= v["Dc"]
+            #             <= D[route.index(v["Terminal"])]
+            #         )
+            #     ]
+            #     if not viol:
+            #         return True
+            #     if attempt == 0:
+            #         delay = max(
+            #             self.delay_window(v, O, route, v["Terminal"]) for v in viol
+            #         )
+            #     else:
+            #         return False
             return False
 
         ok1 = barge_ok(b1)
@@ -429,12 +507,32 @@ class MetaHeuristic:
                 self.instance.T_ij_matrix,
                 self.instance.Handling_time,
             )
+            self.milp_calls += 1
+
             if new_route is None:
                 # irreparable swap → undo + tabu
                 self.f_ck[c1] = old1
                 self.f_ck[c2] = old2
                 self.T1[move] = self.ten_move
                 return False
+            else:
+                self.milp_repairs += 1
+                L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
+
+                old_route = self.get_route(L_cur_temp)
+                old_cost = sum(
+                    self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
+                    for i in range(len(old_route) - 1)
+                )
+
+                new_cost = sum(
+                    self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
+                    for i in range(len(new_route) - 1)
+                )
+
+                if new_cost >= old_cost:
+                    print("MILP routing not better:", old_cost, "→", new_cost)
+                self.route_dict[b] = new_route
 
         # both repairs succeeded
         return True
@@ -485,7 +583,9 @@ class MetaHeuristic:
             if not assigned:
                 continue
             Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = self.get_route(Lcur)
+            route = self.route_dict.get(k, self.get_route(Lcur))
+
+            self.route_dict[k] = route
 
             for i in range(len(route) - 1):
                 if route[i] != route[i + 1]:
@@ -536,8 +636,12 @@ class MetaHeuristic:
                 print(f"  Current best cost: {self.best_cost}")
             if random.random() < 0.8:
                 moved = self.operator_move()
+                if moved:
+                    self.move_accepts += 1
             else:
                 moved = self.operator_swap()
+                if moved:
+                    self.swap_accepts += 1
 
             # *always* age your tabu after every move‐attempt
             self._age_tabu()
@@ -551,11 +655,12 @@ class MetaHeuristic:
                 self.best_cost, best_f = cost, self.f_ck.copy()
                 no_improve = 0
             else:
-                self.f_ck = best_f.copy()
+                # self.f_ck = best_f.copy()
                 no_improve += 1
 
             if no_improve >= self.shake_thr:
                 self._shake()
+                self.shake_count += 1
                 no_improve = 0
 
             self.it_list.append(it)
@@ -572,6 +677,14 @@ class MetaHeuristic:
 
         # plt.ioff()
         self.f_ck = best_f
+
+        print("\nMeta-Heuristic Search Complete")
+        print(f"Total move accepts: {self.move_accepts}")
+        print(f"Total swap accepts: {self.swap_accepts}")
+        print(f"Total MILP repair calls: {self.milp_calls}")
+        print(f"Total shakes performed: {self.shake_count}\n")
+        print(f"MILP repairs succeeded: {self.milp_repairs}\n")
+
         return self.best_cost, self.it_list, self.cost_list, self.best_cost_list
 
     def build_final_allocation_report(self):
@@ -598,7 +711,7 @@ class MetaHeuristic:
                 continue
 
             Lcur = {c: self.instance.C_dict[c] for c in containers}
-            route = self.get_route(Lcur)
+            route = self.route_dict.get(k, self.get_route(Lcur))
 
             cap = self.init_solution.Barges[k]
             load = sum(info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2)

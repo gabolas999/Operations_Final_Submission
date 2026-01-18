@@ -256,6 +256,7 @@ def main(
     scenario_info_toml_file_path=None,
     input_scenario_dict=None,
     scenario_name=None,
+    max_iters=2000,
 ):
 
     if input_scenario_dict is None and scenario_info_toml_file_path is not None:
@@ -300,7 +301,7 @@ def main(
         calculate_objective=greedy.calculate_objective,
     )
 
-    mh.local_search(max_iters=5000)
+    mh.local_search(max_iters=max_iters)
 
     result_dict, result_yaml_path = mh.display_final_allocations(
         scenario_name=scenario_name
@@ -316,7 +317,9 @@ if __name__ == "__main__":
         # (SCENARIO_III, "Scenario III"),
     ]:
         final_cost_mh, final_cost_greedy, result_dict = main(
-            input_scenario_dict=scenario, scenario_name=scenario_name
+            input_scenario_dict=scenario,
+            scenario_name=scenario_name,
+            max_iters=1000,
         )
         print(f"Final cost of the operations: €{np.round(final_cost_mh, 2)}")
 
