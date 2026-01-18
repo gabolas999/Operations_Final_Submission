@@ -1,5 +1,5 @@
 from main import main
-from scenarios import SCENARIO_II
+from scenarios import SCENARIO_II, SCENARIO_III
 
 from pathlib import Path
 import json
@@ -37,7 +37,7 @@ VARIABLE_CHANGE_RESULT_SUMMARY_MAP = {
 
 
 def run_sensitivity_analysis(
-    base_scenario=SCENARIO_II,
+    base_scenario=SCENARIO_III,
     output_path=Path("./Storage/sensitivity_analysis_results.json"),
 ):
 
@@ -102,6 +102,8 @@ def run_sensitivity_analysis(
                     / baseline_total_cost
                     * 100
                 )
+
+            print(result_summary)
 
             VARIABLE_CHANGE_RESULT_SUMMARY_MAP[variable][change_percentage_str] = (
                 result_dict["summary"]

@@ -62,7 +62,8 @@ SCENARIO_III = config = {
         2800,  # Barge 3
         1800,  # Barge 4
     ],
-    "seed": 0,
+    "seed": 31,  # 0: huge ~3.5hr solving time, 1: is more reasonable still too big for sensitivity analysis (solving time: ~1.5hr per instance)
+    # 2: also huge, 3: alright but bigger than 1, 4: still too big, 5: way too big, 31: found with main.py while loop <= 115 containers
     "reduced": False,
     # Trucking costs
     "h_t_40": 200,  # 40ft container trucking cost in euros
