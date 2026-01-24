@@ -5,129 +5,326 @@ import pulp
 import copy
 
 
-def repair_route(assigned, C_dict, Qk, Tij, Handling_time):
+def sanitize_for_yaml(obj):
+    if isinstance(obj, dict):
+        return {k: sanitize_for_yaml(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_yaml(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(sanitize_for_yaml(v) for v in obj)
+    elif isinstance(obj, np.generic):  # catches np.float64, np.int64, etc.
+        return obj.item()
+    else:
+        return obj
+
+
+def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
     """
-    assigned: list of container‐ids assigned to this barge
-    C_dict:   full container info, as in your dataset
-    Qk:       capacity of this barge (TEU)
-    Tij:      NxN travel‐time matrix
-    Handling_time: hours per container
-    returns:   a feasible route (list of nodes), or None if infeasible
+    MILP routing repair for one barge (Section 4.2.2).
+
+    Parameters
+    ----------
+    assigned_containers : list
+        List of container IDs assigned to this barge.
+    C_dict : dict
+        Container info dictionary:
+        - "Terminal"   : int
+        - "In_or_Out"  : 1 (import) or 2 (export)
+        - "Wc"         : 1 or 2
+        - "Rc"         : release time
+        - "Oc"         : opening time
+        - "Dc"         : due time
+    Qk : int
+        Single Barge capacity (TEU).
+    T_ij : dict[(i,j) -> float] or 2D list
+        Travel times.
+    handling_time : float
+        Handling time per container (hours).
+
+    Returns
+    -------
+    route : list[int]
+        Terminal visit sequence including dry port.
+    arrival_times : dict[int, float]
+        Arrival time at each terminal.
+
+    Raises
+    ------
+    RuntimeError
+        If no feasible route is found.
     """
 
-    # 1) build the set of nodes we must visit: depot=0 plus each unique terminal
-    terminals = {0}
-    for c in assigned:
-        terminals.add(C_dict[c]["Terminal"])
-    N = list(terminals)
+    # --------------------------------------------------
+    # STEP 0 — Terminal set and demands
+    # --------------------------------------------------
 
-    # pre‐compute pickup/drop sizes per node
-    # at depot (0) we only unload exports, at sea terminals both
-    p = {j: 0 for j in N}  # pickups
-    d = {j: 0 for j in N}  # deliveries
-    for c in assigned:
+    terminals = sorted({C_dict[c]["Terminal"] for c in assigned_containers})
+    if 0 not in terminals:
+        terminals = [0] + terminals
+
+    N = terminals
+
+    # Pickup / delivery quantities per terminal
+    p = {j: 0 for j in N}  # imports
+    d = {j: 0 for j in N}  # exports
+
+    for c in assigned_containers:
         j = C_dict[c]["Terminal"]
         if C_dict[c]["In_or_Out"] == 1:
             p[j] += C_dict[c]["Wc"]
         else:
             d[j] += C_dict[c]["Wc"]
 
-    # 2) create PuLP model
-    prob = pulp.LpProblem("repair_route", pulp.LpMinimize)
+    # Terminal time windows
+    O = {}
+    D = {}
 
-    # 3) variables
-    x = pulp.LpVariable.dicts(
-        "x", [(i, j) for i in N for j in N if i != j], cat="Binary"
-    )
-    t = pulp.LpVariable.dicts("t", N, lowBound=0, cat="Continuous")
-
-    # 4) objective: minimize total travel time
-    prob += pulp.lpSum(Tij[i][j] * x[(i, j)] for (i, j) in x)
-
-    # 5) flow‐balance constraints (Eq 3 & 20–21)
-    # leave depot exactly once, return once
-    prob += pulp.lpSum(x[(0, j)] for j in N if j != 0) == 1
-    prob += pulp.lpSum(x[(i, 0)] for i in N if i != 0) == 1
-    # intermediate nodes: in=out
-    for h in N:
-        if h == 0:
-            continue
-        prob += pulp.lpSum(x[(i, h)] for i in N if i != h) == pulp.lpSum(
-            x[(h, j)] for j in N if j != h
-        )
-
-    # 6) subtour‐elimination via MTZ (Miller–Tucker–Zemlin)
-    # u[j] ordinal variable
-    u = pulp.LpVariable.dicts("u", N, lowBound=0, upBound=len(N), cat="Integer")
-    for i in N:
-        for j in N:
-            if i != j and (i, j) in x:
-                prob += u[i] + 1 <= u[j] + len(N) * (1 - x[(i, j)])
-
-    # 7) capacity constraints (Eq 9)
-    # we linearize by ensuring the maximum load at each node ≤ Qk
-    # track load uload[j] at each node j:
-    uload = pulp.LpVariable.dicts("load", N, lowBound=0, upBound=Qk, cat="Continuous")
-    # at depot: load = total exports
-    prob += uload[0] == pulp.lpSum(d[j] for j in N if j != 0)
-    # flow conservation of load on each arc
-    for i in N:
-        for j in N:
-            if i != j and (i, j) in x:
-                # uload[j] ≥ uload[i] - drop[j] + pick[j] - M*(1-x[i,j])
-                M = Qk
-                prob += uload[j] >= uload[i] - d[j] + p[j] - M * (1 - x[(i, j)])
-
-    # 8) time‐window constraints (Eq 11–14)
-    bigM = 1e5
-    # release date at depot = max export Rc
-    R0 = (
-        max(C_dict[c]["Rc"] for c in assigned if C_dict[c]["In_or_Out"] == 2)
-        if any(C_dict[c]["In_or_Out"] == 2 for c in assigned)
-        else 0
-    )
-    prob += t[0] >= R0
-    for i in N:
-        for j in N:
-            if i != j and (i, j) in x:
-                # t[j] ≥ t[i] + handling_time*(#boxes at i) + Tij[i][j] - M(1 - x[i, j])
-                service_i = Handling_time * (p[i] + d[i])
-                prob += t[j] >= t[i] + service_i + Tij[i][j] - bigM * (1 - x[(i, j)])
-    # and container TWs at each node
     for j in N:
-        O_j = (
-            min(C_dict[c]["Oc"] for c in assigned if C_dict[c]["Terminal"] == j)
-            if any(C_dict[c]["Terminal"] == j for c in assigned)
-            else 0
+        related = [c for c in assigned_containers if C_dict[c]["Terminal"] == j]
+        if related:
+            O[j] = max(C_dict[c]["Oc"] for c in related)
+            D[j] = min(C_dict[c]["Dc"] for c in related)
+        else:
+            O[j] = 0
+            D[j] = 10**6
+
+    R = max(
+        [C_dict[c]["Rc"] for c in assigned_containers if C_dict[c]["In_or_Out"] == 2]
+        or [0]
+    )
+
+    # --------------------------------------------------
+    # STEP 1 — Build MILP
+    # --------------------------------------------------
+
+    prob = pulp.LpProblem("BargeRoutingRepair", pulp.LpMinimize)
+
+    x = pulp.LpVariable.dicts("x", (N, N), 0, 1, cat="Binary")
+    y = pulp.LpVariable.dicts("y", (N, N), 0)
+    z = pulp.LpVariable.dicts("z", (N, N), 0)
+    t = pulp.LpVariable.dicts("t", N, 0)
+
+    # Objective (19): minimize travel time
+    prob += pulp.lpSum(T_ij[i][j] * x[i][j] for i in N for j in N if i != j)
+
+    # --------------------------------------------------
+    # STEP 2 — Flow conservation (20)
+    # --------------------------------------------------
+    for i in N:
+        prob += (
+            pulp.lpSum(x[i][j] for j in N if j != i)
+            - pulp.lpSum(x[j][i] for j in N if j != i)
+            == 0
         )
-        D_j = (
-            max(C_dict[c]["Dc"] for c in assigned if C_dict[c]["Terminal"] == j)
-            if any(C_dict[c]["Terminal"] == j for c in assigned)
-            else bigM
+
+    # One departure from dry port (21)
+    prob += pulp.lpSum(x[0][j] for j in N if j != 0) <= 1
+
+    # --------------------------------------------------
+    # STEP 3 — Pickup / delivery flows (22–23)
+    # --------------------------------------------------
+
+    for j in N:
+        if j == 0:
+            continue
+        prob += (
+            pulp.lpSum(y[i][j] for i in N if i != j)
+            - pulp.lpSum(y[j][i] for i in N if i != j)
+            == p[j]
         )
-        prob += t[j] >= O_j
-        prob += t[j] <= D_j
+        prob += (
+            pulp.lpSum(z[j][i] for i in N if i != j)
+            - pulp.lpSum(z[i][j] for i in N if i != j)
+            == d[j]
+        )
 
-    # 9) solve
-    prob.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=10))
+    # --------------------------------------------------
+    # STEP 4 — Capacity (24)
+    # --------------------------------------------------
 
-    if pulp.LpStatus[prob.status] != "Optimal":
-        return None
-
-    # 10) extract route
-    # start from 0, follow arcs x[i,j]=1
-    route = [0]
-    cur = 0
-    visited = {0}
-    while True:
+    for i in N:
         for j in N:
-            if j != cur and pulp.value(x[(cur, j)]) > 0.5:
-                route.append(j)
-                cur = j
-                break
-        if cur == 0:
+            if i != j:
+                prob += y[i][j] + z[i][j] <= Qk * x[i][j]
+
+    # --------------------------------------------------
+    # STEP 5 — Timing (25–29)
+    # --------------------------------------------------
+
+    prob += t[0] >= R
+
+    M = 10**6
+
+    for i in N:
+        for j in N:
+            if i != j:
+                prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
+
+    for i in N:
+        for j in N:
+            if i != j:
+                prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
+
+    for j in N:
+        if j != 0:
+            prob += t[j] >= O[j]
+            prob += t[j] <= D[j]
+
+    # --------------------------------------------------
+    # STEP 6 — Solve
+    # --------------------------------------------------
+
+    status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+    if pulp.LpStatus[status] != "Optimal":
+        return None
+        # raise RuntimeError("No feasible MILP route found")
+
+    # --------------------------------------------------
+    # STEP 7 — Extract route
+    # --------------------------------------------------
+
+    route = [0]
+    current = 0
+
+    while True:
+        next_nodes = [j for j in N if j != current and pulp.value(x[current][j]) > 0.5]
+        if not next_nodes:
             break
+        nxt = next_nodes[0]
+        route.append(nxt)
+        current = nxt
+        if current == 0:
+            break
+
+    arrival_times = {j: pulp.value(t[j]) for j in route}
+
     return route
+
+
+# def repair_route(assigned, C_dict, Qk, Tij, Handling_time):
+#     """
+#     assigned: list of container‐ids assigned to this barge
+#     C_dict:   full container info, as in your dataset
+#     Qk:       capacity of this barge (TEU)
+#     Tij:      NxN travel‐time matrix
+#     Handling_time: hours per container
+#     returns:   a feasible route (list of nodes), or None if infeasible
+#     """
+
+#     # 1) build the set of nodes we must visit: depot=0 plus each unique terminal
+#     terminals = {0}
+#     for c in assigned:
+#         terminals.add(C_dict[c]["Terminal"])
+#     N = list(terminals)
+
+#     # pre‐compute pickup/drop sizes per node
+#     # at depot (0) we only unload exports, at sea terminals both
+#     p = {j: 0 for j in N}  # pickups
+#     d = {j: 0 for j in N}  # deliveries
+#     for c in assigned:
+#         j = C_dict[c]["Terminal"]
+#         if C_dict[c]["In_or_Out"] == 1:
+#             p[j] += C_dict[c]["Wc"]
+#         else:
+#             d[j] += C_dict[c]["Wc"]
+
+#     # 2) create PuLP model
+#     prob = pulp.LpProblem("repair_route", pulp.LpMinimize)
+
+#     # 3) variables
+#     x = pulp.LpVariable.dicts(
+#         "x", [(i, j) for i in N for j in N if i != j], cat="Binary"
+#     )
+#     t = pulp.LpVariable.dicts("t", N, lowBound=0, cat="Continuous")
+
+#     # 4) objective: minimize total travel time
+#     prob += pulp.lpSum(Tij[i][j] * x[(i, j)] for (i, j) in x)
+
+#     # 5) flow‐balance constraints (Eq 3 & 20–21)
+#     # leave depot exactly once, return once
+#     prob += pulp.lpSum(x[(0, j)] for j in N if j != 0) == 1
+#     prob += pulp.lpSum(x[(i, 0)] for i in N if i != 0) == 1
+#     # intermediate nodes: in=out
+#     for h in N:
+#         if h == 0:
+#             continue
+#         prob += pulp.lpSum(x[(i, h)] for i in N if i != h) == pulp.lpSum(
+#             x[(h, j)] for j in N if j != h
+#         )
+
+#     # 6) subtour‐elimination via MTZ (Miller–Tucker–Zemlin)
+#     # u[j] ordinal variable
+#     u = pulp.LpVariable.dicts("u", N, lowBound=0, upBound=len(N), cat="Integer")
+#     for i in N:
+#         for j in N:
+#             if i != j and (i, j) in x:
+#                 prob += u[i] + 1 <= u[j] + len(N) * (1 - x[(i, j)])
+
+#     # 7) capacity constraints (Eq 9)
+#     # we linearize by ensuring the maximum load at each node ≤ Qk
+#     # track load uload[j] at each node j:
+#     uload = pulp.LpVariable.dicts("load", N, lowBound=0, upBound=Qk, cat="Continuous")
+#     # at depot: load = total exports
+#     prob += uload[0] == pulp.lpSum(d[j] for j in N if j != 0)
+#     # flow conservation of load on each arc
+#     for i in N:
+#         for j in N:
+#             if i != j and (i, j) in x:
+#                 # uload[j] ≥ uload[i] - drop[j] + pick[j] - M*(1-x[i,j])
+#                 M = Qk
+#                 prob += uload[j] >= uload[i] - d[j] + p[j] - M * (1 - x[(i, j)])
+
+#     # 8) time‐window constraints (Eq 11–14)
+#     bigM = 1e5
+#     # release date at depot = max export Rc
+#     R0 = (
+#         max(C_dict[c]["Rc"] for c in assigned if C_dict[c]["In_or_Out"] == 2)
+#         if any(C_dict[c]["In_or_Out"] == 2 for c in assigned)
+#         else 0
+#     )
+#     prob += t[0] >= R0
+#     for i in N:
+#         for j in N:
+#             if i != j and (i, j) in x:
+#                 # t[j] ≥ t[i] + handling_time*(#boxes at i) + Tij[i][j] - M(1 - x[i, j])
+#                 service_i = Handling_time * (p[i] + d[i])
+#                 prob += t[j] >= t[i] + service_i + Tij[i][j] - bigM * (1 - x[(i, j)])
+#     # and container TWs at each node
+#     for j in N:
+#         O_j = (
+#             min(C_dict[c]["Oc"] for c in assigned if C_dict[c]["Terminal"] == j)
+#             if any(C_dict[c]["Terminal"] == j for c in assigned)
+#             else 0
+#         )
+#         D_j = (
+#             max(C_dict[c]["Dc"] for c in assigned if C_dict[c]["Terminal"] == j)
+#             if any(C_dict[c]["Terminal"] == j for c in assigned)
+#             else bigM
+#         )
+#         prob += t[j] >= O_j
+#         prob += t[j] <= D_j
+
+#     # 9) solve
+#     prob.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=10))
+
+#     if pulp.LpStatus[prob.status] != "Optimal":
+#         return None
+
+#     # 10) extract route
+#     # start from 0, follow arcs x[i,j]=1
+#     route = [0]
+#     cur = 0
+#     visited = {0}
+#     while True:
+#         for j in N:
+#             if j != cur and pulp.value(x[(cur, j)]) > 0.5:
+#                 route.append(j)
+#                 cur = j
+#                 break
+#         if cur == 0:
+#             break
+#     return route
 
 
 class MetaHeuristic:
@@ -171,12 +368,6 @@ class MetaHeuristic:
 
         self.H_b = self.init_solution.H_b
 
-        print(self.H_b)
-
-        self.H_b = [self.H_b[k] * 0.6 for k in range(len(self.H_b))]
-
-        print(self.H_b)
-
         # solution representation
         # self.f_ck = np.zeros((self.instance.C, self.K), dtype=int)
         self.f_ck_greedy = init_solution.f_ck_init
@@ -201,7 +392,7 @@ class MetaHeuristic:
         self.ten_move = 20
         self.ten_crit = 20
         self.ten_barban = 10
-        self.shake_thr = 100
+        self.shake_thr = 60
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
@@ -352,6 +543,26 @@ class MetaHeuristic:
         # 6) if quick check failed, try full MILP repair for barge
         if not feasible and to_b != "truck":
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
+
+            ordered_terminals = list(
+                dict.fromkeys(self.instance.C_dict[c]["Terminal"] for c in assigned)
+            )
+
+            for j in ordered_terminals:
+                O_j = max(
+                    self.instance.C_dict[c]["Oc"]
+                    for c in assigned
+                    if self.instance.C_dict[c]["Terminal"] == j
+                )
+                D_j = min(
+                    self.instance.C_dict[c]["Dc"]
+                    for c in assigned
+                    if self.instance.C_dict[c]["Terminal"] == j
+                )
+
+                if O_j > D_j:
+                    print("IMPOSSIBLE TERMINAL WINDOW:", j, O_j, D_j)
+
             new_route = repair_route(
                 assigned,
                 self.instance.C_dict,
@@ -359,6 +570,8 @@ class MetaHeuristic:
                 self.instance.T_ij_matrix,
                 self.instance.Handling_time,
             )
+
+            # print("New route from MILP repair:", new_route)
 
             self.milp_calls += 1
             if new_route is None:
@@ -500,6 +713,28 @@ class MetaHeuristic:
         # quick check failed on at least one barge: call repair on each
         for b in (b1, b2):
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, b]]
+            # print("Repair attempt on barge", b)
+            # print("Containers:", sorted(assigned))
+
+            ordered_terminals = list(
+                dict.fromkeys(self.instance.C_dict[c]["Terminal"] for c in assigned)
+            )
+
+            for j in ordered_terminals:
+                O_j = max(
+                    self.instance.C_dict[c]["Oc"]
+                    for c in assigned
+                    if self.instance.C_dict[c]["Terminal"] == j
+                )
+                D_j = min(
+                    self.instance.C_dict[c]["Dc"]
+                    for c in assigned
+                    if self.instance.C_dict[c]["Terminal"] == j
+                )
+
+                if O_j > D_j:
+                    print("IMPOSSIBLE TERMINAL WINDOW:", j, O_j, D_j)
+
             new_route = repair_route(
                 assigned,
                 self.instance.C_dict,
@@ -507,6 +742,7 @@ class MetaHeuristic:
                 self.instance.T_ij_matrix,
                 self.instance.Handling_time,
             )
+            # print("New route from MILP repair:", new_route)
             self.milp_calls += 1
 
             if new_route is None:
@@ -610,7 +846,7 @@ class MetaHeuristic:
         return total_cost, total_stops, (sum(utils) / len(utils) if utils else 0)
 
     def local_search(self, max_iters=3000):
-
+        print("\nStarting Meta-Heuristic Search...\n")
         self.best_cost, _, _ = self.evaluate()
         best_f = self.f_ck.copy()
         no_improve = 0
@@ -676,13 +912,13 @@ class MetaHeuristic:
         #     fig.canvas.flush_events()
 
         # plt.ioff()
-        self.f_ck = best_f
+        self.f_ck = copy.deepcopy(best_f)
 
-        print("\nMeta-Heuristic Search Complete")
+        print("\nMeta-Heuristic Search Complete, search move analysis:")
         print(f"Total move accepts: {self.move_accepts}")
         print(f"Total swap accepts: {self.swap_accepts}")
         print(f"Total MILP repair calls: {self.milp_calls}")
-        print(f"Total shakes performed: {self.shake_count}\n")
+        print(f"Total shakes performed: {self.shake_count}")
         print(f"MILP repairs succeeded: {self.milp_repairs}\n")
 
         return self.best_cost, self.it_list, self.cost_list, self.best_cost_list
@@ -804,6 +1040,7 @@ class MetaHeuristic:
             print(f"  {k.replace('_',' ').title()}: {v}")
 
         # Save YAML
+        report = sanitize_for_yaml(report)
         with open(yaml_path, "w") as f:
             yaml.safe_dump(report, f, sort_keys=False)
 

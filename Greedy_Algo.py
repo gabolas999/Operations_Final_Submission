@@ -57,6 +57,14 @@ class GreedyOptimizer:
         self.Barges = [q for q, _ in pairs]
         self.H_b = [h for _, h in pairs]
 
+    def rotate_cycle_to_start(self, cycle, start_node=0):
+        if cycle[0] == cycle[-1]:
+            cycle = cycle[:-1]  # remove duplicate end
+
+        idx = cycle.index(start_node)
+        rotated = cycle[idx:] + cycle[:idx] + [start_node]
+        return rotated
+
     def generate_master_route(self):
         """Generate master route using TSP approximation"""
 
@@ -69,20 +77,34 @@ class GreedyOptimizer:
                     G[i][j]["weight"] = self.instance.T_ij_matrix[i][j]
 
         # Find approximate TSP cycle (returns to start)
-        self.master_route = nx.approximation.traveling_salesman_problem(
+        cycle = nx.approximation.traveling_salesman_problem(
             G, cycle=True, weight="weight"
         )
+        self.master_route = self.rotate_cycle_to_start(cycle, start_node=0)
+        assert len(self.master_route[1:-1]) == len(
+            set(self.master_route[1:-1])
+        ), "Terminals repeated in TSP cycle"
+        assert 0 in cycle, "Dry port (0) missing from TSP cycle"
+        assert (
+            self.master_route[0] == 0 and self.master_route[-1] == 0
+        ), "Cycle must start and end at dry port (0)"
 
     def generate_ordered_containers(self):
         """Generate ordered list of containers based on master route"""
         self.C_ordered = []
         condit_satisfies_counter = 0
 
-        for i in self.master_route[1:-1]:  # Skip first and last (depot)
+        for i in self.master_route:
+            if i == 0:
+                continue  # Skip first and last (depot)
             for c, info in self.instance.C_dict.items():
                 if info["Terminal"] == i:
                     condit_satisfies_counter += 1
                     self.C_ordered.append(c)
+
+        assert (
+            condit_satisfies_counter == self.instance.C
+        ), "Not all containers included in ordered list"
 
     def get_route(self, L_current):
         terminals = {c["Terminal"] for c in L_current.values() if c["Terminal"] != 0}
@@ -125,7 +147,9 @@ class GreedyOptimizer:
         current_node = 0
         current_depart = depart_time
 
-        for node in route[1:]:
+        for node in route:
+            if node == current_node:
+                continue
             travel = self.instance.T_ij_matrix[current_node][node]
             arrival = current_depart + travel
 
@@ -154,13 +178,11 @@ class GreedyOptimizer:
 
         # Start at depot: all exports are loaded
         load = sum(c["Wc"] for c in L_current.values() if c["In_or_Out"] == 2)
-        if load > cap:
-            return False
-        if load < 0:
+        if load > cap or load < 0:
             return False
 
         # Visit terminals once in the given route
-        for terminal in route[1:]:
+        for terminal in route:
             if terminal == 0:
                 continue
 
@@ -178,9 +200,7 @@ class GreedyOptimizer:
             load -= exports_unloaded
             load += imports_loaded
 
-            if load > cap:
-                return False
-            if load < 0:
+            if load > cap or load < 0:
                 return False
 
         return True
@@ -223,11 +243,11 @@ class GreedyOptimizer:
 
         barge_idx = 0
         to_ignore = []  # list to store containers that can be removed from C_ordered
-        departure_delay = 0  # carry this forward across containers
         self.barge_departure_delay = []
         self.route_list = []
 
         while barge_idx < len(self.Barges):
+            departure_delay = 0
             for c in self.C_ordered:
                 if c in to_ignore:
                     continue
@@ -305,7 +325,7 @@ class GreedyOptimizer:
 
             # move on to next barge: store the FINAL route for this barge
             assigned_idx = np.where(self.f_ck_init[:, barge_idx] == 1)[0].tolist()
-            if assigned_idx:
+            if len(assigned_idx) > 0:
                 L_final = {cont: self.instance.C_dict[cont] for cont in assigned_idx}
                 route_final = self.get_route(L_final)
             else:
@@ -314,13 +334,22 @@ class GreedyOptimizer:
             self.route_list.append(route_final)
             self.barge_departure_delay.append(departure_delay)
             barge_idx += 1
-            departure_delay = 0
 
         # Calculate trucked containers
-        index_to_be_trucked = np.where(np.sum(self.f_ck_init, axis=1) == 0)[0].tolist()
-        self.trucked_containers = {
-            i: self.instance.C_dict[i] for i in index_to_be_trucked
-        }
+
+        sum_of_rows = np.sum(self.f_ck_init, axis=1)
+
+        assert len(sum_of_rows) == self.instance.C, "Mismatch in container count"
+
+        index_to_be_trucked = np.where(sum_of_rows == 0)[0].tolist()
+
+        if len(index_to_be_trucked) == 0:
+            print("All containers assigned to barges.")
+        else:
+            print(f"{len(index_to_be_trucked)} containers will be trucked.")
+            self.trucked_containers = {
+                i: self.instance.C_dict[i] for i in index_to_be_trucked
+            }
 
         # Calculate trucking cost
         self.truck_cost = 0
@@ -332,13 +361,13 @@ class GreedyOptimizer:
 
         # Calculate barge routing matrix
         self.x_ijk = np.zeros(
-            (len(self.Barges), self.instance.N, self.instance.N)
-        )  # xijk[k][i][j] = 1 if barge k goes from terminal i to terminal j
+            (self.instance.N, self.instance.N, len(self.Barges))
+        )  # xijk[i][j][k] = 1 if barge k goes from terminal i to terminal j
 
         for barge_idx, route in enumerate(self.route_list):
             for i in range(len(route) - 1):
                 if route[i] != route[i + 1]:
-                    self.x_ijk[barge_idx][route[i]][route[i + 1]] = 1
+                    self.x_ijk[route[i]][route[i + 1]][barge_idx] = 1
 
         # Calculate barge cost
         self.barge_cost = self.calculate_objective()
@@ -389,17 +418,20 @@ class GreedyOptimizer:
             for j in range(self.instance.N):
                 if j == 0:
                     continue
-                cost += self.x_ijk[k][0][j] * self.H_b[k]
+                cost += self.x_ijk[0][j][k] * self.H_b[k]
 
             # 2) travel‐time term: sum over all i,j of T[i][j]*x[i][j][k]
             for i in range(self.instance.N):
                 for j in range(self.instance.N):
-                    cost += self.instance.T_ij_matrix[i][j] * self.x_ijk[k][i][j]
+                    if i != j:
+                        cost += self.instance.T_ij_matrix[i][j] * self.x_ijk[i][j][k]
 
-            # 3) stop penalty: count once per visited sea terminal (j != 0)
-            for j in range(1, self.instance.N):
-                if self.x_ijk[k][:, j].sum() > 0:
-                    cost += self.instance.Gamma
+            # 3) stop penalty: count once per visited sea terminal
+            for i in range(self.instance.N):
+                if i != 0:
+                    for j in range(self.instance.N):
+                        if i != j:
+                            cost += self.instance.Gamma * self.x_ijk[i][j][k]
 
         return cost
 
@@ -419,8 +451,10 @@ class GreedyOptimizer:
         )
 
         # Print barge utilization
+        # TODO: fix the capacity check to make sure we dont exceed capacity,
+        # because it should show peak utilization not absolute / total utilization
         for k, route in enumerate(self.route_list):
-            if len(route) > 1:  # Only print if barge is used
+            if len(route) > 2:  # Only print if barge is used
                 containers_on_barge = sum(
                     1 for c in range(self.instance.C) if self.f_ck_init[c][k] == 1
                 )

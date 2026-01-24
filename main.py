@@ -4,16 +4,11 @@ from Greedy_Algo import GreedyOptimizer
 from Meta_Heuristics import MetaHeuristic
 
 from collections import defaultdict
-from pathlib import Path
 import csv
 import copy
-
 import numpy as np
 
 from scenarios import SCENARIO_II, SCENARIO_III
-
-
-from pathlib import Path
 
 
 def print_instance_summary(csv_path: str | Path):
@@ -265,19 +260,6 @@ def main(
         input_dict = copy.deepcopy(input_scenario_dict)
 
     milp_instance = MILP_Algo(**input_dict)
-
-    # while milp_instance.C > 115:
-    #     print(
-    #         f"Current scenario has {milp_instance.C} containers, which is too large for MILP solving in sensitivity analysis."
-    #     )
-    #     print("Regenerating scenario with a different seed...")
-
-    #     input_dict["seed"] += 1
-
-    #     milp_instance = MILP_Algo(**input_dict)
-
-    # print("MILP instance successfully created.")
-    # print("seeding info:", input_dict.get("seed", "N/A"))
 
     csv_path, _ = export_instance_tables(
         C_dict=milp_instance.C_dict,
