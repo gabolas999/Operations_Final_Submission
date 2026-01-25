@@ -589,22 +589,40 @@ class MetaHeuristic:
             # one‐shift TW
             # ---- time-window check (identical logic to Greedy) ----
             delay = 0.0
-
             success = False
+            late = False
 
-            for attempt in range(2):  # at most one shift
+            delay_per_terminal = {term: 0 for term in route}
+
+            for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
                 D_term, O_term = self.get_timing(route, Lcur, delay)
+                arrival_by_terminal = dict(zip(route, O_term))
 
-                early_arrival_violations = []
-                late = False
+                for terminal in route:
+                    if terminal == 0:
+                        continue
+                    Oj = max(
+                        [
+                            info["Oc"]
+                            for info in Lcur.values()
+                            if info["Terminal"] == terminal
+                        ]
+                    )
+                    Dj = min(
+                        [
+                            info["Dc"]
+                            for info in Lcur.values()
+                            if info["Terminal"] == terminal
+                        ]
+                    )
 
-                for cont in Lcur.values():
-                    t = cont["Terminal"]
-                    arrival = O_term[route.index(t)]
+                    arrival = arrival_by_terminal[terminal]
 
-                    if arrival < cont["Oc"]:
-                        early_arrival_violations.append(cont)
-                    elif arrival > cont["Dc"]:
+                    if arrival >= Oj and arrival <= Dj:
+                        continue
+                    elif arrival < Oj:
+                        delay_per_terminal[terminal] = Oj - arrival
+                    elif arrival > Dj:
                         late = True
                         break
 
@@ -612,22 +630,14 @@ class MetaHeuristic:
                     success = False
                     break
 
-                if not early_arrival_violations:
+                if all(d == 0 for d in delay_per_terminal.values()):
                     success = True
                     break
 
-                # apply the single allowed shift
                 if attempt == 0:
-                    delay_needed = [
-                        self.delay_window(
-                            container=v,
-                            O_terminal=O_term,
-                            route=route,
-                            terminal=v["Terminal"],
-                        )
-                        for v in early_arrival_violations
-                    ]
-                    delay += max(delay_needed)
+                    delay += max(delay_per_terminal.values())
+                else:
+                    break
 
             return success
 
