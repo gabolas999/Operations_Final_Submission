@@ -476,6 +476,7 @@ class MetaHeuristic:
 
             delay = 0.0
             feasible = False
+            late = False
 
             delay_per_terminal = {term: 0 for term in route}
 
@@ -484,15 +485,21 @@ class MetaHeuristic:
                 arrival_by_terminal = dict(zip(route, O_term))
 
                 for terminal in route:
+                    if terminal == 0:
+                        continue
                     Oj = max(
-                        info["Oc"]
-                        for c, info in Lcur.items()
-                        if info["Terminal"] == terminal
+                        [
+                            info["Oc"]
+                            for info in Lcur.values()
+                            if info["Terminal"] == terminal
+                        ]
                     )
                     Dj = min(
-                        info["Dc"]
-                        for c, info in Lcur.items()
-                        if info["Terminal"] == terminal
+                        [
+                            info["Dc"]
+                            for info in Lcur.values()
+                            if info["Terminal"] == terminal
+                        ]
                     )
 
                     arrival = arrival_by_terminal[terminal]

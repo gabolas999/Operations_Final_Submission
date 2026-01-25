@@ -157,6 +157,7 @@ class GreedyOptimizer:
         for node in route:
             if node == current_node:
                 continue
+
             travel = self.instance.T_ij_matrix[current_node][node]
             arrival = current_depart + travel
 
@@ -175,14 +176,14 @@ class GreedyOptimizer:
             O_terminal.append(arrival)
             D_terminal.append(depart)
 
-            assert len(O_terminal) == len(D_terminal), "Timing lists length mismatch"
-
-            assert len(O_terminal) == len(
-                route
-            ), "Timing lists length mismatch with route"
-
             current_node = node
             current_depart = depart
+
+        assert len(O_terminal) == len(D_terminal), "Timing lists length mismatch"
+
+        assert len(O_terminal) == len(
+            route
+        ), f"Timing lists length mismatch with route lenth of O_terminal: {len(O_terminal)} and length of route {len(route)}"
 
         return D_terminal, O_terminal
 
@@ -294,15 +295,21 @@ class GreedyOptimizer:
                     arrival_by_terminal = dict(zip(route, O_term))
 
                     for terminal in route:
+                        if terminal == 0:
+                            continue
                         Oj = max(
-                            info["Oc"]
-                            for c, info in L_current.items()
-                            if info["Terminal"] == terminal
+                            [
+                                info["Oc"]
+                                for info in L_current.values()
+                                if info["Terminal"] == terminal
+                            ]
                         )
                         Dj = min(
-                            info["Dc"]
-                            for c, info in L_current.items()
-                            if info["Terminal"] == terminal
+                            [
+                                info["Dc"]
+                                for info in L_current.values()
+                                if info["Terminal"] == terminal
+                            ]
                         )
 
                         arrival = arrival_by_terminal[terminal]
@@ -315,20 +322,6 @@ class GreedyOptimizer:
                             late = True
                             break
 
-                    # # find any containers that now violate
-                    # early_arrival_violations = []
-                    # late = False
-                    # for cont in L_current.values():
-                    #     t = cont["Terminal"]
-
-                    #     arrival = O_term[route.index(t)]
-
-                    #     if arrival < cont["Oc"]:
-                    #         early_arrival_violations.append(cont)
-                    #     elif arrival > cont["Dc"]:
-                    #         late = True
-                    #         break
-
                     if late:
                         break
 
@@ -340,17 +333,6 @@ class GreedyOptimizer:
                     # if we still have our one "shift" left, compute the shift
                     if attempt == 0:
                         delay += max(delay_per_terminal.values())
-                        # largest extra wait delay_needed
-                        # delay_needed = [
-                        #     self.delay_window(
-                        #         container=v,
-                        #         O_terminal=O_term,
-                        #         route=route,
-                        #         terminal=v["Terminal"],
-                        #     )
-                        #     for v in early_arrival_violations
-                        # ]
-                        # delay += max(delay_needed)  # accumulate shift
                     else:
                         # second pass and still violations → fail
                         break
