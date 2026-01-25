@@ -301,7 +301,7 @@ if __name__ == "__main__":
         final_cost_mh, final_cost_greedy, result_dict = main(
             input_scenario_dict=scenario,
             scenario_name=scenario_name,
-            max_iters=1000,
+            max_iters=10000,
         )
         print(f"Final cost of the operations: €{np.round(final_cost_mh, 2)}")
 
