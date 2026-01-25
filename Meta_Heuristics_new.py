@@ -353,14 +353,20 @@ class MetaHeuristic:
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
-        for T in (self.T1, self.T2):
-            expired = [m for m, t in T.items() if t <= 1]
-            for m in expired:
-                del T[m]
-            for m in T:
-                T[m] -= 1
-        expired = [b for b, t in self.T3.items() if t <= 1]
-        for b in expired:
+        T1_expired = [m for m, t in self.T1.items() if t <= 1]
+        for T1_m in T1_expired:
+            del self.T1[T1_m]
+        for T1_move in self.T1:
+            self.T1[T1_move] -= 1
+
+        T2_expired = [m for m, t in self.T2.items() if t <= 1]
+        for T2_m in T2_expired:
+            del self.T2[T2_m]
+        for T2_move in self.T2:
+            self.T2[T2_move] -= 1
+
+        T3_expired = [b for b, t in self.T3.items() if t <= 1]
+        for b in T3_expired:
             del self.T3[b]
         for b in self.T3:
             self.T3[b] -= 1
