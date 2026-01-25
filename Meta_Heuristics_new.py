@@ -216,6 +216,7 @@ class MetaHeuristic:
         delay_window,
         calculate_objective,
     ):
+        self.rng = random.Random()
 
         self.get_route = get_route
         self.get_timing = get_timing
@@ -397,24 +398,24 @@ class MetaHeuristic:
     def operator_move(self):
 
         # 1) pick container c (unchanged)
-        if random.random() < self.critical_move_prob:
+        if self.rng.random() < self.critical_move_prob:
             trucked = [c for c in range(self.instance.C) if not any(self.f_ck[c])]
             crit_trucked = [c for c in trucked if c in self.critical]
             if crit_trucked:
-                c = random.choice(crit_trucked)
+                c = self.rng.choice(crit_trucked)
             elif trucked:
-                c = random.choice(trucked)
+                c = self.rng.choice(trucked)
             else:
-                c = random.randrange(self.instance.C)
+                c = self.rng.randrange(self.instance.C)
         else:
-            c = random.randrange(self.instance.C)
+            c = self.rng.randrange(self.instance.C)
 
         # 2) locate current assignment
         from_b = next((k for k in range(self.K) if self.f_ck[c, k]), None)
         if from_b is None:
             from_b = "truck"
         choices = list(range(self.K)) + ["truck"]
-        to_b = random.choice(choices)
+        to_b = self.rng.choice(choices)
 
         if to_b == from_b:
             return False
@@ -557,7 +558,7 @@ class MetaHeuristic:
         return True
 
     def operator_swap(self):
-        c1, c2 = random.sample(range(self.instance.C), 2)
+        c1, c2 = self.rng.sample(range(self.instance.C), 2)
         bs1 = [k for k in range(self.K) if self.f_ck[c1, k]]
         bs2 = [k for k in range(self.K) if self.f_ck[c2, k]]
         if not bs1 or not bs2 or bs1[0] == bs2[0]:
@@ -750,7 +751,7 @@ class MetaHeuristic:
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
                 print(f"  Current best cost: {self.best_cost}")
-            if random.random() < 0.8:
+            if self.rng.random() < 0.8:
                 moved = self.operator_move()
                 if moved:
                     self.move_accepts += 1
@@ -830,22 +831,6 @@ class MetaHeuristic:
             route = self.route_dict.get(k, self.get_route(Lcur))
 
             cap = self.Barge_cap[k]
-            # load = sum(info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2)
-            # peak = load
-
-            # for node in route[1:]:
-            #     exports_unloaded = sum(
-            #         info["Wc"]
-            #         for info in Lcur.values()
-            #         if info["Terminal"] == node and info["In_or_Out"] == 2
-            #     )
-            #     imports_loaded = sum(
-            #         info["Wc"]
-            #         for info in Lcur.values()
-            #         if info["Terminal"] == node and info["In_or_Out"] == 1
-            #     )
-            #     load = load - exports_unloaded + imports_loaded
-            #     peak = max(peak, load)
 
             self._edge_loads_along_route(route, Lcur, k)
             peak = max(self.route_load_dict[k])
