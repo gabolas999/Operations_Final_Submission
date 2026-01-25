@@ -665,7 +665,7 @@ class MetaHeuristic:
                 # irreparable swap → undo + tabu
                 self.f_ck[c1] = old1
                 self.f_ck[c2] = old2
-                self.T1[move] = self.tenure_move_container
+                # self.T1[move] = self.tenure_move_container
                 return False
             else:
                 self.milp_repairs += 1
