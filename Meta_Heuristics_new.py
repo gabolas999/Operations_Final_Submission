@@ -265,9 +265,9 @@ class MetaHeuristic:
         # parameters (tune these!)
         self.critical_move_prob = 0.6
         self.truck_move_prob = 0.6
-        self.tenure_move_container = 20
-        self.tenure_critical_container = 20
-        self.tenure_barge_shake_ban = 10
+        self.tenure_move_container = 15
+        self.tenure_critical_container = 15
+        self.tenure_barge_shake_ban = 8
         self.shake_threshold = 60
 
     def _edge_loads_along_route(
@@ -709,14 +709,12 @@ class MetaHeuristic:
                     self.x_ijk[k][route[i]][route[i + 1]] = 1
 
             # util
-            load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
-            loads = [load]
-            for node in route[1:]:
-                for cont in Lcur.values():
-                    if cont["Terminal"] == node:
-                        load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
-                loads.append(load)
-            utils.append(sum(loads) / (len(loads) * self.Barge_cap[k]))
+
+            self._edge_loads_along_route(route, Lcur, k)
+            util = max(self.route_load_dict[k]) / self.Barge_cap[k]
+            utils.append(util)
+            total_stops += len(route) - 2  # exclude depot visits
+
         # barge cost
         total_cost += self.calculate_objective()
 
@@ -725,11 +723,11 @@ class MetaHeuristic:
         for c in unassigned:
             total_cost += self.H_t_dict[self.instance.C_dict[c]["Wc"]]
 
-        return total_cost, total_stops, (sum(utils) / len(utils) if utils else 0)
+        return total_cost
 
     def local_search(self, max_iters=3000):
         print("\nStarting Meta-Heuristic Search...\n")
-        self.best_cost, _, _ = self.evaluate()
+        self.best_cost = self.evaluate()
         best_f = self.f_ck.copy()
         no_improve = 0
 
@@ -767,7 +765,7 @@ class MetaHeuristic:
             if not moved:
                 continue
 
-            cost, _, _ = self.evaluate()
+            cost = self.evaluate()
 
             if cost < self.best_cost:
                 self.best_cost, best_f = cost, self.f_ck.copy()
@@ -810,18 +808,18 @@ class MetaHeuristic:
 
         barge_assignments = {k: [] for k in range(self.K)}
         trucked_containers = []
+        total_containers_on_barges = 0
 
         for c in range(self.instance.C):
             assigned = False
             for k in range(self.K):
                 if self.f_ck[c, k] == 1:
                     barge_assignments[k].append(c)
+                    total_containers_on_barges += 1
                     assigned = True
                     break
             if not assigned:
                 trucked_containers.append(c)
-
-        total_containers_on_barges = 0
 
         for k in range(self.K):
             containers = barge_assignments[k]
@@ -832,22 +830,25 @@ class MetaHeuristic:
             route = self.route_dict.get(k, self.get_route(Lcur))
 
             cap = self.Barge_cap[k]
-            load = sum(info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2)
-            peak = load
+            # load = sum(info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2)
+            # peak = load
 
-            for node in route[1:]:
-                exports_unloaded = sum(
-                    info["Wc"]
-                    for info in Lcur.values()
-                    if info["Terminal"] == node and info["In_or_Out"] == 2
-                )
-                imports_loaded = sum(
-                    info["Wc"]
-                    for info in Lcur.values()
-                    if info["Terminal"] == node and info["In_or_Out"] == 1
-                )
-                load = load - exports_unloaded + imports_loaded
-                peak = max(peak, load)
+            # for node in route[1:]:
+            #     exports_unloaded = sum(
+            #         info["Wc"]
+            #         for info in Lcur.values()
+            #         if info["Terminal"] == node and info["In_or_Out"] == 2
+            #     )
+            #     imports_loaded = sum(
+            #         info["Wc"]
+            #         for info in Lcur.values()
+            #         if info["Terminal"] == node and info["In_or_Out"] == 1
+            #     )
+            #     load = load - exports_unloaded + imports_loaded
+            #     peak = max(peak, load)
+
+            self._edge_loads_along_route(route, Lcur, k)
+            peak = max(self.route_load_dict[k])
 
             imports = [
                 c for c in containers if self.instance.C_dict[c]["In_or_Out"] == 1
@@ -869,8 +870,6 @@ class MetaHeuristic:
                     "container_ids": containers,
                 }
             )
-
-            total_containers_on_barges += len(containers)
 
         report["trucked_containers"] = {
             "container_ids": trucked_containers,
