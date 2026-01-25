@@ -1,7 +1,7 @@
 from pathlib import Path
 from MILP import MILP_Algo
 from Greedy_Algo import GreedyOptimizer
-from Meta_Heuristics_copy import MetaHeuristic
+from Meta_Heuristics_new import MetaHeuristic
 
 from collections import defaultdict
 import csv

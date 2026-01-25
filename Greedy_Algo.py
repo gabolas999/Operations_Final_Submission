@@ -175,6 +175,12 @@ class GreedyOptimizer:
             O_terminal.append(arrival)
             D_terminal.append(depart)
 
+            assert len(O_terminal) == len(D_terminal), "Timing lists length mismatch"
+
+            assert len(O_terminal) == len(
+                route
+            ), "Timing lists length mismatch with route"
+
             current_node = node
             current_depart = depart
 
@@ -277,47 +283,74 @@ class GreedyOptimizer:
 
                 # 4) Time‐window check, with up to one "departure shift"
                 success = False
+                late = False
                 delay = departure_delay  # start from whatever delay we already have
+
+                delay_per_terminal = {term: 0 for term in route}
 
                 # Try once to adjust departure (max_tries = 1)
                 for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
                     D_term, O_term = self.get_timing(route, L_current, delay)
+                    arrival_by_terminal = dict(zip(route, O_term))
 
-                    # find any containers that now violate
-                    early_arrival_violations = []
-                    late = False
-                    for cont in L_current.values():
-                        t = cont["Terminal"]
+                    for terminal in route:
+                        Oj = max(
+                            info["Oc"]
+                            for c, info in L_current.items()
+                            if info["Terminal"] == terminal
+                        )
+                        Dj = min(
+                            info["Dc"]
+                            for c, info in L_current.items()
+                            if info["Terminal"] == terminal
+                        )
 
-                        arrival = O_term[route.index(t)]
+                        arrival = arrival_by_terminal[terminal]
 
-                        if arrival < cont["Oc"]:
-                            early_arrival_violations.append(cont)
-                        elif arrival > cont["Dc"]:
+                        if arrival >= Oj and arrival <= Dj:
+                            continue  # this terminal is fine
+                        elif arrival < Oj:
+                            delay_per_terminal[terminal] = Oj - arrival
+                        elif arrival > Dj:
                             late = True
                             break
+
+                    # # find any containers that now violate
+                    # early_arrival_violations = []
+                    # late = False
+                    # for cont in L_current.values():
+                    #     t = cont["Terminal"]
+
+                    #     arrival = O_term[route.index(t)]
+
+                    #     if arrival < cont["Oc"]:
+                    #         early_arrival_violations.append(cont)
+                    #     elif arrival > cont["Dc"]:
+                    #         late = True
+                    #         break
 
                     if late:
                         break
 
-                    if not early_arrival_violations:
+                    if all(d == 0 for d in delay_per_terminal.values()):
                         # everyone fits under this `delay`
                         success = True
                         break
 
                     # if we still have our one "shift" left, compute the shift
                     if attempt == 0:
+                        delay += max(delay_per_terminal.values())
                         # largest extra wait delay_needed
-                        delay_needed = [
-                            self.delay_window(
-                                container=v,
-                                O_terminal=O_term,
-                                route=route,
-                                terminal=v["Terminal"],
-                            )
-                            for v in early_arrival_violations
-                        ]
-                        delay += max(delay_needed)  # accumulate shift
+                        # delay_needed = [
+                        #     self.delay_window(
+                        #         container=v,
+                        #         O_terminal=O_term,
+                        #         route=route,
+                        #         terminal=v["Terminal"],
+                        #     )
+                        #     for v in early_arrival_violations
+                        # ]
+                        # delay += max(delay_needed)  # accumulate shift
                     else:
                         # second pass and still violations → fail
                         break

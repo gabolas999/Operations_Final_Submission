@@ -90,7 +90,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
         related = [c for c in assigned_containers if C_dict[c]["Terminal"] == j]
         if related:
             O[j] = max(C_dict[c]["Oc"] for c in related)
-            D[j] = max(C_dict[c]["Dc"] for c in related)
+            D[j] = min(C_dict[c]["Dc"] for c in related)
         else:
             O[j] = 0
             D[j] = 10**6
@@ -477,18 +477,31 @@ class MetaHeuristic:
             delay = 0.0
             feasible = False
 
-            for attempt in range(2):
+            delay_per_terminal = {term: 0 for term in route}
+
+            for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
                 D_term, O_term = self.get_timing(route, Lcur, delay)
+                arrival_by_terminal = dict(zip(route, O_term))
 
-                early = []
-                late = False
+                for terminal in route:
+                    Oj = max(
+                        info["Oc"]
+                        for c, info in Lcur.items()
+                        if info["Terminal"] == terminal
+                    )
+                    Dj = min(
+                        info["Dc"]
+                        for c, info in Lcur.items()
+                        if info["Terminal"] == terminal
+                    )
 
-                for cont in Lcur.values():
-                    t = cont["Terminal"]
-                    arrival = O_term[route.index(t)]
-                    if arrival < cont["Oc"]:
-                        early.append(cont)
-                    elif arrival > cont["Dc"]:
+                    arrival = arrival_by_terminal[terminal]
+
+                    if arrival >= Oj and arrival <= Dj:
+                        continue
+                    elif arrival < Oj:
+                        delay_per_terminal[terminal] = Oj - arrival
+                    elif arrival > Dj:
                         late = True
                         break
 
@@ -496,20 +509,14 @@ class MetaHeuristic:
                     feasible = False
                     break
 
-                if not early:
+                if all(d == 0 for d in delay_per_terminal.values()):
                     feasible = True
                     break
 
                 if attempt == 0:
-                    delay += max(
-                        self.delay_window(
-                            container=v,
-                            O_terminal=O_term,
-                            route=route,
-                            terminal=v["Terminal"],
-                        )
-                        for v in early
-                    )
+                    delay += max(delay_per_terminal.values())
+                else:
+                    break
 
             # 7) MILP repair if timing failed
             if not feasible:
