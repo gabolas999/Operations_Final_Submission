@@ -265,10 +265,10 @@ class MetaHeuristic:
         # parameters (tune these!)
         self.critical_move_prob = 0.6
         self.truck_move_prob = 0.6
-        self.ten_move = 20
-        self.ten_crit = 20
-        self.ten_barban = 10
-        self.shake_thr = 60
+        self.tenure_move_container = 20
+        self.tenure_critical_container = 20
+        self.tenure_barge_shake_ban = 10
+        self.shake_threshold = 60
 
     def _edge_loads_along_route(
         self,
@@ -386,7 +386,7 @@ class MetaHeuristic:
                 worst, best_k = util, k
         if best_k is not None:
             self.f_ck[:, best_k] = 0
-            self.T3[best_k] = self.ten_barban
+            self.T3[best_k] = self.tenure_barge_shake_ban
 
     def operator_move(self):
 
@@ -454,7 +454,7 @@ class MetaHeuristic:
             self.route_dict = old_route_dict
             self.Barge_cap = old_Barge_cap
             self.H_b = old_H_b
-            self.T1[move] = self.ten_move
+            self.T1[move] = self.tenure_move_container
             return False
 
         # deterministic reassignment (upgrade or tighten)
@@ -538,7 +538,7 @@ class MetaHeuristic:
                 self.route_dict = old_route_dict
                 self.Barge_cap = old_Barge_cap
                 self.H_b = old_H_b
-                # self.T1[move] = self.ten_move
+                # self.T1[move] = self.tenure_move_container
                 return False
 
                 # self.milp_repairs += 1
@@ -546,7 +546,7 @@ class MetaHeuristic:
 
         # 8) tabu bookkeeping
         if to_b == "truck" and c in self.critical:
-            self.T2[move] = self.ten_crit
+            self.T2[move] = self.tenure_critical_container
 
         return True
 
@@ -659,7 +659,7 @@ class MetaHeuristic:
                 # irreparable swap → undo + tabu
                 self.f_ck[c1] = old1
                 self.f_ck[c2] = old2
-                self.T1[move] = self.ten_move
+                self.T1[move] = self.tenure_move_container
                 return False
             else:
                 self.milp_repairs += 1
@@ -770,7 +770,7 @@ class MetaHeuristic:
                 # self.f_ck = best_f.copy()
                 no_improve += 1
 
-            if no_improve >= self.shake_thr:
+            if no_improve >= self.shake_threshold:
                 self._shake()
                 self.shake_count += 1
                 no_improve = 0
