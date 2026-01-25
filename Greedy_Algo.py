@@ -11,8 +11,6 @@ TODO: Implement a re-run verification tool - and include the video in the report
 
 """
 
-import random
-import math
 import networkx as nx
 import numpy as np
 from dataclasses import dataclass
@@ -69,6 +67,9 @@ class GreedyOptimizer:
         """Generate master route using TSP approximation"""
 
         n = len(self.instance.T_ij_matrix)
+
+        assert n == self.instance.N, "T_ij_matrix size mismatch with N"
+
         G = nx.complete_graph(n)
 
         for i in range(n):
@@ -81,6 +82,12 @@ class GreedyOptimizer:
             G, cycle=True, weight="weight"
         )
         self.master_route = self.rotate_cycle_to_start(cycle, start_node=0)
+
+        assert (
+            len(self.master_route) == self.instance.N + 1
+        ), "Invalid master route length"
+        for terminal in self.master_route:
+            assert isinstance(terminal, int), "Terminal indices must be integers"
         assert len(self.master_route[1:-1]) == len(
             set(self.master_route[1:-1])
         ), "Terminals repeated in TSP cycle"
