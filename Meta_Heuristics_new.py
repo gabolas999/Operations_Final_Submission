@@ -38,8 +38,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
         Single Barge capacity (TEU).
     T_ij : dict[(i,j) -> float] or 2D list
         Travel times.
-    handling_time : float
-        Handling time per container (hours).
 
     Returns
     -------
@@ -237,11 +235,6 @@ class MetaHeuristic:
         crit_sorted = sorted(slacks, key=slacks.get)
         self.critical = set(crit_sorted[:ncrit])
 
-        # parameters
-        self.truck_move_prob = 0.6
-        self.critical_move_prob = 0.6
-        self.ten_crit = 30
-
         self.H_t_dict = {1: self.instance.H_t_20, 2: self.instance.H_t_40}
 
         self.K = len(self.instance.K_list[:-1])  # exclude the truck
@@ -270,6 +263,8 @@ class MetaHeuristic:
         self.milp_repairs = 0
 
         # parameters (tune these!)
+        self.critical_move_prob = 0.6
+        self.truck_move_prob = 0.6
         self.ten_move = 20
         self.ten_crit = 20
         self.ten_barban = 10
@@ -468,6 +463,10 @@ class MetaHeuristic:
         # deterministic reassignment (upgrade or tighten)
         self.reassign_barges_by_requirements(required=required_capacity)
 
+        # update old state after reassignment
+        old_Barge_cap = self.Barge_cap.copy()
+        old_H_b = self.H_b.copy()
+
         # 6) TIMING CHECK (only for affected barge if not truck)
         if to_b != "truck":
             Lcur = self._get_L_current_for_barge(barge_idx=to_b, fck=self.f_ck)
@@ -527,26 +526,26 @@ class MetaHeuristic:
 
             # 7) MILP repair if timing failed
             if not feasible:
-                assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b]]
-                new_route = repair_route(
-                    assigned,
-                    self.instance.C_dict,
-                    self.Barge_cap[to_b],
-                    self.instance.T_ij_matrix,
-                )
-                self.milp_calls += 1
+                # assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b]]
+                # new_route = repair_route(
+                #     assigned,
+                #     self.instance.C_dict,
+                #     self.Barge_cap[to_b],
+                #     self.instance.T_ij_matrix,
+                # )
+                # self.milp_calls += 1
 
-                if new_route is None:
-                    # undo everything
-                    self.f_ck[c, :] = old_row
-                    self.route_dict = old_route_dict
-                    self.Barge_cap = old_Barge_cap
-                    self.H_b = old_H_b
-                    self.T1[move] = self.ten_move
-                    return False
+                # if new_route is None:
+                #     # undo everything
+                self.f_ck[c, :] = old_row
+                self.route_dict = old_route_dict
+                self.Barge_cap = old_Barge_cap
+                self.H_b = old_H_b
+                # self.T1[move] = self.ten_move
+                return False
 
-                self.milp_repairs += 1
-                self.route_dict[to_b] = new_route
+                # self.milp_repairs += 1
+                # self.route_dict[to_b] = new_route
 
         # 8) tabu bookkeeping
         if to_b == "truck" and c in self.critical:
