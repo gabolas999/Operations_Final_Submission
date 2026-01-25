@@ -368,6 +368,10 @@ class MetaHeuristic:
     def _shake(self):
         best_k = None
         worst = 1.0
+
+        if len(self.T3) == self.K:
+            self.T3 = {}
+
         for k in range(self.K):
             if k in self.T3:
                 continue
@@ -375,16 +379,9 @@ class MetaHeuristic:
             if not assigned:
                 continue
             Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = self.get_route(Lcur)
-            loads = []
-            load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
-            loads.append(load)
-            for node in route[1:]:
-                for cont in Lcur.values():
-                    if cont["Terminal"] == node:
-                        load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
-                loads.append(load)
-            util = sum(loads) / (len(loads) * self.Barge_cap[k])
+            route = self.route_dict.get(k, self.get_route(Lcur))
+            self._edge_loads_along_route(route, Lcur, k)
+            util = max(self.route_load_dict[k]) / self.Barge_cap[k]
             if util < worst:
                 worst, best_k = util, k
         if best_k is not None:
