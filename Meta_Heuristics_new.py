@@ -4,6 +4,8 @@ import numpy as np
 import pulp
 import copy
 
+random.seed(1)
+
 
 def sanitize_for_yaml(obj):
     if isinstance(obj, dict):
@@ -115,6 +117,10 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     # --------------------------------------------------
     # STEP 2 — Flow conservation (20)
     # --------------------------------------------------
+
+    for i in N:
+        prob += x[i][i] == 0
+
     for i in N:
         prob += (
             pulp.lpSum(x[i][j] for j in N if j != i)
@@ -142,6 +148,23 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
                 == d[j]
             )
 
+    # total_imports = sum(p.values())
+    # total_exports = sum(d.values())
+
+    # # Import flow sink at depot
+    # prob += (
+    #     pulp.lpSum(y[i][0] for i in N if i != 0)
+    #     - pulp.lpSum(y[0][i] for i in N if i != 0)
+    #     == total_imports
+    # )
+
+    # # Export flow source at depot
+    # prob += (
+    #     pulp.lpSum(z[0][i] for i in N if i != 0)
+    #     - pulp.lpSum(z[i][0] for i in N if i != 0)
+    #     == total_exports
+    # )
+
     # --------------------------------------------------
     # STEP 4 — Capacity (24)
     # --------------------------------------------------
@@ -154,17 +177,24 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     # STEP 5 — Timing (25–29)
     # --------------------------------------------------
 
+    # # Waiting at depot
+    # w0 = pulp.LpVariable("w0", lowBound=0)
+    # prob += t[0] == R + w0
     prob += t[0] >= R
 
     M = 10**6
 
     for i in N:
         for j in N:
-            prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
+            if i != j:
+                if j != 0:
+                    prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
 
     for i in N:
         for j in N:
-            prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
+            if i != j:
+                if j != 0:
+                    prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
 
     for j in N:
         if j != 0:
@@ -174,12 +204,20 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     # --------------------------------------------------
     # STEP 6 — Solve
     # --------------------------------------------------
+    # prob.writeLP("repair_debug.lp")
 
     status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
 
     if pulp.LpStatus[status] != "Optimal":
+        # print("No feasible MILP route found")
         return None
         # raise RuntimeError("No feasible MILP route found")
+    # else:
+    #     print("Status:", pulp.LpStatus[prob.status])
+
+    #     for v in prob.variables():
+    #         if abs(v.varValue) > 1e-6:  # only nonzero vars
+    #             print(f"{v.name} = {v.varValue}")
 
     # --------------------------------------------------
     # STEP 7 — Extract route
@@ -189,9 +227,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     current = 0
 
     while True:
-        next_nodes = [
-            j for j in N if j not in route and pulp.value(x[current][j]) > 0.5
-        ]
+        next_nodes = [j for j in N if j != current and pulp.value(x[current][j]) > 0.5]
         if not next_nodes:
             break
         nxt = next_nodes[0]
@@ -201,6 +237,8 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
             break
 
     # arrival_times = {j: pulp.value(t[j]) for j in route}
+
+    # print("Repaired route with MILP!!!")
 
     return route
 
@@ -216,7 +254,6 @@ class MetaHeuristic:
         delay_window,
         calculate_objective,
     ):
-        self.rng = random.Random()
 
         self.get_route = get_route
         self.get_timing = get_timing
@@ -398,24 +435,24 @@ class MetaHeuristic:
     def operator_move(self):
 
         # 1) pick container c (unchanged)
-        if self.rng.random() < self.critical_move_prob:
+        if random.random() < self.critical_move_prob:
             trucked = [c for c in range(self.instance.C) if not any(self.f_ck[c])]
             crit_trucked = [c for c in trucked if c in self.critical]
             if crit_trucked:
-                c = self.rng.choice(crit_trucked)
+                c = random.choice(crit_trucked)
             elif trucked:
-                c = self.rng.choice(trucked)
+                c = random.choice(trucked)
             else:
-                c = self.rng.randrange(self.instance.C)
+                c = random.randrange(self.instance.C)
         else:
-            c = self.rng.randrange(self.instance.C)
+            c = random.randrange(self.instance.C)
 
         # 2) locate current assignment
         from_b = next((k for k in range(self.K) if self.f_ck[c, k]), None)
         if from_b is None:
             from_b = "truck"
         choices = list(range(self.K)) + ["truck"]
-        to_b = self.rng.choice(choices)
+        to_b = random.choice(choices)
 
         if to_b == from_b:
             return False
@@ -530,26 +567,26 @@ class MetaHeuristic:
 
             # 7) MILP repair if timing failed
             if not feasible:
-                # assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b]]
-                # new_route = repair_route(
-                #     assigned,
-                #     self.instance.C_dict,
-                #     self.Barge_cap[to_b],
-                #     self.instance.T_ij_matrix,
-                # )
-                # self.milp_calls += 1
+                assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b]]
+                new_route = repair_route(
+                    assigned,
+                    self.instance.C_dict,
+                    self.Barge_cap[to_b],
+                    self.instance.T_ij_matrix,
+                )
+                self.milp_calls += 1
 
-                # if new_route is None:
-                #     # undo everything
-                self.f_ck[c, :] = old_row
-                self.route_dict = old_route_dict
-                self.Barge_cap = old_Barge_cap
-                self.H_b = old_H_b
-                # self.T1[move] = self.tenure_move_container
-                return False
+                if new_route is None:
+                    # undo everything
+                    self.f_ck[c, :] = old_row
+                    self.route_dict = old_route_dict
+                    self.Barge_cap = old_Barge_cap
+                    self.H_b = old_H_b
+                    # self.T1[move] = self.tenure_move_container
+                    return False
 
-                # self.milp_repairs += 1
-                # self.route_dict[to_b] = new_route
+                self.milp_repairs += 1
+                self.route_dict[to_b] = new_route
 
         # 8) tabu bookkeeping
         if to_b == "truck" and c in self.critical:
@@ -558,7 +595,7 @@ class MetaHeuristic:
         return True
 
     def operator_swap(self):
-        c1, c2 = self.rng.sample(range(self.instance.C), 2)
+        c1, c2 = random.sample(range(self.instance.C), 2)
         bs1 = [k for k in range(self.K) if self.f_ck[c1, k]]
         bs2 = [k for k in range(self.K) if self.f_ck[c2, k]]
         if not bs1 or not bs2 or bs1[0] == bs2[0]:
@@ -670,22 +707,22 @@ class MetaHeuristic:
                 return False
             else:
                 self.milp_repairs += 1
-                L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
+                # L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
 
-                old_route = self.get_route(L_cur_temp)
-                old_cost = sum(
-                    self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
-                    for i in range(len(old_route) - 1)
-                )
+                # old_route = self.get_route(L_cur_temp)
+                # old_cost = sum(
+                #     self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
+                #     for i in range(len(old_route) - 1)
+                # )
 
-                new_cost = sum(
-                    self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
-                    for i in range(len(new_route) - 1)
-                )
+                # new_cost = sum(
+                #     self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
+                #     for i in range(len(new_route) - 1)
+                # )
 
-                if new_cost >= old_cost:
-                    print("MILP routing not better:", old_cost, "→", new_cost)
-                self.route_dict[b] = new_route
+                # if new_cost >= old_cost:
+                #     print("MILP routing not better:", old_cost, "→", new_cost)
+                # self.route_dict[b] = new_route
 
         # both repairs succeeded
         return True
@@ -751,7 +788,7 @@ class MetaHeuristic:
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
                 print(f"  Current best cost: {self.best_cost}")
-            if self.rng.random() < 0.8:
+            if random.random() < 0.8:
                 moved = self.operator_move()
                 if moved:
                     self.move_accepts += 1
