@@ -3,7 +3,7 @@ import numpy as np
 import pulp
 import copy
 
-rng = np.random.default_rng(seed=1)
+rng = np.random.default_rng(seed=2)
 
 
 def sanitize_for_yaml(obj):
@@ -57,7 +57,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # STEP 0 — Terminal set and demands
     # --------------------------------------------------
 
-    terminals = sorted({C_dict[c]["Terminal"] for c in assigned_containers})
+    terminals = sorted({C_dict[cont]["Terminal"] for cont in assigned_containers})
     if 0 not in terminals:
         terminals = [0] + terminals
 
@@ -67,14 +67,14 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     p = {j: 0 for j in N if j != 0}  # imports
     d = {j: 0 for j in N if j != 0}  # exports
 
-    for c in assigned_containers:
-        j = C_dict[c]["Terminal"]
+    for cont in assigned_containers:
+        j = C_dict[cont]["Terminal"]
         if j == 0:
             continue
-        if C_dict[c]["In_or_Out"] == 1:
-            p[j] += C_dict[c]["Wc"]
+        if C_dict[cont]["In_or_Out"] == 1:
+            p[j] += C_dict[cont]["Wc"]
         else:
-            d[j] += C_dict[c]["Wc"]
+            d[j] += C_dict[cont]["Wc"]
 
     # print("Import pickups per terminal:", p)
     # print("Export deliveries per terminal:", d)
@@ -87,18 +87,24 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     for j in N:
         if j == 0:
             continue
-        related = [c for c in assigned_containers if C_dict[c]["Terminal"] == j]
+        related = [
+            cont for cont in assigned_containers if C_dict[cont]["Terminal"] == j
+        ]
         if related:
-            service_time[j] = sum(1 for c in related) * Handling_time
-            O[j] = max(C_dict[c]["Oc"] for c in related)
-            D[j] = min(C_dict[c]["Dc"] for c in related) - service_time[j]
+            service_time[j] = sum(1 for cont in related) * Handling_time
+            O[j] = max(C_dict[cont]["Oc"] for cont in related)
+            D[j] = min(C_dict[cont]["Dc"] for cont in related) - service_time[j]
 
         else:
             O[j] = 0
             D[j] = 10**6
 
     R = max(
-        [C_dict[c]["Rc"] for c in assigned_containers if C_dict[c]["In_or_Out"] == 2]
+        [
+            C_dict[cont]["Rc"]
+            for cont in assigned_containers
+            if C_dict[cont]["In_or_Out"] == 2
+        ]
         or [0]
     )
 
@@ -232,7 +238,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
         if current == 0:
             break
 
-    print("Repaired route with MILP!!!")
+    # print("Repaired route with MILP!!!")
 
     return route
 
@@ -256,18 +262,11 @@ class MetaHeuristic:
         self.instance = problem_instance
         self.init_solution = init_solution
 
-        # 1) compute slacks and pick top‐10% as critical
-        slacks = {
-            c: self.instance.C_dict[c]["Dc"] - self.instance.C_dict[c]["Oc"]
-            for c in self.init_solution.C_ordered
-        }
-        ncrit = max(1, int(0.1 * len(self.init_solution.C_ordered)))
-        crit_sorted = sorted(slacks, key=slacks.get)
-        self.critical = set(crit_sorted[:ncrit])
-
         self.H_t_dict = {1: self.instance.H_t_20, 2: self.instance.H_t_40}
 
         self.K = len(self.instance.K_list[:-1])  # exclude the truck
+
+        self.full_choice_list = list(range(self.K)) + ["truck"]
 
         self.Barge_cap = self.init_solution.Barges
         self.H_b = self.init_solution.H_b
@@ -281,6 +280,12 @@ class MetaHeuristic:
         self.T1 = {}
         self.T2 = {}
         self.T3 = {}
+
+        self.critical = self._compute_critical_containers()
+
+        self.non_critical = [
+            cont for cont in range(self.instance.C) if cont not in self.critical
+        ]
 
         self.route_dict = {}
 
@@ -298,7 +303,56 @@ class MetaHeuristic:
         self.tenure_move_container = 15
         self.tenure_critical_container = 15
         self.tenure_barge_shake_ban = 20
-        self.shake_threshold = 60
+        self.shake_threshold = 100
+
+    def _compute_critical_containers(self):
+        """
+        Compute the set of critical containers according to the paper logic:
+
+        - Per sea terminal:
+            * container with earliest opening time (min Oc)
+            * container with latest closing time (max Dc)
+        - Globally:
+            * export container with latest release time (max Rc), if Rc > 0 exists
+        """
+
+        critical = set()
+        C_dict = self.instance.C_dict
+
+        # --- per-terminal critical containers (exclude dry port j = 0) ---
+        terminals = {
+            info["Terminal"] for info in C_dict.values() if info["Terminal"] != 0
+        }
+
+        for j in terminals:
+            containers_at_j = [
+                cont for cont, info in C_dict.items() if info["Terminal"] == j
+            ]
+
+            if not containers_at_j:
+                continue
+
+            # earliest opening
+            c_earliest_O = min(containers_at_j, key=lambda cont: C_dict[cont]["Oc"])
+
+            # latest closing
+            c_latest_D = max(containers_at_j, key=lambda cont: C_dict[cont]["Dc"])
+
+            critical.add(c_earliest_O)
+            critical.add(c_latest_D)
+
+        # --- export container with latest release ---
+        export_containers = [
+            cont for cont, info in C_dict.items() if info["In_or_Out"] == 2
+        ]
+
+        if export_containers:
+            max_Rc = max(C_dict[cont]["Rc"] for cont in export_containers)
+            if max_Rc > 0:  # ignore trivial all-zero case
+                c_latest_R = max(export_containers, key=lambda cont: C_dict[cont]["Rc"])
+                critical.add(c_latest_R)
+
+        return critical
 
     def _edge_loads_along_route(
         self,
@@ -310,7 +364,7 @@ class MetaHeuristic:
         edge_load_list = []
 
         # Start at depot: all exports are loaded
-        load = sum(c["Wc"] for c in L_current.values() if c["In_or_Out"] == 2)
+        load = sum(cont["Wc"] for cont in L_current.values() if cont["In_or_Out"] == 2)
         edge_load_list.append(load)
 
         # Visit terminals once in the given route
@@ -319,14 +373,14 @@ class MetaHeuristic:
                 continue
 
             exports_unloaded = sum(
-                c["Wc"]
-                for c in L_current.values()
-                if c["Terminal"] == terminal and c["In_or_Out"] == 2
+                cont["Wc"]
+                for cont in L_current.values()
+                if cont["Terminal"] == terminal and cont["In_or_Out"] == 2
             )
             imports_loaded = sum(
-                c["Wc"]
-                for c in L_current.values()
-                if c["Terminal"] == terminal and c["In_or_Out"] == 1
+                cont["Wc"]
+                for cont in L_current.values()
+                if cont["Terminal"] == terminal and cont["In_or_Out"] == 1
             )
 
             load -= exports_unloaded
@@ -336,8 +390,10 @@ class MetaHeuristic:
         self.route_load_dict[barge_idx] = edge_load_list
 
     def _get_L_current_for_barge(self, barge_idx, fck=None):
-        assigned = [c for c in range(self.instance.C) if fck[c, barge_idx] == 1]
-        L_current = {c: self.instance.C_dict[c] for c in assigned}
+        assigned = [
+            cont for cont in range(self.instance.C) if fck[cont, barge_idx] == 1
+        ]
+        L_current = {cont: self.instance.C_dict[cont] for cont in assigned}
         return L_current
 
     def _fill_dicts(self, fck):
@@ -411,10 +467,12 @@ class MetaHeuristic:
         for k in range(self.K):
             if k in self.T3:
                 continue
-            assigned = [c for c in range(self.instance.C) if self.f_ck[c, k] == 1]
+            assigned = [
+                cont for cont in range(self.instance.C) if self.f_ck[cont, k] == 1
+            ]
             if not assigned:
                 continue
-            Lcur = {c: self.instance.C_dict[c] for c in assigned}
+            Lcur = {cont: self.instance.C_dict[cont] for cont in assigned}
             route = self.route_dict.get(k, self.get_route(Lcur))
             self._edge_loads_along_route(route, Lcur, k)
             util = max(self.route_load_dict[k]) / self.Barge_cap[k]
@@ -424,35 +482,144 @@ class MetaHeuristic:
             self.f_ck[:, best_k] = 0
             self.T3[best_k] = self.tenure_barge_shake_ban
 
+    def _randomized_greedy_reinsert(self, barge_idx, max_trials=10):
+        """
+        Randomized greedy procedure:
+        tries to insert trucked containers into a specific barge.
+        Triggered after removing a critical container from that barge.
+        """
+
+        for _ in range(max_trials):
+            trucked_containers = [
+                cont for cont in range(self.instance.C) if not any(self.f_ck[cont, :])
+            ]
+
+            if not trucked_containers:
+                return
+
+            cont = rng.choice(trucked_containers)
+
+            old_route_dict = copy.deepcopy(self.route_dict)
+
+            # tentative insertion
+            self.f_ck[cont, barge_idx] = 1
+            self.route_dict.pop(barge_idx, None)
+
+            Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
+
+            route = self.route_dict.get(barge_idx, self.get_route(Lcur))
+
+            # capacity check
+            if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
+                self.f_ck[cont, barge_idx] = 0
+                continue
+
+            D_term, O_term = self.get_timing(route, Lcur)
+            arrival_by_terminal = dict(zip(route, O_term))
+            departure_by_terminal = dict(zip(route, D_term))
+
+            idx = 1
+            feasible = True
+
+            while idx < len(route):
+                terminal = route[idx]
+                if terminal == 0:
+                    idx += 1
+                    continue
+
+                Oj = max(
+                    info["Oc"] for info in Lcur.values() if info["Terminal"] == terminal
+                )
+                Dj = min(
+                    info["Dc"] for info in Lcur.values() if info["Terminal"] == terminal
+                )
+
+                arrival = arrival_by_terminal[terminal]
+
+                if arrival > Dj:
+                    feasible = False
+                    break
+
+                if arrival < Oj:
+                    new_arrival = Oj
+                    if new_arrival > Dj:
+                        feasible = False
+                        break
+
+                    n_here = sum(
+                        1 for info in Lcur.values() if info["Terminal"] == terminal
+                    )
+                    new_departure = (
+                        new_arrival + self.instance.Handling_time * n_here
+                    )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
+
+                    old_departure = departure_by_terminal[terminal]
+                    shift = new_departure - old_departure
+
+                    arrival_by_terminal[terminal] = new_arrival
+                    departure_by_terminal[terminal] = new_departure
+
+                    next_terminal_idx = idx + 1
+                    if next_terminal_idx < len(route):
+                        for j in range(next_terminal_idx, len(route)):
+                            next_terminal = route[j]
+                            arrival_by_terminal[next_terminal] += shift
+                            departure_by_terminal[next_terminal] += shift
+
+                idx += 1
+
+            if feasible:
+                # accept immediately (greedy)
+                self.route_dict[barge_idx] = route
+                return
+            else:
+                # revert
+                self.f_ck[cont, barge_idx] = 0
+                self.route_dict = old_route_dict
+
     def operator_move(self):
 
-        # 1) pick container c (unchanged)
+        # 1) pick container container (unchanged)
+
         if rng.random() < self.critical_move_prob:
-            trucked = [c for c in range(self.instance.C) if not any(self.f_ck[c])]
-            crit_trucked = [c for c in trucked if c in self.critical]
+            crital_container_chosen = True
+            trucked = [
+                cont for cont in range(self.instance.C) if not any(self.f_ck[cont])
+            ]
+            crit_trucked = [cont for cont in trucked if cont in self.critical]
             if crit_trucked:
-                c = rng.choice(crit_trucked)
-            elif trucked:
-                c = rng.choice(trucked)
+                container = rng.choice(crit_trucked)
             else:
-                c = rng.integers(0, self.instance.C)
+                container = rng.choice(list(self.critical))
         else:
-            c = rng.integers(0, self.instance.C)
+            crital_container_chosen = False
+            container = rng.choice(self.non_critical)
 
         # 2) locate current assignment
-        from_b = next((k for k in range(self.K) if self.f_ck[c, k]), None)
+        from_b = next((k for k in range(self.K) if self.f_ck[container, k]), None)
         if from_b is None:
             from_b = "truck"
-        choices = list(range(self.K)) + ["truck"]
+
+        choices = copy.deepcopy(self.full_choice_list)
+
+        if from_b == "truck":
+            choices.remove("truck")  # cannot move truck → truck
+        elif not crital_container_chosen:
+            choices.remove(from_b)  # cannot move to same barge
+            choices.remove(
+                "truck"
+            )  # cannot move → truck as the container is non-critical
+        elif crital_container_chosen:
+            choices.remove(from_b)  # cannot move to same barge
+
         to_b = rng.choice(choices)
 
         if isinstance(to_b, str) and to_b != "truck":
             to_b = int(to_b)
 
-        if to_b == from_b:
-            return False
+        assert to_b != from_b, "from_b and to_b cannot be the same"
 
-        move = (c, from_b, to_b)
+        move = (container, from_b, to_b)
 
         # 3) tabu check
         if (
@@ -464,18 +631,18 @@ class MetaHeuristic:
             return False
 
         # Save old state
-        old_row = self.f_ck[c, :].copy()
+        old_row = self.f_ck[container, :].copy()
         old_route_dict = self.route_dict.copy()
         old_Barge_cap = self.Barge_cap.copy()
         old_H_b = self.H_b.copy()
 
         # 4) tentative apply
         if from_b != "truck":
-            self.f_ck[c, from_b] = 0
+            self.f_ck[container, from_b] = 0
             self.route_dict.pop(from_b, None)
 
         if to_b != "truck":
-            self.f_ck[c, to_b] = 1
+            self.f_ck[container, to_b] = 1
             self.route_dict.pop(to_b, None)
 
         self._fill_dicts(fck=self.f_ck)
@@ -487,9 +654,9 @@ class MetaHeuristic:
         req_sorted = sorted(required_capacity)
         cap_sorted = sorted(self.Barge_cap)
 
-        if any(r > c for r, c in zip(req_sorted, cap_sorted)):
+        if any(req > cap for req, cap in zip(req_sorted, cap_sorted)):
             # impossible no matter what
-            self.f_ck[c, :] = old_row
+            self.f_ck[container, :] = old_row
             self.route_dict = old_route_dict
             self.Barge_cap = old_Barge_cap
             self.H_b = old_H_b
@@ -576,7 +743,7 @@ class MetaHeuristic:
 
                 if new_route is None:
                     # undo everything
-                    self.f_ck[c, :] = old_row
+                    self.f_ck[container, :] = old_row
                     self.route_dict = old_route_dict
                     self.Barge_cap = old_Barge_cap
                     self.H_b = old_H_b
@@ -587,8 +754,10 @@ class MetaHeuristic:
                 self.route_dict[to_b] = new_route
 
         # 8) tabu bookkeeping
-        if to_b == "truck" and c in self.critical:
+        if crital_container_chosen and from_b != "truck":
             self.T2[move] = self.tenure_critical_container
+
+            self._randomized_greedy_reinsert(from_b)
 
         return True
 
@@ -725,7 +894,7 @@ class MetaHeuristic:
             assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
             if not assigned:
                 continue
-            Lcur = {c: self.instance.C_dict[c] for c in assigned}
+            Lcur = {cont: self.instance.C_dict[cont] for cont in assigned}
             route = self.route_dict.get(k, self.get_route(Lcur))
 
             self.route_dict[k] = route
@@ -746,8 +915,8 @@ class MetaHeuristic:
 
         # truck
         unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
-        for c in unassigned:
-            total_cost += self.H_t_dict[self.instance.C_dict[c]["Wc"]]
+        for cont in unassigned:
+            total_cost += self.H_t_dict[self.instance.C_dict[cont]["Wc"]]
 
         return total_cost
 
@@ -836,23 +1005,23 @@ class MetaHeuristic:
         trucked_containers = []
         total_containers_on_barges = 0
 
-        for c in range(self.instance.C):
+        for cont in range(self.instance.C):
             assigned = False
             for k in range(self.K):
-                if self.f_ck[c, k] == 1:
-                    barge_assignments[k].append(c)
+                if self.f_ck[cont, k] == 1:
+                    barge_assignments[k].append(cont)
                     total_containers_on_barges += 1
                     assigned = True
                     break
             if not assigned:
-                trucked_containers.append(c)
+                trucked_containers.append(cont)
 
         for k in range(self.K):
             containers = barge_assignments[k]
             if not containers:
                 continue
 
-            Lcur = {c: self.instance.C_dict[c] for c in containers}
+            Lcur = {cont: self.instance.C_dict[cont] for cont in containers}
             route = self.route_dict.get(k, self.get_route(Lcur))
 
             cap = self.Barge_cap[k]
@@ -861,10 +1030,14 @@ class MetaHeuristic:
             peak = max(self.route_load_dict[k])
 
             imports = [
-                c for c in containers if self.instance.C_dict[c]["In_or_Out"] == 1
+                cont
+                for cont in containers
+                if self.instance.C_dict[cont]["In_or_Out"] == 1
             ]
             exports = [
-                c for c in containers if self.instance.C_dict[c]["In_or_Out"] == 2
+                cont
+                for cont in containers
+                if self.instance.C_dict[cont]["In_or_Out"] == 2
             ]
 
             report["barges"].append(
@@ -884,10 +1057,14 @@ class MetaHeuristic:
         report["trucked_containers"] = {
             "container_ids": trucked_containers,
             "num_20ft": sum(
-                1 for c in trucked_containers if self.instance.C_dict[c]["Wc"] == 1
+                1
+                for cont in trucked_containers
+                if self.instance.C_dict[cont]["Wc"] == 1
             ),
             "num_40ft": sum(
-                1 for c in trucked_containers if self.instance.C_dict[c]["Wc"] == 2
+                1
+                for cont in trucked_containers
+                if self.instance.C_dict[cont]["Wc"] == 2
             ),
         }
 
