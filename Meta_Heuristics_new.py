@@ -1,10 +1,9 @@
 from matplotlib import pyplot as plt
-import random
 import numpy as np
 import pulp
 import copy
 
-random.seed(1)
+rng = np.random.default_rng(seed=42)
 
 
 def sanitize_for_yaml(obj):
@@ -206,7 +205,16 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     # --------------------------------------------------
     # prob.writeLP("repair_debug.lp")
 
-    status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    # status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+    status = prob.solve(
+        pulp.PULP_CBC_CMD(
+            msg=False,
+            threads=1,  # 🔑 determinism
+            timeLimit=None,
+            options=["randomSeed 0"],  # 🔑 determinism
+        )
+    )
 
     if pulp.LpStatus[status] != "Optimal":
         # print("No feasible MILP route found")
@@ -433,24 +441,27 @@ class MetaHeuristic:
     def operator_move(self):
 
         # 1) pick container c (unchanged)
-        if random.random() < self.critical_move_prob:
+        if rng.random() < self.critical_move_prob:
             trucked = [c for c in range(self.instance.C) if not any(self.f_ck[c])]
             crit_trucked = [c for c in trucked if c in self.critical]
             if crit_trucked:
-                c = random.choice(crit_trucked)
+                c = rng.choice(crit_trucked)
             elif trucked:
-                c = random.choice(trucked)
+                c = rng.choice(trucked)
             else:
-                c = random.randrange(self.instance.C)
+                c = rng.integers(0, self.instance.C)
         else:
-            c = random.randrange(self.instance.C)
+            c = rng.integers(0, self.instance.C)
 
         # 2) locate current assignment
         from_b = next((k for k in range(self.K) if self.f_ck[c, k]), None)
         if from_b is None:
             from_b = "truck"
         choices = list(range(self.K)) + ["truck"]
-        to_b = random.choice(choices)
+        to_b = rng.choice(choices)
+
+        if isinstance(to_b, str) and to_b != "truck":
+            to_b = int(to_b)
 
         if to_b == from_b:
             return False
@@ -592,7 +603,7 @@ class MetaHeuristic:
         return True
 
     def operator_swap(self):
-        c1, c2 = random.sample(range(self.instance.C), 2)
+        c1, c2 = rng.choice(self.instance.C, size=2, replace=False)
         bs1 = [k for k in range(self.K) if self.f_ck[c1, k]]
         bs2 = [k for k in range(self.K) if self.f_ck[c2, k]]
         if not bs1 or not bs2 or bs1[0] == bs2[0]:
@@ -771,7 +782,7 @@ class MetaHeuristic:
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
                 print(f"  Current best cost: {self.best_cost}")
-            if random.random() < 0.8:
+            if rng.random() < 0.8:
                 moved = self.operator_move()
                 if moved:
                     self.move_accepts += 1
