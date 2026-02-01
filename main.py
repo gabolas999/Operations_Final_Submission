@@ -279,7 +279,6 @@ def main(
         get_route=greedy.get_route,
         get_timing=greedy.get_timing,
         check_for_cap=greedy.check_for_cap,
-        delay_window=greedy.delay_window,
         calculate_objective=greedy.calculate_objective,
     )
 

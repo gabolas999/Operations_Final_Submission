@@ -129,7 +129,7 @@ class GreedyOptimizer:
 
         return route
 
-    def get_timing(self, route, L_current, departure_shift):
+    def get_timing(self, route, L_current, departure_shift=0.0):
         """
         Returns:
         D_terminal: departure times at each route node (after service)
@@ -219,29 +219,29 @@ class GreedyOptimizer:
 
         return True
 
-    def delay_window(self, container, O_terminal, route, terminal):
-        """
-        Calculate delay needed for container to fit in time window if the arrival is too early.
-        Late arrivals are not adjusted as any delay would make the issue worse, so we return 0 in that case.
+    # def delay_window(self, container, O_terminal, route, terminal):
+    #     """
+    #     Calculate delay needed for container to fit in time window if the arrival is too early.
+    #     Late arrivals are not adjusted as any delay would make the issue worse, so we return 0 in that case.
 
-        Parameters:
-        -----------
-        container : dict
-            Container information
-        O_terminal : list
-            Arrival times at each terminal
-        route : list
-            Route as list of terminal indices
-        terminal : int
-            Terminal index
+    #     Parameters:
+    #     -----------
+    #     container : dict
+    #         Container information
+    #     O_terminal : list
+    #         Arrival times at each terminal
+    #     route : list
+    #         Route as list of terminal indices
+    #     terminal : int
+    #         Terminal index
 
-        Returns:
-        --------
-        float : Required delay in hours
-        """
-        Oc = container["Oc"]
-        arrival = O_terminal[route.index(terminal)]
-        return max(0.0, Oc - arrival)
+    #     Returns:
+    #     --------
+    #     float : Required delay in hours
+    #     """
+    #     Oc = container["Oc"]
+    #     arrival = O_terminal[route.index(terminal)]
+    #     return max(0.0, Oc - arrival)
 
     def solve_greedy(self):
         """

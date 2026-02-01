@@ -251,14 +251,12 @@ class MetaHeuristic:
         get_route,
         get_timing,
         check_for_cap,
-        delay_window,
         calculate_objective,
     ):
 
         self.get_route = get_route
         self.get_timing = get_timing
         self.check_for_cap = check_for_cap
-        self.delay_window = delay_window
         self.calculate_objective = calculate_objective
 
         self.instance = problem_instance
@@ -305,7 +303,7 @@ class MetaHeuristic:
         self.truck_move_prob = 0.6
         self.tenure_move_container = 15
         self.tenure_critical_container = 15
-        self.tenure_barge_shake_ban = 8
+        self.tenure_barge_shake_ban = 20
         self.shake_threshold = 60
 
     def _edge_loads_along_route(
@@ -514,56 +512,103 @@ class MetaHeuristic:
 
             route = self.route_dict.get(to_b, self.get_route(Lcur))
 
-            delay = 0.0
-            feasible = False
-            late = False
+            # delay = 0.0
+            # feasible = False
+            # late = False
 
-            delay_per_terminal = {term: 0 for term in route}
+            # delay_per_terminal = {term: 0 for term in route}
 
-            for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
-                D_term, O_term = self.get_timing(route, Lcur, delay)
-                arrival_by_terminal = dict(zip(route, O_term))
+            # for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
+            D_term, O_term = self.get_timing(route, Lcur)
+            arrival_by_terminal = dict(zip(route, O_term))
+            departure_by_terminal = dict(zip(route, D_term))
 
-                for terminal in route:
-                    if terminal == 0:
-                        continue
-                    Oj = max(
-                        [
-                            info["Oc"]
-                            for info in Lcur.values()
-                            if info["Terminal"] == terminal
-                        ]
-                    )
-                    Dj = min(
-                        [
-                            info["Dc"]
-                            for info in Lcur.values()
-                            if info["Terminal"] == terminal
-                        ]
-                    )
+            #     for terminal in route:
+            #         if terminal == 0:
+            #             continue
+            #         Oj = max(
+            #             [
+            #                 info["Oc"]
+            #                 for info in Lcur.values()
+            #                 if info["Terminal"] == terminal
+            #             ]
+            #         )
+            #         Dj = min(
+            #             [
+            #                 info["Dc"]
+            #                 for info in Lcur.values()
+            #                 if info["Terminal"] == terminal
+            #             ]
+            #         )
 
-                    arrival = arrival_by_terminal[terminal]
+            #         arrival = arrival_by_terminal[terminal]
 
-                    if arrival >= Oj and arrival <= Dj:
-                        continue
-                    elif arrival < Oj:
-                        delay_per_terminal[terminal] = Oj - arrival
-                    elif arrival > Dj:
-                        late = True
-                        break
+            #         if arrival >= Oj and arrival <= Dj:
+            #             continue
+            #         elif arrival < Oj:
+            #             delay_per_terminal[terminal] = Oj - arrival
+            #         elif arrival > Dj:
+            #             late = True
+            #             break
 
-                if late:
+            #     if late:
+            #         feasible = False
+            #         break
+
+            #     if all(d == 0 for d in delay_per_terminal.values()):
+            #         feasible = True
+            #         break
+
+            #     if attempt == 0:
+            #         delay += max(delay_per_terminal.values())
+            #     else:
+            #         break
+
+            idx = 1
+            feasible = True
+
+            while idx < len(route):
+                terminal = route[idx]
+                if terminal == 0:
+                    idx += 1
+                    continue
+
+                Oj = max(
+                    info["Oc"] for info in Lcur.values() if info["Terminal"] == terminal
+                )
+                Dj = min(
+                    info["Dc"] for info in Lcur.values() if info["Terminal"] == terminal
+                )
+
+                arrival = arrival_by_terminal[terminal]
+
+                if arrival > Dj:
                     feasible = False
                     break
 
-                if all(d == 0 for d in delay_per_terminal.values()):
-                    feasible = True
-                    break
+                if arrival < Oj:
+                    new_arrival = Oj
+                    if new_arrival > Dj:
+                        feasible = False
+                        break
+                    new_departure = (
+                        new_arrival + self.instance.Handling_time
+                    )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
 
-                if attempt == 0:
-                    delay += max(delay_per_terminal.values())
-                else:
-                    break
+                    old_departure = departure_by_terminal[terminal]
+                    shift = new_departure - old_departure
+
+                    arrival_by_terminal[terminal] = new_arrival
+                    departure_by_terminal[terminal] = new_departure
+
+                    next_terminal_idx = idx + 1
+                    if next_terminal_idx < len(route):
+                        for j in range(next_terminal_idx, len(route)):
+                            next_terminal = route[j]
+                            arrival_by_terminal[next_terminal] += shift
+                            departure_by_terminal[next_terminal] += shift
+
+                idx += 1
 
             # 7) MILP repair if timing failed
             if not feasible:
@@ -622,62 +667,113 @@ class MetaHeuristic:
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, k]]
             if not assigned:
                 return True
-            Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = self.route_dict.get(k, self.get_route(Lcur))
-            if not self.check_for_cap(route, Lcur, k, barges=self.Barge_cap):
-                return False
+
             # one‐shift TW
             # ---- time-window check (identical logic to Greedy) ----
-            delay = 0.0
-            success = False
-            late = False
+            Lcur = self._get_L_current_for_barge(barge_idx=k, fck=self.f_ck)
 
-            delay_per_terminal = {term: 0 for term in route}
+            route = self.route_dict.get(k, self.get_route(Lcur))
 
-            for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
-                D_term, O_term = self.get_timing(route, Lcur, delay)
-                arrival_by_terminal = dict(zip(route, O_term))
+            if not self.check_for_cap(route, Lcur, k, barges=self.Barge_cap):
+                return False
 
-                for terminal in route:
-                    if terminal == 0:
-                        continue
-                    Oj = max(
-                        [
-                            info["Oc"]
-                            for info in Lcur.values()
-                            if info["Terminal"] == terminal
-                        ]
-                    )
-                    Dj = min(
-                        [
-                            info["Dc"]
-                            for info in Lcur.values()
-                            if info["Terminal"] == terminal
-                        ]
-                    )
+            # delay = 0.0
+            # feasible = False
+            # late = False
 
-                    arrival = arrival_by_terminal[terminal]
+            # delay_per_terminal = {term: 0 for term in route}
 
-                    if arrival >= Oj and arrival <= Dj:
-                        continue
-                    elif arrival < Oj:
-                        delay_per_terminal[terminal] = Oj - arrival
-                    elif arrival > Dj:
-                        late = True
-                        break
+            # for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
+            D_term, O_term = self.get_timing(route, Lcur)
+            arrival_by_terminal = dict(zip(route, O_term))
+            departure_by_terminal = dict(zip(route, D_term))
 
-                if late:
+            #     for terminal in route:
+            #         if terminal == 0:
+            #             continue
+            #         Oj = max(
+            #             [
+            #                 info["Oc"]
+            #                 for info in Lcur.values()
+            #                 if info["Terminal"] == terminal
+            #             ]
+            #         )
+            #         Dj = min(
+            #             [
+            #                 info["Dc"]
+            #                 for info in Lcur.values()
+            #                 if info["Terminal"] == terminal
+            #             ]
+            #         )
+
+            #         arrival = arrival_by_terminal[terminal]
+
+            #         if arrival >= Oj and arrival <= Dj:
+            #             continue
+            #         elif arrival < Oj:
+            #             delay_per_terminal[terminal] = Oj - arrival
+            #         elif arrival > Dj:
+            #             late = True
+            #             break
+
+            #     if late:
+            #         feasible = False
+            #         break
+
+            #     if all(d == 0 for d in delay_per_terminal.values()):
+            #         feasible = True
+            #         break
+
+            #     if attempt == 0:
+            #         delay += max(delay_per_terminal.values())
+            #     else:
+            #         break
+
+            idx = 1
+            success = True
+
+            while idx < len(route):
+                terminal = route[idx]
+                if terminal == 0:
+                    idx += 1
+                    continue
+
+                Oj = max(
+                    info["Oc"] for info in Lcur.values() if info["Terminal"] == terminal
+                )
+                Dj = min(
+                    info["Dc"] for info in Lcur.values() if info["Terminal"] == terminal
+                )
+
+                arrival = arrival_by_terminal[terminal]
+
+                if arrival > Dj:
                     success = False
                     break
 
-                if all(d == 0 for d in delay_per_terminal.values()):
-                    success = True
-                    break
+                if arrival < Oj:
+                    new_arrival = Oj
+                    if new_arrival > Dj:
+                        success = False
+                        break
+                    new_departure = (
+                        new_arrival + self.instance.Handling_time
+                    )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
 
-                if attempt == 0:
-                    delay += max(delay_per_terminal.values())
-                else:
-                    break
+                    old_departure = departure_by_terminal[terminal]
+                    shift = new_departure - old_departure
+
+                    arrival_by_terminal[terminal] = new_arrival
+                    departure_by_terminal[terminal] = new_departure
+
+                    next_terminal_idx = idx + 1
+                    if next_terminal_idx < len(route):
+                        for j in range(next_terminal_idx, len(route)):
+                            next_terminal = route[j]
+                            arrival_by_terminal[next_terminal] += shift
+                            departure_by_terminal[next_terminal] += shift
+
+                idx += 1
 
             return success
 
@@ -731,7 +827,7 @@ class MetaHeuristic:
         total_cost = 0
         total_stops = 0
         utils = []
-        self.x_ijk = np.zeros((len(self.Barge_cap), self.instance.N, self.instance.N))
+        self.x_ijk = np.zeros((self.instance.N, self.instance.N, len(self.Barge_cap)))
 
         for k in range(self.K):
             assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
@@ -744,7 +840,7 @@ class MetaHeuristic:
 
             for i in range(len(route) - 1):
                 if route[i] != route[i + 1]:
-                    self.x_ijk[k][route[i]][route[i + 1]] = 1
+                    self.x_ijk[route[i]][route[i + 1]][k] = 1
 
             # util
 
