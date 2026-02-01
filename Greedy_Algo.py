@@ -282,64 +282,61 @@ class GreedyOptimizer:
                     self.f_ck_init[c, barge_idx] = 0
                     continue
 
-                # 4) Time‐window check, with up to one "departure shift"
-                success = False
-                late = False
-                delay = departure_delay  # start from whatever delay we already have
+                D_term, O_term = self.get_timing(route, L_current)
+                arrival_by_terminal = dict(zip(route, O_term))
+                departure_by_terminal = dict(zip(route, D_term))
 
-                delay_per_terminal = {term: 0 for term in route}
+                idx = 1
+                success = True
 
-                # Try once to adjust departure (max_tries = 1)
-                for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
-                    D_term, O_term = self.get_timing(route, L_current, delay)
-                    arrival_by_terminal = dict(zip(route, O_term))
+                while idx < len(route):
+                    terminal = route[idx]
+                    if terminal == 0:
+                        idx += 1
+                        continue
 
-                    for terminal in route:
-                        if terminal == 0:
-                            continue
-                        Oj = max(
-                            [
-                                info["Oc"]
-                                for info in L_current.values()
-                                if info["Terminal"] == terminal
-                            ]
-                        )
-                        Dj = min(
-                            [
-                                info["Dc"]
-                                for info in L_current.values()
-                                if info["Terminal"] == terminal
-                            ]
-                        )
+                    Oj = max(
+                        info["Oc"]
+                        for info in L_current.values()
+                        if info["Terminal"] == terminal
+                    )
+                    Dj = min(
+                        info["Dc"]
+                        for info in L_current.values()
+                        if info["Terminal"] == terminal
+                    )
 
-                        arrival = arrival_by_terminal[terminal]
+                    arrival = arrival_by_terminal[terminal]
 
-                        if arrival >= Oj and arrival <= Dj:
-                            continue  # this terminal is fine
-                        elif arrival < Oj:
-                            delay_per_terminal[terminal] = Oj - arrival
-                        elif arrival > Dj:
-                            late = True
+                    if arrival > Dj:
+                        success = False
+                        break
+
+                    if arrival < Oj:
+                        new_arrival = Oj
+                        if new_arrival > Dj:
+                            success = False
                             break
+                        new_departure = (
+                            new_arrival + self.instance.Handling_time
+                        )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
 
-                    if late:
-                        break
+                        old_departure = departure_by_terminal[terminal]
+                        shift = new_departure - old_departure
 
-                    if all(d == 0 for d in delay_per_terminal.values()):
-                        # everyone fits under this `delay`
-                        success = True
-                        break
+                        arrival_by_terminal[terminal] = new_arrival
+                        departure_by_terminal[terminal] = new_departure
 
-                    # if we still have our one "shift" left, compute the shift
-                    if attempt == 0:
-                        delay += max(delay_per_terminal.values())
-                    else:
-                        # second pass and still violations → fail
-                        break
+                        next_terminal_idx = idx + 1
+                        if next_terminal_idx < len(route):
+                            for j in range(next_terminal_idx, len(route)):
+                                next_terminal = route[j]
+                                arrival_by_terminal[next_terminal] += shift
+                                departure_by_terminal[next_terminal] += shift
+
+                    idx += 1
 
                 if success:
-                    # commit this shift permanently for the rest of this barge
-                    departure_delay = delay
                     to_ignore.append(c)
                 else:
                     # undo assignment

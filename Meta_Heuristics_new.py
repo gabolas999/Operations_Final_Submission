@@ -512,57 +512,9 @@ class MetaHeuristic:
 
             route = self.route_dict.get(to_b, self.get_route(Lcur))
 
-            # delay = 0.0
-            # feasible = False
-            # late = False
-
-            # delay_per_terminal = {term: 0 for term in route}
-
-            # for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
             D_term, O_term = self.get_timing(route, Lcur)
             arrival_by_terminal = dict(zip(route, O_term))
             departure_by_terminal = dict(zip(route, D_term))
-
-            #     for terminal in route:
-            #         if terminal == 0:
-            #             continue
-            #         Oj = max(
-            #             [
-            #                 info["Oc"]
-            #                 for info in Lcur.values()
-            #                 if info["Terminal"] == terminal
-            #             ]
-            #         )
-            #         Dj = min(
-            #             [
-            #                 info["Dc"]
-            #                 for info in Lcur.values()
-            #                 if info["Terminal"] == terminal
-            #             ]
-            #         )
-
-            #         arrival = arrival_by_terminal[terminal]
-
-            #         if arrival >= Oj and arrival <= Dj:
-            #             continue
-            #         elif arrival < Oj:
-            #             delay_per_terminal[terminal] = Oj - arrival
-            #         elif arrival > Dj:
-            #             late = True
-            #             break
-
-            #     if late:
-            #         feasible = False
-            #         break
-
-            #     if all(d == 0 for d in delay_per_terminal.values()):
-            #         feasible = True
-            #         break
-
-            #     if attempt == 0:
-            #         delay += max(delay_per_terminal.values())
-            #     else:
-            #         break
 
             idx = 1
             feasible = True
@@ -677,57 +629,9 @@ class MetaHeuristic:
             if not self.check_for_cap(route, Lcur, k, barges=self.Barge_cap):
                 return False
 
-            # delay = 0.0
-            # feasible = False
-            # late = False
-
-            # delay_per_terminal = {term: 0 for term in route}
-
-            # for attempt in range(2):  # attempt = 0 (no shift), attempt = 1 (shift)
             D_term, O_term = self.get_timing(route, Lcur)
             arrival_by_terminal = dict(zip(route, O_term))
             departure_by_terminal = dict(zip(route, D_term))
-
-            #     for terminal in route:
-            #         if terminal == 0:
-            #             continue
-            #         Oj = max(
-            #             [
-            #                 info["Oc"]
-            #                 for info in Lcur.values()
-            #                 if info["Terminal"] == terminal
-            #             ]
-            #         )
-            #         Dj = min(
-            #             [
-            #                 info["Dc"]
-            #                 for info in Lcur.values()
-            #                 if info["Terminal"] == terminal
-            #             ]
-            #         )
-
-            #         arrival = arrival_by_terminal[terminal]
-
-            #         if arrival >= Oj and arrival <= Dj:
-            #             continue
-            #         elif arrival < Oj:
-            #             delay_per_terminal[terminal] = Oj - arrival
-            #         elif arrival > Dj:
-            #             late = True
-            #             break
-
-            #     if late:
-            #         feasible = False
-            #         break
-
-            #     if all(d == 0 for d in delay_per_terminal.values()):
-            #         feasible = True
-            #         break
-
-            #     if attempt == 0:
-            #         delay += max(delay_per_terminal.values())
-            #     else:
-            #         break
 
             idx = 1
             success = True
@@ -803,24 +707,7 @@ class MetaHeuristic:
                 return False
             else:
                 self.milp_repairs += 1
-                # L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
 
-                # old_route = self.get_route(L_cur_temp)
-                # old_cost = sum(
-                #     self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
-                #     for i in range(len(old_route) - 1)
-                # )
-
-                # new_cost = sum(
-                #     self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
-                #     for i in range(len(new_route) - 1)
-                # )
-
-                # if new_cost >= old_cost:
-                #     print("MILP routing not better:", old_cost, "→", new_cost)
-                # self.route_dict[b] = new_route
-
-        # both repairs succeeded
         return True
 
     def evaluate(self):
