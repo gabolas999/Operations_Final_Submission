@@ -317,8 +317,14 @@ class GreedyOptimizer:
                         if new_arrival > Dj:
                             success = False
                             break
+                        n_here = sum(
+                            1
+                            for info in L_current.values()
+                            if info["Terminal"] == terminal
+                        )
+
                         new_departure = (
-                            new_arrival + self.instance.Handling_time
+                            new_arrival + self.instance.Handling_time * n_here
                         )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
 
                         old_departure = departure_by_terminal[terminal]

@@ -3,7 +3,7 @@ import numpy as np
 import pulp
 import copy
 
-rng = np.random.default_rng(seed=42)
+rng = np.random.default_rng(seed=1)
 
 
 def sanitize_for_yaml(obj):
@@ -19,7 +19,7 @@ def sanitize_for_yaml(obj):
         return obj
 
 
-def repair_route(assigned_containers, C_dict, Qk, T_ij):
+def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     """
     MILP routing repair for one barge (Section 4.2.2).
 
@@ -82,14 +82,17 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     # Terminal time windows
     O = {}
     D = {}
+    service_time = {}
 
     for j in N:
         if j == 0:
             continue
         related = [c for c in assigned_containers if C_dict[c]["Terminal"] == j]
         if related:
+            service_time[j] = sum(1 for c in related) * Handling_time
             O[j] = max(C_dict[c]["Oc"] for c in related)
-            D[j] = min(C_dict[c]["Dc"] for c in related)
+            D[j] = min(C_dict[c]["Dc"] for c in related) - service_time[j]
+
         else:
             O[j] = 0
             D[j] = 10**6
@@ -109,6 +112,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     y = pulp.LpVariable.dicts("y", (N, N), 0)
     z = pulp.LpVariable.dicts("z", (N, N), 0)
     t = pulp.LpVariable.dicts("t", N, 0)
+    w = pulp.LpVariable.dicts("w", N, 0)  # waiting time at terminal j
 
     # Objective (19): minimize travel time
     prob += pulp.lpSum(T_ij[i][j] * x[i][j] for i in N for j in N)
@@ -147,23 +151,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
                 == d[j]
             )
 
-    # total_imports = sum(p.values())
-    # total_exports = sum(d.values())
-
-    # # Import flow sink at depot
-    # prob += (
-    #     pulp.lpSum(y[i][0] for i in N if i != 0)
-    #     - pulp.lpSum(y[0][i] for i in N if i != 0)
-    #     == total_imports
-    # )
-
-    # # Export flow source at depot
-    # prob += (
-    #     pulp.lpSum(z[0][i] for i in N if i != 0)
-    #     - pulp.lpSum(z[i][0] for i in N if i != 0)
-    #     == total_exports
-    # )
-
     # --------------------------------------------------
     # STEP 4 — Capacity (24)
     # --------------------------------------------------
@@ -176,9 +163,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
     # STEP 5 — Timing (25–29)
     # --------------------------------------------------
 
-    # # Waiting at depot
-    # w0 = pulp.LpVariable("w0", lowBound=0)
-    # prob += t[0] == R + w0
     prob += t[0] >= R
 
     M = 10**6
@@ -187,13 +171,17 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
         for j in N:
             if i != j:
                 if j != 0:
-                    prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
+                    prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j]) + w[j]
 
-    for i in N:
-        for j in N:
-            if i != j:
-                if j != 0:
-                    prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
+    prob += w[0] == 0
+
+    # Removed the upper bound as it forces tj = ti + Tij when xij = 1, which is not correct if we want to allow waiting
+    # In any case, tj <= Dj already enforces an upper bound on tj, and tj >= O_j and tj >= ti + Tij when xij = 1 enforces a lower bound
+    # for i in N:
+    #     for j in N:
+    #         if i != j:
+    #             if j != 0:
+    #                 prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
 
     for j in N:
         if j != 0:
@@ -244,9 +232,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij):
         if current == 0:
             break
 
-    # arrival_times = {j: pulp.value(t[j]) for j in route}
-
-    # print("Repaired route with MILP!!!")
+    print("Repaired route with MILP!!!")
 
     return route
 
@@ -554,8 +540,12 @@ class MetaHeuristic:
                     if new_arrival > Dj:
                         feasible = False
                         break
+
+                    n_here = sum(
+                        1 for info in Lcur.values() if info["Terminal"] == terminal
+                    )
                     new_departure = (
-                        new_arrival + self.instance.Handling_time
+                        new_arrival + self.instance.Handling_time * n_here
                     )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
 
                     old_departure = departure_by_terminal[terminal]
@@ -671,8 +661,12 @@ class MetaHeuristic:
                     if new_arrival > Dj:
                         success = False
                         break
+                    n_here = sum(
+                        1 for info in Lcur.values() if info["Terminal"] == terminal
+                    )
+
                     new_departure = (
-                        new_arrival + self.instance.Handling_time
+                        new_arrival + self.instance.Handling_time * n_here
                     )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
 
                     old_departure = departure_by_terminal[terminal]
