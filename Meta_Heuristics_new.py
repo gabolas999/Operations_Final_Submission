@@ -299,11 +299,12 @@ class MetaHeuristic:
 
         # parameters (tune these!)
         self.critical_move_prob = 0.6
+        self.prob_operator_move = 0.8
         self.truck_move_prob = 0.6
         self.tenure_move_container = 15
         self.tenure_critical_container = 15
         self.tenure_barge_shake_ban = 100
-        self.shake_threshold = 100
+        self.shake_threshold = 10
 
     def _compute_critical_containers(self):
         """
@@ -404,19 +405,19 @@ class MetaHeuristic:
 
             self.route_dict[k] = route  # fills route dict
 
-            assert (
-                len(self.route_dict[k]) >= 2
-            ), "route must at least start and end at depot"
-
-            assert (
-                len(self.route_load_dict) == self.K
-            ), "route_load_dict incomplete, missing barges or too many barges"
-
             self._edge_loads_along_route(
                 route,
                 L_current,
                 k,
             )  # this autofills self.route_load_dict
+
+        assert (
+            len(self.route_dict[k]) >= 2
+        ), "route must at least start and end at depot after filling route_dict"
+
+        assert (
+            len(self.route_load_dict) == self.K
+        ), "route_load_dict incomplete, missing barges or too many barges after filling route_load_dict"
 
     def reassign_barges_by_requirements(self, required):
         """
@@ -512,16 +513,16 @@ class MetaHeuristic:
         """
 
         for _ in range(max_trials):
+            old_route = copy.deepcopy(self.route_dict[barge_idx])
             trucked_containers = [
                 cont for cont in range(self.instance.C) if not any(self.f_ck[cont, :])
             ]
 
             if not trucked_containers:
+                print("No trucked containers to reinsert")
                 return
 
             cont = rng.choice(trucked_containers)
-
-            old_route = copy.deepcopy(self.route_dict[barge_idx])
 
             # tentative insertion
             self.f_ck[cont, barge_idx] = 1
@@ -531,7 +532,10 @@ class MetaHeuristic:
 
             Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
 
-            route = self.route_dict.get(barge_idx, self.get_route(Lcur))
+            route = self.route_dict.get(barge_idx, None)
+            assert (
+                route is not None
+            ), "Route missing for barge after fill method when trying to reinsert container from truck to barge"
 
             # capacity check
             if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
@@ -597,11 +601,21 @@ class MetaHeuristic:
             if feasible:
                 # accept immediately (greedy)
                 self.route_dict[barge_idx] = route
-                return
             else:
                 # revert
                 self.f_ck[cont, barge_idx] = 0
                 self.route_dict[barge_idx] = old_route
+
+        return
+
+    def time_check_before_move(self):
+        self._global_timing_audit()
+
+    def time_check_after_move(self):
+        self._global_timing_audit()
+
+    def time_check_after_greedy_reinsert(self):
+        self._global_timing_audit()
 
     def operator_move(self):
 
@@ -655,10 +669,15 @@ class MetaHeuristic:
             return False
 
         assert len(self.route_dict) == self.K, "route_dict incomplete before move"
+        assert all(
+            len(self.route_dict[k]) >= 2 for k in range(self.K)
+        ), "invalid route in route_dict before move"
+
+        self.time_check_before_move()
 
         # Save old state
         old_row = self.f_ck[container, :].copy()
-        old_route_dict = self.route_dict.copy()
+        old_route_dict = copy.deepcopy(self.route_dict)
         old_Barge_cap = self.Barge_cap.copy()
         old_H_b = self.H_b.copy()
 
@@ -673,7 +692,7 @@ class MetaHeuristic:
 
         self._fill_route_related_dictionaries(fck=self.f_ck)
 
-        # 5) QUICK CAPACITY CHECK
+        # 5) CAPACITY CHECK
         required_capacity = [max(self.route_load_dict[k]) for k in range(self.K)]
 
         # dominance check
@@ -697,10 +716,24 @@ class MetaHeuristic:
         old_H_b = self.H_b.copy()
 
         # 6) TIMING CHECK (only for affected barge if not truck)
-        if to_b != "truck":
-            Lcur = self._get_L_current_for_barge(barge_idx=to_b, fck=self.f_ck)
+        affected_barges = set()
 
-            route = self.route_dict.get(to_b, self.get_route(Lcur))
+        if from_b != "truck":
+            affected_barges.add(from_b)
+
+        if to_b != "truck":
+            affected_barges.add(to_b)
+
+        for barge_idx in affected_barges:
+            Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
+
+            route = self.route_dict.get(barge_idx, None)
+            assert (
+                route is not None
+            ), "Route missing for barge after move, despite having run the fill method"
+            assert (
+                len(route) >= 3
+            ), "route must at least start, go to one terminal and end at depot after move, as it was assigned a container"
 
             D_term, O_term = self.get_timing(route, Lcur)
             arrival_by_terminal = dict(zip(route, O_term))
@@ -758,11 +791,13 @@ class MetaHeuristic:
 
             # 7) MILP repair if timing failed
             if not feasible:
-                assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b]]
+                assigned = [
+                    i for i in range(self.instance.C) if self.f_ck[i, barge_idx]
+                ]
                 new_route = repair_route(
                     assigned,
                     self.instance.C_dict,
-                    self.Barge_cap[to_b],
+                    self.Barge_cap[barge_idx],
                     self.instance.T_ij_matrix,
                 )
                 self.milp_calls += 1
@@ -777,20 +812,26 @@ class MetaHeuristic:
                     return False
 
                 self.milp_repairs += 1
-                self.route_dict[to_b] = new_route
+                self.route_dict[barge_idx] = new_route
                 # hard capacity gate on the repaired route
-                Lcur = self._get_L_current_for_barge(barge_idx=to_b, fck=self.f_ck)
-                if not self.check_for_cap(new_route, Lcur, to_b, barges=self.Barge_cap):
+                Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
+                if not self.check_for_cap(
+                    new_route, Lcur, barge_idx, barges=self.Barge_cap
+                ):
                     self.f_ck[container] = old_row
                     self.route_dict = old_route_dict
                     self.T1[move] = self.tenure_move_container
                     return False
+
+        self.time_check_after_move()
 
         # 8) tabu bookkeeping
         if crital_container_chosen and from_b != "truck":
             self.T2[move] = self.tenure_critical_container
 
             self._randomized_greedy_reinsert(from_b)
+
+            self.time_check_after_greedy_reinsert()
 
         return True
 
@@ -954,6 +995,7 @@ class MetaHeuristic:
 
             self._edge_loads_along_route(route, Lcur, k)
             util = max(self.route_load_dict[k]) / self.Barge_cap[k]
+            assert util <= 1.0, "capacity violation detected in evaluation"
             utils.append(util)
             total_stops += len(route) - 2  # exclude depot visits
 
@@ -992,8 +1034,9 @@ class MetaHeuristic:
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
                 print(f"  Current best cost: {self.best_cost}")
-            if rng.random() < 0.8:
+            if rng.random() < self.prob_operator_move:
                 moved = self.operator_move()
+                self._global_timing_audit()
                 if moved:
                     self.move_accepts += 1
             else:
@@ -1048,6 +1091,33 @@ class MetaHeuristic:
         print(f"MILP repairs succeeded: {self.milp_repairs}\n")
 
         return self.best_cost, self.it_list, self.cost_list, self.best_cost_list
+
+    def _global_timing_audit(self):
+        for k in range(self.K):
+            assigned = [c for c in range(self.instance.C) if self.f_ck[c, k] == 1]
+            if not assigned:
+                continue
+
+            Lcur = {c: self.instance.C_dict[c] for c in assigned}
+            route = self.get_route(Lcur)
+
+            D_term, O_term = self.get_timing(route, Lcur)
+            arrival = dict(zip(route, O_term))
+
+            for j in route:
+                if j == 0:
+                    continue
+                containers_at_j = [
+                    info for info in Lcur.values() if info["Terminal"] == j
+                ]
+                if not containers_at_j:
+                    continue
+
+                Dj = min(info["Dc"] for info in containers_at_j)
+                if arrival[j] > Dj + 1e-6:
+                    raise RuntimeError(
+                        f"Timing drift detected: Barge {k}, Terminal {j}"
+                    )
 
     def timing_window_plot(self, final_routes: dict):
         """
