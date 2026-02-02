@@ -457,6 +457,16 @@ class MetaHeuristic:
         for b in self.T3:
             self.T3[b] -= 1
 
+    def _released_container_tabu_reset(self, dumped_containers):
+        """
+        Remove tabu restrictions for containers released by a shake.
+        """
+
+        for tabu_list in (self.T1, self.T2):
+            for move in list(tabu_list.keys()):
+                if move[0] in dumped_containers:
+                    del tabu_list[move]
+
     def _shake(self):
         best_k = None
         worst = 1.0
@@ -479,8 +489,20 @@ class MetaHeuristic:
             if util < worst:
                 worst, best_k = util, k
         if best_k is not None:
+            dumped_containers = [
+                cont for cont in range(self.instance.C) if self.f_ck[cont, best_k] == 1
+            ]
+
             self.f_ck[:, best_k] = 0
             self.T3[best_k] = self.tenure_barge_shake_ban
+
+            self._released_container_tabu_reset(dumped_containers)
+
+            # greedy reassignment after shake
+            for k in range(self.K):
+                if k in self.T3:
+                    continue
+                self._randomized_greedy_reinsert(k)
 
     def _randomized_greedy_reinsert(self, barge_idx, max_trials=10):
         """
@@ -499,7 +521,7 @@ class MetaHeuristic:
 
             cont = rng.choice(trucked_containers)
 
-            old_route_dict = copy.deepcopy(self.route_dict)
+            old_route = copy.deepcopy(self.route_dict[barge_idx])
 
             # tentative insertion
             self.f_ck[cont, barge_idx] = 1
@@ -512,6 +534,11 @@ class MetaHeuristic:
             # capacity check
             if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
                 self.f_ck[cont, barge_idx] = 0
+                if old_route is None:
+                    self.route_dict.pop(barge_idx, None)
+                else:
+                    self.route_dict[barge_idx] = old_route
+
                 continue
 
             D_term, O_term = self.get_timing(route, Lcur)
@@ -575,7 +602,10 @@ class MetaHeuristic:
             else:
                 # revert
                 self.f_ck[cont, barge_idx] = 0
-                self.route_dict = old_route_dict
+                if old_route is None:
+                    self.route_dict.pop(barge_idx, None)
+                else:
+                    self.route_dict[barge_idx] = old_route
 
     def operator_move(self):
 
@@ -747,7 +777,7 @@ class MetaHeuristic:
                     self.route_dict = old_route_dict
                     self.Barge_cap = old_Barge_cap
                     self.H_b = old_H_b
-                    # self.T1[move] = self.tenure_move_container
+                    self.T1[move] = self.tenure_move_container
                     return False
 
                 self.milp_repairs += 1
@@ -877,7 +907,7 @@ class MetaHeuristic:
                 # irreparable swap → undo + tabu
                 self.f_ck[c1] = old1
                 self.f_ck[c2] = old2
-                # self.T1[move] = self.tenure_move_container
+                self.T1[move] = self.tenure_move_container
                 return False
             else:
                 self.milp_repairs += 1
