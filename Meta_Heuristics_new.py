@@ -302,7 +302,7 @@ class MetaHeuristic:
         self.truck_move_prob = 0.6
         self.tenure_move_container = 15
         self.tenure_critical_container = 15
-        self.tenure_barge_shake_ban = 20
+        self.tenure_barge_shake_ban = 100
         self.shake_threshold = 100
 
     def _compute_critical_containers(self):
@@ -389,14 +389,14 @@ class MetaHeuristic:
 
         self.route_load_dict[barge_idx] = edge_load_list
 
-    def _get_L_current_for_barge(self, barge_idx, fck=None):
+    def _get_L_current_for_barge(self, barge_idx, fck):
         assigned = [
             cont for cont in range(self.instance.C) if fck[cont, barge_idx] == 1
         ]
         L_current = {cont: self.instance.C_dict[cont] for cont in assigned}
         return L_current
 
-    def _fill_dicts(self, fck):
+    def _fill_route_related_dictionaries(self, fck):
         for k in range(self.K):
             L_current = self._get_L_current_for_barge(barge_idx=k, fck=fck)
 
@@ -404,19 +404,19 @@ class MetaHeuristic:
 
             self.route_dict[k] = route  # fills route dict
 
+            assert (
+                len(self.route_dict[k]) >= 2
+            ), "route must at least start and end at depot"
+
+            assert (
+                len(self.route_load_dict) == self.K
+            ), "route_load_dict incomplete, missing barges or too many barges"
+
             self._edge_loads_along_route(
                 route,
                 L_current,
                 k,
             )  # this autofills self.route_load_dict
-
-            assert (
-                len(self.route_dict[k]) >= 2
-            ), "route must at least start and end at depot"
-
-        assert (
-            len(self.route_load_dict) == self.K
-        ), "route_load_dict incomplete, missing barges or too many barges"
 
     def reassign_barges_by_requirements(self, required):
         """
@@ -525,7 +525,9 @@ class MetaHeuristic:
 
             # tentative insertion
             self.f_ck[cont, barge_idx] = 1
-            self.route_dict.pop(barge_idx, None)
+            self.route_dict.pop(barge_idx)
+
+            self._fill_route_related_dictionaries(fck=self.f_ck)
 
             Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
 
@@ -534,10 +536,7 @@ class MetaHeuristic:
             # capacity check
             if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
                 self.f_ck[cont, barge_idx] = 0
-                if old_route is None:
-                    self.route_dict.pop(barge_idx, None)
-                else:
-                    self.route_dict[barge_idx] = old_route
+                self.route_dict[barge_idx] = old_route
 
                 continue
 
@@ -602,10 +601,7 @@ class MetaHeuristic:
             else:
                 # revert
                 self.f_ck[cont, barge_idx] = 0
-                if old_route is None:
-                    self.route_dict.pop(barge_idx, None)
-                else:
-                    self.route_dict[barge_idx] = old_route
+                self.route_dict[barge_idx] = old_route
 
     def operator_move(self):
 
@@ -626,9 +622,7 @@ class MetaHeuristic:
             container = rng.choice(self.non_critical)
 
         # 2) locate current assignment
-        from_b = next((k for k in range(self.K) if self.f_ck[container, k]), None)
-        if from_b is None:
-            from_b = "truck"
+        from_b = next((k for k in range(self.K) if self.f_ck[container, k]), "truck")
 
         choices = copy.deepcopy(self.full_choice_list)
 
@@ -660,6 +654,8 @@ class MetaHeuristic:
         ):
             return False
 
+        assert len(self.route_dict) == self.K, "route_dict incomplete before move"
+
         # Save old state
         old_row = self.f_ck[container, :].copy()
         old_route_dict = self.route_dict.copy()
@@ -669,13 +665,13 @@ class MetaHeuristic:
         # 4) tentative apply
         if from_b != "truck":
             self.f_ck[container, from_b] = 0
-            self.route_dict.pop(from_b, None)
+            self.route_dict.pop(from_b)
 
         if to_b != "truck":
             self.f_ck[container, to_b] = 1
-            self.route_dict.pop(to_b, None)
+            self.route_dict.pop(to_b)
 
-        self._fill_dicts(fck=self.f_ck)
+        self._fill_route_related_dictionaries(fck=self.f_ck)
 
         # 5) QUICK CAPACITY CHECK
         required_capacity = [max(self.route_load_dict[k]) for k in range(self.K)]
@@ -782,6 +778,13 @@ class MetaHeuristic:
 
                 self.milp_repairs += 1
                 self.route_dict[to_b] = new_route
+                # hard capacity gate on the repaired route
+                Lcur = self._get_L_current_for_barge(barge_idx=to_b, fck=self.f_ck)
+                if not self.check_for_cap(new_route, Lcur, to_b, barges=self.Barge_cap):
+                    self.f_ck[container] = old_row
+                    self.route_dict = old_route_dict
+                    self.T1[move] = self.tenure_move_container
+                    return False
 
         # 8) tabu bookkeeping
         if crital_container_chosen and from_b != "truck":
@@ -811,9 +814,14 @@ class MetaHeuristic:
         self.f_ck[c2, b2] = 0
         self.f_ck[c2, b1] = 1
 
+        old_route_b1 = self.route_dict.get(b1)
+        old_route_b2 = self.route_dict.get(b2)
+
         # invalidate routes affected by the swap
-        self.route_dict.pop(b1, None)
-        self.route_dict.pop(b2, None)
+        self.route_dict.pop(b1)
+        self.route_dict.pop(b2)
+
+        self._fill_route_related_dictionaries(fck=self.f_ck)
 
         def barge_ok(k):
             assigned = [i for i in range(self.instance.C) if self.f_ck[i, k]]
@@ -911,7 +919,16 @@ class MetaHeuristic:
                 return False
             else:
                 self.milp_repairs += 1
-
+                self.route_dict[b] = new_route
+                # hard capacity gate on the repaired route
+                Lcur = self._get_L_current_for_barge(barge_idx=b, fck=self.f_ck)
+                if not self.check_for_cap(new_route, Lcur, b, barges=self.Barge_cap):
+                    self.f_ck[c1] = old1
+                    self.f_ck[c2] = old2
+                    self.route_dict[b1] = old_route_b1
+                    self.route_dict[b2] = old_route_b2
+                    self.T1[move] = self.tenure_move_container
+                    return False
         return True
 
     def evaluate(self):
@@ -975,6 +992,7 @@ class MetaHeuristic:
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
                 print(f"  Current best cost: {self.best_cost}")
+                print(f" Shake count: {self.shake_count}\n")
             if rng.random() < 0.8:
                 moved = self.operator_move()
                 if moved:
@@ -988,6 +1006,7 @@ class MetaHeuristic:
             self._age_tabu()
 
             if not moved:
+                no_improve += 1
                 continue
 
             cost = self.evaluate()
@@ -996,7 +1015,6 @@ class MetaHeuristic:
                 self.best_cost, best_f = cost, self.f_ck.copy()
                 no_improve = 0
             else:
-                # self.f_ck = best_f.copy()
                 no_improve += 1
 
             if no_improve >= self.shake_threshold:
