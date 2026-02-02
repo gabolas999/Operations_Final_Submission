@@ -1126,6 +1126,12 @@ class MetaHeuristic:
                 Oj = max(info["Oc"] for info in containers_at_j)
                 Dj = min(info["Dc"] for info in containers_at_j)
 
+                if arrival[j] > Dj + 1e-6:
+                    print(
+                        f"Infeasible terminal-level timing: "
+                        f"Barge {k}, Terminal {j}, arrival {arrival[j]:.2f}, Dj {Dj:.2f}"
+                    )
+
                 t_arr = arrival[j]
 
                 if t_arr < Oj:
@@ -1148,12 +1154,23 @@ class MetaHeuristic:
         # 4) Build plot rows (barge, terminal, container)
         # --------------------------------------------------
         rows = []
-        for k in range(self.K):
-            for c in barge_to_containers[k]:
+
+        # --- barges in ascending order ---
+        for k in sorted(barge_to_containers.keys()):
+            containers = barge_to_containers[k]
+
+            # sort by (terminal, container)
+            containers_sorted = sorted(
+                containers, key=lambda c: (C_dict[c]["Terminal"], c)
+            )
+
+            for c in containers_sorted:
                 rows.append((k, C_dict[c]["Terminal"], c))
 
-        # optional: add trucked containers at bottom
-        for c in trucked:
+        # --- trucked containers last (optional) ---
+        trucked_sorted = sorted(trucked, key=lambda c: (C_dict[c]["Terminal"], c))
+
+        for c in trucked_sorted:
             rows.append(("Truck", C_dict[c]["Terminal"], c))
 
         # --------------------------------------------------
