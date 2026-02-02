@@ -992,7 +992,6 @@ class MetaHeuristic:
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
                 print(f"  Current best cost: {self.best_cost}")
-                print(f" Shake count: {self.shake_count}\n")
             if rng.random() < 0.8:
                 moved = self.operator_move()
                 if moved:
@@ -1037,6 +1036,10 @@ class MetaHeuristic:
         # plt.ioff()
         self.f_ck = copy.deepcopy(best_f)
 
+        final_route_dict = self.route_dict.copy()
+
+        self.timing_window_plot(final_route_dict)
+
         print("\nMeta-Heuristic Search Complete, search move analysis:")
         print(f"Total move accepts: {self.move_accepts}")
         print(f"Total swap accepts: {self.swap_accepts}")
@@ -1045,6 +1048,165 @@ class MetaHeuristic:
         print(f"MILP repairs succeeded: {self.milp_repairs}\n")
 
         return self.best_cost, self.it_list, self.cost_list, self.best_cost_list
+
+    def timing_window_plot(self, final_routes: dict):
+        """
+        Plot container time windows with actual barge arrival times.
+
+        - One row per container
+        - Grouped by barge
+        - Green = import, Red = export
+        - Square marker = export release time Rc
+        - Cross marker = actual barge arrival time at container terminal
+        """
+
+        import matplotlib.pyplot as plt
+        import math
+
+        C_dict = self.instance.C_dict
+
+        # --------------------------------------------------
+        # 1) Collect containers per barge (final solution)
+        # --------------------------------------------------
+        barge_to_containers = {k: [] for k in range(self.K)}
+        trucked = []
+
+        for c in range(self.instance.C):
+            assigned = False
+            for k in range(self.K):
+                if self.f_ck[c, k] == 1:
+                    barge_to_containers[k].append(c)
+                    assigned = True
+                    break
+            if not assigned:
+                trucked.append(c)
+
+        # --------------------------------------------------
+        # 2) Compute global time horizon
+        # --------------------------------------------------
+        max_D = max(C_dict[c]["Dc"] for c in range(self.instance.C))
+        Tmax = int(math.ceil(max_D / 50.0) * 50)
+
+        # --------------------------------------------------
+        # 3) Precompute arrival times per (barge, terminal)
+        #    using waiting logic
+        # --------------------------------------------------
+        arrival_time = {}  # (k, terminal) -> time
+
+        for k, route in final_routes.items():
+            if not route or len(route) <= 1:
+                continue
+
+            containers = barge_to_containers[k]
+            if not containers:
+                continue
+
+            Lcur = {c: C_dict[c] for c in containers}
+
+            # base timing from routing heuristic
+            D_term, O_term = self.get_timing(route, Lcur)
+            arrival = dict(zip(route, O_term))
+            departure = dict(zip(route, D_term))
+
+            idx = 1
+            while idx < len(route):
+                j = route[idx]
+                if j == 0:
+                    idx += 1
+                    continue
+
+                containers_at_j = [
+                    info for info in Lcur.values() if info["Terminal"] == j
+                ]
+
+                if not containers_at_j:
+                    idx += 1
+                    continue
+
+                Oj = max(info["Oc"] for info in containers_at_j)
+                Dj = min(info["Dc"] for info in containers_at_j)
+
+                t_arr = arrival[j]
+
+                if t_arr < Oj:
+                    new_arr = Oj
+                    n_here = sum(1 for info in containers_at_j)
+                    new_dep = new_arr + self.instance.Handling_time * n_here
+                    shift = new_dep - departure[j]
+
+                    arrival[j] = new_arr
+                    departure[j] = new_dep
+
+                    for h in range(idx + 1, len(route)):
+                        arrival[route[h]] += shift
+                        departure[route[h]] += shift
+
+                arrival_time[(k, j)] = arrival[j]
+                idx += 1
+
+        # --------------------------------------------------
+        # 4) Build plot rows (barge, terminal, container)
+        # --------------------------------------------------
+        rows = []
+        for k in range(self.K):
+            for c in barge_to_containers[k]:
+                rows.append((k, C_dict[c]["Terminal"], c))
+
+        # optional: add trucked containers at bottom
+        for c in trucked:
+            rows.append(("Truck", C_dict[c]["Terminal"], c))
+
+        # --------------------------------------------------
+        # 5) Plot
+        # --------------------------------------------------
+        fig, ax = plt.subplots(figsize=(12, 0.3 * len(rows)))
+
+        yticks = []
+        ylabels = []
+
+        for y, (k, terminal, c) in enumerate(rows):
+            info = C_dict[c]
+            Oc, Dc = info["Oc"], info["Dc"]
+
+            color = "green" if info["In_or_Out"] == 1 else "red"
+
+            # time window bar
+            ax.barh(
+                y,
+                Dc - Oc,
+                left=Oc,
+                height=0.6,
+                color=color,
+                alpha=0.6,
+                edgecolor="black",
+            )
+
+            # export release time
+            if info["In_or_Out"] == 2 and info["Rc"] > 0:
+                ax.scatter(info["Rc"], y, marker="s", color="black", zorder=3)
+
+            # barge arrival time
+            if k != "Truck":
+                t_arr = arrival_time.get((k, terminal), None)
+                if t_arr is not None:
+                    ax.scatter(t_arr, y, marker="x", color="black", zorder=3)
+
+            yticks.append(y)
+            ylabels.append(f"B{k} | T{terminal} | C{c}")
+
+        # --------------------------------------------------
+        # 6) Final formatting
+        # --------------------------------------------------
+        ax.set_xlim(0, Tmax)
+        ax.set_yticks(yticks)
+        ax.set_yticklabels(ylabels)
+        ax.set_xlabel("Time [hours]")
+        ax.set_title("Container Time Windows and Barge Arrival Times")
+
+        ax.grid(axis="x", linestyle="--", alpha=0.5)
+
+        plt.tight_layout()
+        plt.show()
 
     def build_final_allocation_report(self):
         report = {"summary": {}, "barges": [], "trucked_containers": {}}
