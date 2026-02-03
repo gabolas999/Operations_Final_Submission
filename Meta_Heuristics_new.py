@@ -79,10 +79,10 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # print("Import pickups per terminal:", p)
     # print("Export deliveries per terminal:", d)
 
-    # Terminal time windows
+    # Terminal time windows (start-of-service)
     O = {}
     D = {}
-    service_time = {}
+    service_time = {j: 0.0 for j in N}
 
     for j in N:
         if j == 0:
@@ -93,8 +93,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
         if related:
             service_time[j] = sum(1 for cont in related) * Handling_time
             O[j] = max(C_dict[cont]["Oc"] for cont in related)
-            D[j] = min(C_dict[cont]["Dc"] for cont in related) - service_time[j]
-
+            D[j] = min(C_dict[cont]["Dc"] for cont in related)
         else:
             O[j] = 0
             D[j] = 10**6
@@ -177,7 +176,14 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
         for j in N:
             if i != j:
                 if j != 0:
-                    prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j]) + w[j]
+                    prob += (
+                        t[j]
+                        >= t[i]
+                        + T_ij[i][j]
+                        + service_time.get(i, 0.0)
+                        - M * (1 - x[i][j])
+                        + w[j]
+                    )
 
     prob += w[0] == 0
 
@@ -718,6 +724,7 @@ class MetaHeuristic:
                     self.instance.C_dict,
                     self.Barge_cap[barge_idx],
                     self.instance.T_ij_matrix,
+                    self.instance.Handling_time,
                 )
                 self.milp_calls += 1
 
@@ -836,6 +843,7 @@ class MetaHeuristic:
                 self.instance.C_dict,
                 self.Barge_cap[b],
                 self.instance.T_ij_matrix,
+                self.instance.Handling_time,
             )
             # print("New route from MILP repair:", new_route)
             self.milp_calls += 1
