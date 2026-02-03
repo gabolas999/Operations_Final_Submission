@@ -930,7 +930,6 @@ class MetaHeuristic:
                 print(f"  Current best cost: {self.best_cost}")
             if rng.random() < self.prob_operator_move:
                 moved = self.operator_move()
-                self._global_timing_audit()
                 if moved:
                     self.move_accepts += 1
             else:
@@ -985,23 +984,6 @@ class MetaHeuristic:
         print(f"MILP repairs succeeded: {self.milp_repairs}\n")
 
         return self.best_cost, self.it_list, self.cost_list, self.best_cost_list
-
-    def _global_timing_audit(self):
-        assert (
-            len(self.route_dict) == self.K
-        ), "route_dict incomplete before timing audit"
-        for k in range(self.K):
-            assigned = [c for c in range(self.instance.C) if self.f_ck[c, k] == 1]
-            if not assigned:
-                continue
-
-            Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = self.route_dict[k]
-
-            result = self.get_timing(route, Lcur)
-            if result is None:
-                print(f"Timing audit failed for barge {k} during MH")
-        return
 
     def timing_window_plot(self, final_routes: dict):
         """
