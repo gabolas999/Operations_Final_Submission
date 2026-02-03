@@ -131,61 +131,86 @@ class GreedyOptimizer:
 
         return route
 
-    def get_timing(self, route, L_current, departure_shift=0.0):
+    def get_timing(self, route, L_current):
         """
-        Returns:
-        D_terminal: departure times at each route node (after service)
-        O_terminal: arrival times at each route node (before service)
+        Returns
+        -------
+        D_terminal : list[float]
+            Departure times at each route node (after service)
+        O_terminal : list[float]
+            Arrival times at each route node (before service)
 
-        Interpretation (per your spec):
-        - Base departure from dry port is max export release time at dry port (or 0 if no exports).
-        - Then we add a uniform departure_shift (>=0) to postpone the whole trip.
-        - Arrival times are propagated iteratively along the route.
+        Returns None if the route is time-infeasible.
+
+        Interpretation:
+        - Departure from dry port is max export release time (or 0 if no exports)
+        - Arrival times propagate forward
+        - If arrival < opening time -> wait
+        - If arrival > closing time -> infeasible
         """
-        # 1) Base departure time from dry port
+
+        # -----------------------------
+        # 1) Base departure from depot
+        # -----------------------------
         export_release_times = [
             c["Rc"] for c in L_current.values() if c["In_or_Out"] == 2
         ]
-        base_departure = max(export_release_times) if export_release_times else 0.0
-        depart_time = base_departure + departure_shift
+        current_time = max(export_release_times) if export_release_times else 0.0
 
-        # 2) Iterative propagation
-        O_terminal = [0.0]  # arrival at dry port is time 0 reference
-        D_terminal = [depart_time]  # depart dry port at computed time
+        O_terminal = [current_time]  # arrival at depot
+        D_terminal = [current_time]  # departure from depot
 
-        current_node = 0
-        current_depart = depart_time
+        current_node = route[0]
+        assert current_node == 0, "Route must start at dry port (0)"
 
-        for node in route:
-            if node == current_node:
-                continue
+        # -----------------------------
+        # 2) Forward propagation
+        # -----------------------------
+        for node in route[1:]:
 
+            # travel
             travel = self.instance.T_ij_matrix[current_node][node]
-            arrival = current_depart + travel
+            arrival = current_time + travel
 
-            if node == 0:
-                # returning to dry port: no service time
-                service = 0
+            if node != 0:
+                # containers handled at this terminal
+                containers_here = [
+                    c for c in L_current.values() if c["Terminal"] == node
+                ]
+
+                if containers_here:
+                    Oj = max(c["Oc"] for c in containers_here)
+                    Dj = min(c["Dc"] for c in containers_here)
+
+                    # WAIT if early
+                    arrival = max(arrival, Oj)
+
+                    # FAIL if late
+                    if arrival > Dj:
+                        return None
+
+                    service = self.instance.Handling_time * len(containers_here)
+                else:
+                    service = 0.0
             else:
-                # handling time at node
-                n_containers_here = sum(
-                    1 for c in L_current.values() if c["Terminal"] == node
-                )
-                service = self.instance.Handling_time * n_containers_here
+                # depot on return
+                service = 0.0
 
             depart = arrival + service
 
             O_terminal.append(arrival)
             D_terminal.append(depart)
 
+            current_time = depart
             current_node = node
-            current_depart = depart
 
-        assert len(O_terminal) == len(D_terminal), "Timing lists length mismatch"
-
-        assert len(O_terminal) == len(
-            route
-        ), f"Timing lists length mismatch with route lenth of O_terminal: {len(O_terminal)} and length of route {len(route)}"
+        # -----------------------------
+        # 3) Sanity checks
+        # -----------------------------
+        assert len(O_terminal) == len(D_terminal) == len(route), (
+            f"Timing length mismatch: "
+            f"O={len(O_terminal)}, D={len(D_terminal)}, route={len(route)}"
+        )
 
         return D_terminal, O_terminal
 
@@ -284,67 +309,8 @@ class GreedyOptimizer:
                     self.f_ck_init[c, barge_idx] = 0
                     continue
 
-                D_term, O_term = self.get_timing(route, L_current)
-                arrival_by_terminal = dict(zip(route, O_term))
-                departure_by_terminal = dict(zip(route, D_term))
-
-                idx = 1
-                success = True
-
-                while idx < len(route):
-                    terminal = route[idx]
-                    if terminal == 0:
-                        idx += 1
-                        continue
-
-                    Oj = max(
-                        info["Oc"]
-                        for info in L_current.values()
-                        if info["Terminal"] == terminal
-                    )
-                    Dj = min(
-                        info["Dc"]
-                        for info in L_current.values()
-                        if info["Terminal"] == terminal
-                    )
-
-                    arrival = arrival_by_terminal[terminal]
-
-                    if arrival > Dj:
-                        success = False
-                        break
-
-                    if arrival < Oj:
-                        new_arrival = Oj
-                        if new_arrival > Dj:
-                            success = False
-                            break
-                        n_here = sum(
-                            1
-                            for info in L_current.values()
-                            if info["Terminal"] == terminal
-                        )
-
-                        new_departure = (
-                            new_arrival + self.instance.Handling_time * n_here
-                        )  # only one handling because I assume all other containers have been taken care of, because were just waiting for the last container to be available
-
-                        old_departure = departure_by_terminal[terminal]
-                        shift = new_departure - old_departure
-
-                        arrival_by_terminal[terminal] = new_arrival
-                        departure_by_terminal[terminal] = new_departure
-
-                        next_terminal_idx = idx + 1
-                        if next_terminal_idx < len(route):
-                            for j in range(next_terminal_idx, len(route)):
-                                next_terminal = route[j]
-                                arrival_by_terminal[next_terminal] += shift
-                                departure_by_terminal[next_terminal] += shift
-
-                    idx += 1
-
-                if success:
+                result = self.get_timing(route, L_current)
+                if result is not None:
                     to_ignore.append(c)
                 else:
                     # undo assignment
@@ -487,52 +453,16 @@ class GreedyOptimizer:
 
             Lcur = {c: C_dict[c] for c in containers}
 
-            # base timing from routing heuristic
-            D_term, O_term = self.get_timing(route, Lcur)
-            arrival = dict(zip(route, O_term))
-            departure = dict(zip(route, D_term))
+            result = self.get_timing(route, Lcur)
+            if result is None:
+                print(
+                    f"Warning: could not compute arrival times for barge {k} in final plot"
+                )
+                continue  # or mark route as infeasible
+            D_term, O_term = result
 
-            idx = 1
-            while idx < len(route):
-                j = route[idx]
-                if j == 0:
-                    idx += 1
-                    continue
-
-                containers_at_j = [
-                    info for info in Lcur.values() if info["Terminal"] == j
-                ]
-
-                if not containers_at_j:
-                    idx += 1
-                    continue
-
-                Oj = max(info["Oc"] for info in containers_at_j)
-                Dj = min(info["Dc"] for info in containers_at_j)
-
-                if arrival[j] > Dj + 1e-6:
-                    print(
-                        f"Infeasible terminal-level timing: "
-                        f"Barge {k}, Terminal {j}, arrival {arrival[j]:.2f}, Dj {Dj:.2f}"
-                    )
-
-                t_arr = arrival[j]
-
-                if t_arr < Oj:
-                    new_arr = Oj
-                    n_here = sum(1 for info in containers_at_j)
-                    new_dep = new_arr + self.instance.Handling_time * n_here
-                    shift = new_dep - departure[j]
-
-                    arrival[j] = new_arr
-                    departure[j] = new_dep
-
-                    for h in range(idx + 1, len(route)):
-                        arrival[route[h]] += shift
-                        departure[route[h]] += shift
-
-                arrival_time[(k, j)] = arrival[j]
-                idx += 1
+            for node, arrival in zip(route, O_term):
+                arrival_time[(k, node)] = arrival
 
         # --------------------------------------------------
         # 4) Build plot rows (barge, terminal, container)
