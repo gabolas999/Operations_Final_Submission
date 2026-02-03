@@ -188,7 +188,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     prob += w[0] == 0
 
     # Removed the upper bound as it forces tj = ti + Tij when xij = 1, which is not correct if we want to allow waiting
-    # In any case, tj <= Dj already enforces an upper bound on tj, and tj >= O_j and tj >= ti + Tij when xij = 1 enforces a lower bound
+    # In any case, tj <= Dj already enforces an upper bound on tj, and tj >= O_j and tj >= ti + Tij when xij=1 enforces a lower bound
     # for i in N:
     #     for j in N:
     #         if i != j:
@@ -514,6 +514,7 @@ class MetaHeuristic:
             ]
 
             self.f_ck[:, best_k] = 0
+            self.route_dict[best_k] = [0, 0]  # empty barge → trivial routes
             self.T3[best_k] = self.tenure_barge_shake_ban
 
             self._released_container_tabu_reset(dumped_containers)
@@ -572,8 +573,10 @@ class MetaHeuristic:
             result = self.get_timing(route, Lcur)
 
             if result is not None:
+                # print("Successfully reinserted container from truck to barge")
                 self.route_dict[barge_idx] = route
             else:
+                # print("Failed to reinsert container from truck to barge")
                 # revert
                 self.f_ck[cont, barge_idx] = 0
                 self.route_dict[barge_idx] = old_route
@@ -621,6 +624,8 @@ class MetaHeuristic:
         assert to_b != from_b, "from_b and to_b cannot be the same"
 
         move = (container, from_b, to_b)
+
+        # print(f"Move (container, from_b, to_b): {move}")
 
         # 3) tabu check
         if (
@@ -739,31 +744,59 @@ class MetaHeuristic:
                     self.H_b = old_H_b
                     self.T1[move] = self.tenure_move_container
                     return False
-
-                self.milp_repairs += 1
-                self.route_dict[barge_idx] = new_route
-                # hard capacity gate on the repaired route
-                Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
-                if not self.check_for_cap(
-                    new_route, Lcur, barge_idx, barges=self.Barge_cap
-                ):
-                    self.f_ck[container] = old_row
-                    if from_b != "truck":
-                        self.route_dict[from_b] = old_route_from_b
-                    if to_b != "truck":
-                        self.route_dict[to_b] = old_route_to_b
-                    self.Barge_cap = old_Barge_cap
-                    self.H_b = old_H_b
-                    self.T1[move] = self.tenure_move_container
-                    return False
+                if new_route is not None:
+                    self.milp_repairs += 1
+                    self.route_dict[barge_idx] = new_route
+                    # hard capacity gate on the repaired route
+                    Lcur = self._get_L_current_for_barge(
+                        barge_idx=barge_idx, fck=self.f_ck
+                    )
+                    if not self.check_for_cap(
+                        new_route, Lcur, barge_idx, barges=self.Barge_cap
+                    ):
+                        self.f_ck[container] = old_row
+                        if from_b != "truck":
+                            self.route_dict[from_b] = old_route_from_b
+                        if to_b != "truck":
+                            self.route_dict[to_b] = old_route_to_b
+                        self.Barge_cap = old_Barge_cap
+                        self.H_b = old_H_b
+                        self.T1[move] = self.tenure_move_container
+                        return False
 
         # 8) tabu bookkeeping
         if crital_container_chosen and from_b != "truck":
+            # print("Critical container moved from barge → longer tabu on move")
             self.T2[move] = self.tenure_critical_container
 
             self._randomized_greedy_reinsert(from_b)
 
         return True
+
+    def barge_fully_ok(self, barge_idx, move=None):
+        assigned = [i for i in range(self.instance.C) if self.f_ck[i, barge_idx]]
+        if not assigned:
+            return True
+
+        # one‐shift TW
+        # ---- time-window check (identical logic to Greedy) ----
+        Lcur = self._get_L_current_for_barge(barge_idx=barge_idx, fck=self.f_ck)
+
+        route = self.route_dict[barge_idx]
+
+        if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
+            raise RuntimeError(
+                "Capacity check failed in barge_ok method, for barge " + str(barge_idx),
+                str(move),
+            )
+
+        result = self.get_timing(route, Lcur)
+
+        if result is None:
+            raise RuntimeError(
+                "Timing check failed in barge_ok method, for barge " + str(barge_idx),
+                str(move),
+            )
 
     def operator_swap(self):
         c1, c2 = rng.choice(self.instance.C, size=2, replace=False)
