@@ -19,6 +19,50 @@ def sanitize_for_yaml(obj):
         return obj
 
 
+def inspect_x_solution(x, N, tol=1e-6):
+    """
+    Inspect x[i][j] values after MILP solve.
+
+    Parameters
+    ----------
+    x : dict of dicts (PuLP variables)
+        x[i][j] binary arc variables
+    N : iterable
+        Set/list of nodes
+    tol : float
+        Numerical tolerance
+    """
+
+    active_arcs = []
+    out_degree = {i: 0 for i in N}
+    in_degree = {i: 0 for i in N}
+
+    for i in N:
+        for j in N:
+            if i != j and x[i][j].value() is not None:
+                if x[i][j].value() > 1 - tol:
+                    active_arcs.append((i, j))
+                    out_degree[i] += 1
+                    in_degree[j] += 1
+
+    # print("\n=== ACTIVE ARCS (x[i][j] = 1) ===")
+    # for i, j in active_arcs:
+    #     print(f"{i} -> {j}")
+
+    # print("\n=== NODE DEGREES ===")
+    # print("Node | Out | In")
+    # print("----------------")
+    # for i in N:
+    #     print(f"{i:>4} | {out_degree[i]:>3} | {in_degree[i]:>2}")
+
+    # print("\n=== SYMMETRIC ARC CHECK (x[i][j] and x[j][i]) ===")
+    # for i, j in active_arcs:
+    #     if (j, i) in active_arcs:
+    #         print(f"⚠️ 2-cycle detected: {i} <-> {j}")
+
+    return active_arcs, out_degree, in_degree
+
+
 def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     """
     MILP routing repair for one barge (Section 4.2.2).
@@ -57,6 +101,8 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # STEP 0 — Terminal set and demands
     # --------------------------------------------------
 
+    # print("\nRepairing route with MILP...")
+
     terminals = sorted({C_dict[cont]["Terminal"] for cont in assigned_containers})
     if 0 not in terminals:
         terminals = [0] + terminals
@@ -70,7 +116,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     for cont in assigned_containers:
         j = C_dict[cont]["Terminal"]
         if j == 0:
-            continue
+            raise RuntimeError("Error: container assigned to dry port")
         if C_dict[cont]["In_or_Out"] == 1:
             p[j] += C_dict[cont]["Wc"]
         else:
@@ -85,16 +131,17 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     service_time = {j: 0.0 for j in N}
 
     for j in N:
-        if j == 0:
-            continue
         related = [
             cont for cont in assigned_containers if C_dict[cont]["Terminal"] == j
         ]
+        if j == 0:
+            assert len(related) == 0, "Containers assigned to dry port in repair_route"
         if related:
             service_time[j] = sum(1 for cont in related) * Handling_time
             O[j] = max(C_dict[cont]["Oc"] for cont in related)
             D[j] = min(C_dict[cont]["Dc"] for cont in related)
         else:
+            service_time[j] = 0
             O[j] = 0
             D[j] = 10**6
 
@@ -117,7 +164,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     y = pulp.LpVariable.dicts("y", (N, N), 0)
     z = pulp.LpVariable.dicts("z", (N, N), 0)
     t = pulp.LpVariable.dicts("t", N, 0)
-    w = pulp.LpVariable.dicts("w", N, 0)  # waiting time at terminal j
 
     # Objective (19): minimize travel time
     prob += pulp.lpSum(T_ij[i][j] * x[i][j] for i in N for j in N)
@@ -127,7 +173,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # --------------------------------------------------
 
     for i in N:
-        prob += x[i][i] == 0
+        prob += x[i][i] == 0  # no self-loops
 
     for i in N:
         prob += (
@@ -172,20 +218,14 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
 
     M = 10**6
 
-    for i in N:
-        for j in N:
-            if i != j:
-                if j != 0:
-                    prob += (
-                        t[j]
-                        >= t[i]
-                        + T_ij[i][j]
-                        + service_time.get(i, 0.0)
-                        - M * (1 - x[i][j])
-                        + w[j]
-                    )
+    for j in N:
+        if j != 0:
+            for i in N:
+                if i != j:
+                    prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
 
-    prob += w[0] == 0
+            prob += t[j] >= O[j]
+            prob += t[j] <= D[j]
 
     # Removed the upper bound as it forces tj = ti + Tij when xij = 1, which is not correct if we want to allow waiting
     # In any case, tj <= Dj already enforces an upper bound on tj, and tj >= O_j and tj >= ti + Tij when xij=1 enforces a lower bound
@@ -194,11 +234,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     #         if i != j:
     #             if j != 0:
     #                 prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
-
-    for j in N:
-        if j != 0:
-            prob += t[j] >= O[j]
-            prob += t[j] <= D[j]
 
     # --------------------------------------------------
     # STEP 6 — Solve
@@ -231,18 +266,39 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # STEP 7 — Extract route
     # --------------------------------------------------
 
+    for j in N:
+        if j == 0:
+            continue
+        # print(
+        #     f"Opening time at terminal: {O[j]}, Arrival time at terminal {j}: {pulp.value(t[j])}, Closing time at terminal: {D[j]}"
+        # )
+
+        assert O[j] <= pulp.value(t[j]) <= D[j], "Time window violated"
+
+    _, degree_out, degree_in = inspect_x_solution(x, N)
+
+    for i in N:
+        assert degree_out[i] <= 1, "Invalid out-degree in repaired route"
+        assert degree_in[i] <= 1, "Invalid in-degree in repaired route"
+        assert degree_out[i] == degree_in[i], "Inconsistent degrees in repaired route"
+
     route = [0]
     current = 0
 
     while True:
         next_nodes = [j for j in N if j != current and pulp.value(x[current][j]) > 0.5]
+        assert (
+            len(next_nodes) <= 1
+        ), "Invalid next nodes in repaired route, there are more than 1 next nodes"
         if not next_nodes:
             break
         nxt = next_nodes[0]
         route.append(nxt)
         current = nxt
-        if current == 0:
+        if nxt == 0:
             break
+
+    # print("route", route)
 
     # print("Repaired route with MILP!!!")
 
@@ -311,8 +367,8 @@ class MetaHeuristic:
         self.truck_move_prob = 0.6
         self.tenure_move_container = 15
         self.tenure_critical_container = 15
-        self.tenure_barge_shake_ban = 100
-        self.shake_threshold = 10
+        self.tenure_barge_shake_ban = 80
+        self.shake_threshold = 100
 
     def fill_initial_routes(self):
         for k in range(self.K):
