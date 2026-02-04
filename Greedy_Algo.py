@@ -212,7 +212,9 @@ class GreedyOptimizer:
             f"O={len(O_terminal)}, D={len(D_terminal)}, route={len(route)}"
         )
 
-        return D_terminal, O_terminal
+        timing = dict(zip(route, O_terminal))
+
+        return timing
 
     def check_for_cap(self, route, L_current, barge_idx, barges=None):
         cap = barges[barge_idx] if barges is not None else self.Barges[barge_idx]
@@ -309,8 +311,8 @@ class GreedyOptimizer:
                     self.f_ck_init[c, barge_idx] = 0
                     continue
 
-                result = self.get_timing(route, L_current)
-                if result is not None:
+                timing = self.get_timing(route, L_current)
+                if timing is not None:
                     to_ignore.append(c)
                 else:
                     # undo assignment
@@ -453,15 +455,14 @@ class GreedyOptimizer:
 
             Lcur = {c: C_dict[c] for c in containers}
 
-            result = self.get_timing(route, Lcur)
-            if result is None:
+            timing = self.get_timing(route, Lcur)
+            if timing is None:
                 print(
                     f"Warning: could not compute arrival times for barge {k} in final plot"
                 )
                 continue  # or mark route as infeasible
-            D_term, O_term = result
 
-            for node, arrival in zip(route, O_term):
+            for node, arrival in timing.items():
                 arrival_time[(k, node)] = arrival
 
         # --------------------------------------------------
