@@ -222,10 +222,12 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
         if j != 0:
             for i in N:
                 if i != j:
-                    prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
+                    prob += t[j] >= t[i] + service_time[i] + T_ij[i][j] - M * (
+                        1 - x[i][j]
+                    )
 
             prob += t[j] >= O[j]
-            prob += t[j] <= D[j]
+            prob += t[j] + service_time[j] <= D[j]
 
     # Removed the upper bound as it forces tj = ti + Tij when xij = 1, which is not correct if we want to allow waiting
     # In any case, tj <= Dj already enforces an upper bound on tj, and tj >= O_j and tj >= ti + Tij when xij=1 enforces a lower bound
