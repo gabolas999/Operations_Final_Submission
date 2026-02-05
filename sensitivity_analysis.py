@@ -135,4 +135,6 @@ def analyse_sensitivity_analysis_results(
 
 
 if __name__ == "__main__":
-    final_variable_change_result_summary_map = run_sensitivity_analysis()
+    final_variable_change_result_summary_map = run_sensitivity_analysis(
+        base_scenario=SCENARIO_II
+    )

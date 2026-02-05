@@ -1,24 +1,47 @@
 from matplotlib import pyplot as plt
-import random
 import numpy as np
 import pulp
 import copy
 
+from helpers import (
+    _edge_loads_along_route,
+    _get_L_current_for_barge,
+    timing_window_plot,
+)
 
-def sanitize_for_yaml(obj):
-    if isinstance(obj, dict):
-        return {k: sanitize_for_yaml(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [sanitize_for_yaml(v) for v in obj]
-    elif isinstance(obj, tuple):
-        return tuple(sanitize_for_yaml(v) for v in obj)
-    elif isinstance(obj, np.generic):  # catches np.float64, np.int64, etc.
-        return obj.item()
-    else:
-        return obj
+rng = np.random.default_rng(seed=2)
 
 
-def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
+def inspect_x_solution(x, N, tol=1e-6):
+    """
+    Inspect x[i][j] values after MILP solve.
+
+    Parameters
+    ----------
+    x : dict of dicts (PuLP variables)
+        x[i][j] binary arc variables
+    N : iterable
+        Set/list of nodes
+    tol : float
+        Numerical tolerance
+    """
+
+    active_arcs = []
+    out_degree = {i: 0 for i in N}
+    in_degree = {i: 0 for i in N}
+
+    for i in N:
+        for j in N:
+            if i != j and x[i][j].value() is not None:
+                if x[i][j].value() > 1 - tol:
+                    active_arcs.append((i, j))
+                    out_degree[i] += 1
+                    in_degree[j] += 1
+
+    return active_arcs, out_degree, in_degree
+
+
+def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     """
     MILP routing repair for one barge (Section 4.2.2).
 
@@ -38,8 +61,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
         Single Barge capacity (TEU).
     T_ij : dict[(i,j) -> float] or 2D list
         Travel times.
-    handling_time : float
-        Handling time per container (hours).
 
     Returns
     -------
@@ -58,38 +79,56 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
     # STEP 0 — Terminal set and demands
     # --------------------------------------------------
 
-    terminals = sorted({C_dict[c]["Terminal"] for c in assigned_containers})
+    # print("\nRepairing route with MILP...")
+
+    terminals = sorted({C_dict[cont]["Terminal"] for cont in assigned_containers})
     if 0 not in terminals:
         terminals = [0] + terminals
 
     N = terminals
 
     # Pickup / delivery quantities per terminal
-    p = {j: 0 for j in N}  # imports
-    d = {j: 0 for j in N}  # exports
+    p = {j: 0 for j in N if j != 0}  # imports
+    d = {j: 0 for j in N if j != 0}  # exports
 
-    for c in assigned_containers:
-        j = C_dict[c]["Terminal"]
-        if C_dict[c]["In_or_Out"] == 1:
-            p[j] += C_dict[c]["Wc"]
+    for cont in assigned_containers:
+        j = C_dict[cont]["Terminal"]
+        if j == 0:
+            raise RuntimeError("Error: container assigned to dry port")
+        if C_dict[cont]["In_or_Out"] == 1:
+            p[j] += C_dict[cont]["Wc"]
         else:
-            d[j] += C_dict[c]["Wc"]
+            d[j] += C_dict[cont]["Wc"]
 
-    # Terminal time windows
+    # print("Import pickups per terminal:", p)
+    # print("Export deliveries per terminal:", d)
+
+    # Terminal time windows (start-of-service)
     O = {}
     D = {}
+    service_time = {j: 0.0 for j in N}
 
     for j in N:
-        related = [c for c in assigned_containers if C_dict[c]["Terminal"] == j]
+        related = [
+            cont for cont in assigned_containers if C_dict[cont]["Terminal"] == j
+        ]
+        if j == 0:
+            assert len(related) == 0, "Containers assigned to dry port in repair_route"
         if related:
-            O[j] = max(C_dict[c]["Oc"] for c in related)
-            D[j] = min(C_dict[c]["Dc"] for c in related)
+            service_time[j] = sum(1 for cont in related) * Handling_time
+            O[j] = max(C_dict[cont]["Oc"] for cont in related)
+            D[j] = min(C_dict[cont]["Dc"] for cont in related)
         else:
+            service_time[j] = 0
             O[j] = 0
             D[j] = 10**6
 
     R = max(
-        [C_dict[c]["Rc"] for c in assigned_containers if C_dict[c]["In_or_Out"] == 2]
+        [
+            C_dict[cont]["Rc"]
+            for cont in assigned_containers
+            if C_dict[cont]["In_or_Out"] == 2
+        ]
         or [0]
     )
 
@@ -105,11 +144,15 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
     t = pulp.LpVariable.dicts("t", N, 0)
 
     # Objective (19): minimize travel time
-    prob += pulp.lpSum(T_ij[i][j] * x[i][j] for i in N for j in N if i != j)
+    prob += pulp.lpSum(T_ij[i][j] * x[i][j] for i in N for j in N)
 
     # --------------------------------------------------
     # STEP 2 — Flow conservation (20)
     # --------------------------------------------------
+
+    for i in N:
+        prob += x[i][i] == 0  # no self-loops
+
     for i in N:
         prob += (
             pulp.lpSum(x[i][j] for j in N if j != i)
@@ -125,18 +168,17 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
     # --------------------------------------------------
 
     for j in N:
-        if j == 0:
-            continue
-        prob += (
-            pulp.lpSum(y[i][j] for i in N if i != j)
-            - pulp.lpSum(y[j][i] for i in N if i != j)
-            == p[j]
-        )
-        prob += (
-            pulp.lpSum(z[j][i] for i in N if i != j)
-            - pulp.lpSum(z[i][j] for i in N if i != j)
-            == d[j]
-        )
+        if j != 0:
+            prob += (
+                pulp.lpSum(y[i][j] for i in N if i != j)
+                - pulp.lpSum(y[j][i] for i in N if i != j)
+                == p[j]
+            )
+            prob += (
+                pulp.lpSum(z[j][i] for i in N if i != j)
+                - pulp.lpSum(z[i][j] for i in N if i != j)
+                == d[j]
+            )
 
     # --------------------------------------------------
     # STEP 4 — Capacity (24)
@@ -144,8 +186,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
 
     for i in N:
         for j in N:
-            if i != j:
-                prob += y[i][j] + z[i][j] <= Qk * x[i][j]
+            prob += y[i][j] + z[i][j] <= Qk * x[i][j]
 
     # --------------------------------------------------
     # STEP 5 — Timing (25–29)
@@ -155,51 +196,100 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, handling_time):
 
     M = 10**6
 
-    for i in N:
-        for j in N:
-            if i != j:
-                prob += t[j] >= t[i] + T_ij[i][j] - M * (1 - x[i][j])
-
-    for i in N:
-        for j in N:
-            if i != j:
-                prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
-
     for j in N:
         if j != 0:
+            for i in N:
+                if i != j:
+                    prob += t[j] >= t[i] + service_time[i] + T_ij[i][j] - M * (
+                        1 - x[i][j]
+                    )
+
             prob += t[j] >= O[j]
-            prob += t[j] <= D[j]
+            prob += t[j] + service_time[j] <= D[j]
+
+    # Removed the upper bound as it forces tj = ti + Tij when xij = 1, which is not correct if we want to allow waiting
+    # In any case, tj <= Dj already enforces an upper bound on tj, and tj >= O_j and tj >= ti + Tij when xij=1 enforces a lower bound
+    # for i in N:
+    #     for j in N:
+    #         if i != j:
+    #             if j != 0:
+    #                 prob += t[j] <= t[i] + T_ij[i][j] + M * (1 - x[i][j])
 
     # --------------------------------------------------
     # STEP 6 — Solve
     # --------------------------------------------------
+    # prob.writeLP("repair_debug.lp")
 
-    status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    # status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+    status = prob.solve(
+        pulp.PULP_CBC_CMD(
+            msg=False,
+            threads=1,  # 🔑 determinism
+            timeLimit=None,
+            options=["randomSeed 0"],  # 🔑 determinism
+        )
+    )
 
     if pulp.LpStatus[status] != "Optimal":
-        return None
+        # print("No feasible MILP route found")
+        return None, None
         # raise RuntimeError("No feasible MILP route found")
+    # else:
+    #     print("Status:", pulp.LpStatus[prob.status])
+
+    #     for v in prob.variables():
+    #         if abs(v.varValue) > 1e-6:  # only nonzero vars
+    #             print(f"{v.name} = {v.varValue}")
 
     # --------------------------------------------------
     # STEP 7 — Extract route
     # --------------------------------------------------
+
+    for j in N:
+        if j == 0:
+            continue
+        # print(
+        #     f"Opening time at terminal: {O[j]}, Arrival time at terminal {j}: {pulp.value(t[j])}, Closing time at terminal: {D[j]}"
+        # )
+
+        if not (O[j] <= pulp.value(t[j]) <= D[j]):
+            print("Timing violation at terminal", j)
+            print(
+                f"Opening time at terminal: {O[j]}, Arrival time at terminal {j}: {pulp.value(t[j])}, Closing time at terminal: {D[j]}"
+            )
+            return None, None
+
+    _, degree_out, degree_in = inspect_x_solution(x, N)
+
+    for i in N:
+        assert degree_out[i] <= 1, "Invalid out-degree in repaired route"
+        assert degree_in[i] <= 1, "Invalid in-degree in repaired route"
+        assert degree_out[i] == degree_in[i], "Inconsistent degrees in repaired route"
 
     route = [0]
     current = 0
 
     while True:
         next_nodes = [j for j in N if j != current and pulp.value(x[current][j]) > 0.5]
+        assert (
+            len(next_nodes) <= 1
+        ), "Invalid next nodes in repaired route, there are more than 1 next nodes"
         if not next_nodes:
             break
         nxt = next_nodes[0]
         route.append(nxt)
         current = nxt
-        if current == 0:
+        if nxt == 0:
             break
 
-    arrival_times = {j: pulp.value(t[j]) for j in route}
+    # print("route", route)
 
-    return route
+    # print("Repaired route with MILP!!!")
+
+    timing = dict(zip(route, [pulp.value(t[j]) for j in route]))
+
+    return route, timing
 
 
 class MetaHeuristic:
@@ -210,51 +300,48 @@ class MetaHeuristic:
         get_route,
         get_timing,
         check_for_cap,
-        delay_window,
         calculate_objective,
     ):
 
         self.get_route = get_route
         self.get_timing = get_timing
         self.check_for_cap = check_for_cap
-        self.delay_window = delay_window
         self.calculate_objective = calculate_objective
 
-        self.instance = problem_instance
-        self.init_solution = init_solution
+        self.H_t_dict = {1: problem_instance.H_t_20, 2: problem_instance.H_t_40}
 
-        # 1) compute slacks and pick top‐10% as critical
-        slacks = {
-            c: self.instance.C_dict[c]["Dc"] - self.instance.C_dict[c]["Oc"]
-            for c in self.init_solution.C_ordered
-        }
-        ncrit = max(1, int(0.1 * len(self.init_solution.C_ordered)))
-        crit_sorted = sorted(slacks, key=slacks.get)
-        self.critical = set(crit_sorted[:ncrit])
+        self.K = len(problem_instance.K_list[:-1])  # exclude the truck
 
-        # parameters
-        self.truck_move_prob = 0.6
-        self.critical_move_prob = 0.6
-        self.ten_crit = 30
+        self.C = problem_instance.C
+        self.C_dict = problem_instance.C_dict
+        self.T_ij = problem_instance.T_ij_matrix
+        self.Handling_time = problem_instance.Handling_time
+        self.N = problem_instance.N
 
-        self.H_t_dict = {1: self.instance.H_t_20, 2: self.instance.H_t_40}
+        self.full_choice_list = list(range(self.K)) + ["truck"]
 
-        self.K = len(self.instance.K_list[:-1])  # exclude the truck
-
-        self.H_b = self.init_solution.H_b
+        self.Barge_cap = init_solution.Barges
+        self.H_b = init_solution.H_b
 
         # solution representation
-        # self.f_ck = np.zeros((self.instance.C, self.K), dtype=int)
-        self.f_ck_greedy = init_solution.f_ck_init
-
-        self.f_ck = copy.deepcopy(self.f_ck_greedy)
+        self.f_ck = copy.deepcopy(init_solution.f_ck)
 
         # tabu structures (move_key -> tenure)
         self.T1 = {}
         self.T2 = {}
         self.T3 = {}
 
+        self.critical = self._compute_critical_containers()
+
+        self.non_critical = [
+            cont for cont in range(self.C) if cont not in self.critical
+        ]
+
         self.route_dict = {}
+
+        self.fill_initial_routes()
+
+        self.route_load_dict = {}
 
         self.move_accepts = 0
         self.swap_accepts = 0
@@ -263,225 +350,560 @@ class MetaHeuristic:
         self.milp_repairs = 0
 
         # parameters (tune these!)
-        # self.critical = {}  # set of your “tightest” containers
-        self.ten_move = 20
-        self.ten_crit = 20
-        self.ten_barban = 10
-        self.shake_thr = 60
+        self.critical_move_prob = 0.6
+        self.prob_operator_move = 0.8
+        self.truck_move_prob = 0.6
+        self.tenure_move_container = 15
+        self.tenure_critical_container = 15
+        self.tenure_barge_shake_ban = 80
+        self.shake_threshold = 100
+
+    def fill_initial_routes(self):
+        for k in range(self.K):
+            assigned = [cont for cont in range(self.C) if self.f_ck[cont, k] == 1]
+            if not assigned:
+                continue
+            L_current = _get_L_current_for_barge(
+                barge_idx=k,
+                f_ck=self.f_ck,
+                C=self.C,
+                C_dict=self.C_dict,
+            )
+
+            route = self.get_route(L_current)
+
+            timing = self.get_timing(route, L_current)
+
+            entry = self.route_dict.setdefault(k, {})
+
+            entry.setdefault("route", route)
+            entry.setdefault("repaired", False)
+            entry.setdefault("timing", timing)
+
+    def _compute_critical_containers(self):
+        """
+        Compute the set of critical containers according to the paper logic:
+
+        - Per sea terminal:
+            * container with earliest opening time (min Oc)
+            * container with latest closing time (max Dc)
+        - Globally:
+            * export container with latest release time (max Rc), if Rc > 0 exists
+        """
+
+        critical = set()
+        C_dict = self.C_dict
+
+        # --- per-terminal critical containers (exclude dry port j = 0) ---
+        terminals = {
+            info["Terminal"] for info in C_dict.values() if info["Terminal"] != 0
+        }
+
+        for j in terminals:
+            containers_at_j = [
+                cont for cont, info in C_dict.items() if info["Terminal"] == j
+            ]
+
+            if not containers_at_j:
+                continue
+
+            # earliest opening
+            c_earliest_O = min(containers_at_j, key=lambda cont: C_dict[cont]["Oc"])
+
+            # latest closing
+            c_latest_D = max(containers_at_j, key=lambda cont: C_dict[cont]["Dc"])
+
+            critical.add(c_earliest_O)
+            critical.add(c_latest_D)
+
+        # --- export container with latest release ---
+        export_containers = [
+            cont for cont, info in C_dict.items() if info["In_or_Out"] == 2
+        ]
+
+        if export_containers:
+            max_Rc = max(C_dict[cont]["Rc"] for cont in export_containers)
+            if max_Rc > 0:  # ignore trivial all-zero case
+                c_latest_R = max(export_containers, key=lambda cont: C_dict[cont]["Rc"])
+                critical.add(c_latest_R)
+
+        return critical
+
+    def _fill_route_related_dictionaries(self, fck):
+        for k in range(self.K):
+            L_current = _get_L_current_for_barge(
+                barge_idx=k,
+                f_ck=fck,
+                C=self.C,
+                C_dict=self.C_dict,
+            )
+
+            route = self.route_dict[k]["route"]
+
+            self.route_load_dict.setdefault(
+                k,
+                _edge_loads_along_route(
+                    route=route,
+                    L_current=L_current,
+                ),
+            )  # this fills self.route_load_dict
+
+        assert (
+            len(self.route_dict[k]["route"]) >= 2
+        ), "route must at least start and end at depot after filling route_dict"
+
+        assert (
+            len(self.route_load_dict) == self.K
+        ), "route_load_dict incomplete, missing barges or too many barges after filling route_load_dict"
+
+    def reassign_barges_by_requirements(self, required):
+        """
+        Deterministically assign barges to routes by sorted requirements.
+        Assumes global dominance check has already passed.
+        """
+
+        req_sorted_idx = sorted(range(self.K), key=lambda k: required[k])
+        cap_cost_sorted = sorted(zip(self.Barge_cap, self.H_b), key=lambda x: x[0])
+
+        new_Barge_cap = [None] * self.K
+        new_H_b = [None] * self.K
+
+        for r_idx, (cap, cost) in zip(req_sorted_idx, cap_cost_sorted):
+            new_Barge_cap[r_idx] = cap
+            new_H_b[r_idx] = cost
+
+        self.Barge_cap = new_Barge_cap
+        self.H_b = new_H_b
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
-        for T in (self.T1, self.T2):
-            expired = [m for m, t in T.items() if t <= 1]
-            for m in expired:
-                del T[m]
-            for m in T:
-                T[m] -= 1
-        expired = [b for b, t in self.T3.items() if t <= 1]
-        for b in expired:
+        T1_expired = [m for m, t in self.T1.items() if t <= 1]
+        for T1_m in T1_expired:
+            del self.T1[T1_m]
+        for T1_move in self.T1:
+            self.T1[T1_move] -= 1
+
+        T2_expired = [m for m, t in self.T2.items() if t <= 1]
+        for T2_m in T2_expired:
+            del self.T2[T2_m]
+        for T2_move in self.T2:
+            self.T2[T2_move] -= 1
+
+        T3_expired = [b for b, t in self.T3.items() if t <= 1]
+        for b in T3_expired:
             del self.T3[b]
         for b in self.T3:
             self.T3[b] -= 1
 
+    def _released_container_tabu_reset(self, dumped_containers):
+        """
+        Remove tabu restrictions for containers released by a shake.
+        """
+
+        for tabu_list in (self.T1, self.T2):
+            for move in list(tabu_list.keys()):
+                if move[0] in dumped_containers:
+                    del tabu_list[move]
+
     def _shake(self):
         best_k = None
         worst = 1.0
+
+        if len(self.T3) == self.K:
+            self.T3 = {}
+
         for k in range(self.K):
             if k in self.T3:
                 continue
-            assigned = [c for c in range(self.instance.C) if self.f_ck[c, k] == 1]
+            assigned = [cont for cont in range(self.C) if self.f_ck[cont, k] == 1]
             if not assigned:
                 continue
-            Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = self.get_route(Lcur)
-            loads = []
-            load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
-            loads.append(load)
-            for node in route[1:]:
-                for cont in Lcur.values():
-                    if cont["Terminal"] == node:
-                        load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
-                loads.append(load)
-            util = sum(loads) / (len(loads) * self.init_solution.Barges[k])
+            Lcur = {cont: self.C_dict[cont] for cont in assigned}
+            route = self.route_dict[k]["route"]
+            self.route_load_dict.setdefault(
+                k,
+                _edge_loads_along_route(
+                    route=route,
+                    L_current=Lcur,
+                ),
+            )
+            util = max(self.route_load_dict[k]) / self.Barge_cap[k]
             if util < worst:
                 worst, best_k = util, k
         if best_k is not None:
+            dumped_containers = [
+                cont for cont in range(self.C) if self.f_ck[cont, best_k] == 1
+            ]
+
             self.f_ck[:, best_k] = 0
-            self.T3[best_k] = self.ten_barban
+            self.route_dict[best_k]["route"] = [0, 0]  # empty barge → trivial routes
+            self.route_dict[best_k]["repaired"] = False
+            self.route_dict[best_k]["timing"] = {0: 0, 0: 0}
+            self.T3[best_k] = self.tenure_barge_shake_ban
+
+            self._released_container_tabu_reset(dumped_containers)
+
+            # greedy reassignment after shake
+            for k in range(self.K):
+                if k in self.T3:
+                    continue
+                self._randomized_greedy_reinsert(k)
+
+    def _randomized_greedy_reinsert(self, barge_idx, max_trials=10):
+        """
+        Randomized greedy procedure:
+        tries to insert trucked containers into a specific barge.
+        Triggered after removing a critical container from that barge.
+        """
+
+        for _ in range(max_trials):
+            old_route = copy.deepcopy(self.route_dict[barge_idx]["route"])
+            old_timing = copy.deepcopy(self.route_dict[barge_idx]["timing"])
+            old_repaired = self.route_dict[barge_idx]["repaired"]
+
+            trucked_containers = [
+                cont for cont in range(self.C) if not any(self.f_ck[cont, :])
+            ]
+
+            if not trucked_containers:
+                print("No trucked containers to reinsert")
+                return
+
+            cont = rng.choice(trucked_containers)
+
+            # tentative insertion
+            self.f_ck[cont, barge_idx] = 1
+            self.route_dict.pop(barge_idx)
+
+            Lcur = _get_L_current_for_barge(
+                barge_idx=barge_idx,
+                f_ck=self.f_ck,
+                C=self.C,
+                C_dict=self.C_dict,
+            )
+
+            if len(Lcur) == 0:
+                # empty barge → trivial route
+                entry = self.route_dict.setdefault(barge_idx, {})
+                entry.setdefault("route", [0, 0])
+                entry.setdefault("repaired", False)
+                entry.setdefault("timing", {0: 0, 0: 0})
+            else:
+                created_route = self.get_route(Lcur)
+                timing = self.get_timing(created_route, Lcur)
+                entry = self.route_dict.setdefault(barge_idx, {})
+                entry.setdefault("route", created_route)
+                entry.setdefault("repaired", False)
+                entry.setdefault("timing", timing)
+
+            self._fill_route_related_dictionaries(fck=self.f_ck)
+
+            route = self.route_dict[barge_idx]["route"]
+            assert (
+                route is not None
+            ), "Route missing for barge after fill method when trying to reinsert container from truck to barge"
+
+            # capacity check
+            if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
+                self.f_ck[cont, barge_idx] = 0
+                self.route_dict[barge_idx]["route"] = old_route
+                self.route_dict[barge_idx]["timing"] = old_timing
+                self.route_dict[barge_idx]["repaired"] = old_repaired
+
+                continue
+
+            timing = self.get_timing(route, Lcur)
+
+            if timing is not None:
+                # print("Successfully reinserted container from truck to barge")
+                self.route_dict[barge_idx]["route"] = route
+                self.route_dict[barge_idx]["timing"] = timing
+                self.route_dict[barge_idx]["repaired"] = False
+            else:
+                # print("Failed to reinsert container from truck to barge")
+                # revert
+                self.f_ck[cont, barge_idx] = 0
+                self.route_dict[barge_idx]["route"] = old_route
+                self.route_dict[barge_idx]["timing"] = old_timing
+                self.route_dict[barge_idx]["repaired"] = old_repaired
+
+        return
 
     def operator_move(self):
-        # 1) pick c: 60% of the time prefer already‐trucked “critical” candidates
-        if random.random() < self.critical_move_prob:
-            trucked = [c for c in range(self.instance.C) if not any(self.f_ck[c])]
-            # only pick a critical container if available
-            crit_trucked = [c for c in trucked if c in self.critical]
+
+        # 1) pick container container (unchanged)
+
+        if rng.random() < self.critical_move_prob:
+            crital_container_chosen = True
+            trucked = [cont for cont in range(self.C) if not any(self.f_ck[cont])]
+            crit_trucked = [cont for cont in trucked if cont in self.critical]
             if crit_trucked:
-                c = random.choice(crit_trucked)
-            elif trucked:
-                c = random.choice(trucked)
+                container = rng.choice(crit_trucked)
             else:
-                c = random.randrange(self.instance.C)
+                container = rng.choice(list(self.critical))
         else:
-            c = random.randrange(self.instance.C)
+            crital_container_chosen = False
+            container = rng.choice(self.non_critical)
 
-        # 2) locate its current barge (if any) and pick a new target
-        from_b = next((k for k in range(self.K) if self.f_ck[c, k]), None)
-        choices = list(range(self.K)) + ["truck"]
-        to_b = random.choice(choices)
-        if to_b == from_b:
-            return False
+        # 2) locate current assignment
+        from_b = next((k for k in range(self.K) if self.f_ck[container, k]), "truck")
 
-        move = (c, from_b, to_b)
+        choices = copy.deepcopy(self.full_choice_list)
 
-        old_row = self.f_ck[c, :].copy()
+        if from_b == "truck":
+            choices.remove("truck")  # cannot move truck → truck
+        elif not crital_container_chosen:
+            choices.remove(from_b)  # cannot move to same barge
+            choices.remove(
+                "truck"
+            )  # cannot move → truck as the container is non-critical
+        elif crital_container_chosen:
+            choices.remove(from_b)  # cannot move to same barge
 
-        # 3) tentatively apply
-        if from_b is not None:
-            self.f_ck[c, from_b] = 0
-            self.route_dict.pop(from_b, None)
-        if to_b != "truck":
-            self.f_ck[c, to_b] = 1
-            self.route_dict.pop(to_b, None)
+        to_b = rng.choice(choices)
 
-        # 4) check all tabu‐lists
-        is_tabu = (
+        if isinstance(to_b, str) and to_b != "truck":
+            to_b = int(to_b)
+
+        assert to_b != from_b, "from_b and to_b cannot be the same"
+
+        move = (container, from_b, to_b)
+
+        # print(f"Move (container, from_b, to_b): {move}")
+
+        # 3) tabu check
+        if (
             move in self.T1
             or move in self.T2
             or (from_b in self.T3)
             or (to_b in self.T3)
-        )
-
-        if is_tabu:
-            self.f_ck[c, :] = old_row
+        ):
             return False
 
-        # 5) quick capacity + 1-shift TW check on receiving barge
-        feasible = True
+        assert len(self.route_dict) == self.K, "route_dict incomplete before move"
+        assert all(
+            len(self.route_dict[k]["route"]) >= 2 for k in range(self.K)
+        ), "invalid route in route_dict before move"
+
+        # Save old state
+        old_row = self.f_ck[container, :].copy()
+        old_Barge_cap = self.Barge_cap.copy()
+        old_H_b = self.H_b.copy()
+        old_route_from_b = (
+            self.route_dict[from_b]["route"] if from_b != "truck" else None
+        )
+        old_route_to_b = self.route_dict[to_b]["route"] if to_b != "truck" else None
+
+        old_timing_from_b = (
+            self.route_dict[from_b]["timing"] if from_b != "truck" else None
+        )
+        old_timing_to_b = self.route_dict[to_b]["timing"] if to_b != "truck" else None
+        old_repaired_from_b = (
+            self.route_dict[from_b]["repaired"] if from_b != "truck" else None
+        )
+        old_repaired_to_b = (
+            self.route_dict[to_b]["repaired"] if to_b != "truck" else None
+        )
+
+        # 4) tentative apply
+        if from_b != "truck":
+            self.f_ck[container, from_b] = 0
+            self.route_dict.pop(from_b)
 
         if to_b != "truck":
-            assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
-            Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = self.route_dict.get(to_b, self.get_route(Lcur))
+            self.f_ck[container, to_b] = 1
+            self.route_dict.pop(to_b)
 
-            # ---- capacity check ----
-            if not self.check_for_cap(
-                route, Lcur, to_b, barges=self.init_solution.Barges
-            ):
-                feasible = False
+        if to_b != "truck":
+            Lcur_to = _get_L_current_for_barge(
+                barge_idx=to_b,
+                f_ck=self.f_ck,
+                C=self.C,
+                C_dict=self.C_dict,
+            )
+
+            if len(Lcur_to) == 0:
+                # empty barge → trivial route
+                entry_to_b = self.route_dict.setdefault(to_b, {})
+                entry_to_b.setdefault("route", [0, 0])
+                entry_to_b.setdefault("repaired", False)
+                entry_to_b.setdefault("timing", {0: 0, 0: 0})
+
             else:
-                # ---- time-window check (identical logic to Greedy) ----
-                success = False
-                delay = 0.0
+                route_to_b = self.get_route(Lcur_to)
+                timing_to_b = self.get_timing(route_to_b, Lcur_to)
+                entry_to_b = self.route_dict.setdefault(to_b, {})
+                entry_to_b.setdefault("route", route_to_b)
+                entry_to_b.setdefault("repaired", False)
+                entry_to_b.setdefault("timing", timing_to_b)
 
-                for attempt in range(2):  # at most one shift
-                    D_term, O_term = self.get_timing(route, Lcur, delay)
-
-                    early_arrival_violations = []
-                    late = False
-
-                    for cont in Lcur.values():
-                        t = cont["Terminal"]
-                        arrival = O_term[route.index(t)]
-
-                        if arrival < cont["Oc"]:
-                            early_arrival_violations.append(cont)
-                        elif arrival > cont["Dc"]:
-                            late = True
-                            break
-
-                    if late:
-                        success = False
-                        break
-
-                    if not early_arrival_violations:
-                        success = True
-                        break
-
-                    # apply the single allowed shift
-                    if attempt == 0:
-                        delay_needed = [
-                            self.delay_window(
-                                container=v,
-                                O_terminal=O_term,
-                                route=route,
-                                terminal=v["Terminal"],
-                            )
-                            for v in early_arrival_violations
-                        ]
-                        delay += max(delay_needed)
-                    else:
-                        break
-
-                if not success:
-                    feasible = False
-
-        # 6) if quick check failed, try full MILP repair for barge
-        if not feasible and to_b != "truck":
-            assigned = [i for i in range(self.instance.C) if self.f_ck[i, to_b] == 1]
-
-            ordered_terminals = list(
-                dict.fromkeys(self.instance.C_dict[c]["Terminal"] for c in assigned)
+        if from_b != "truck":
+            Lcur_from = _get_L_current_for_barge(
+                barge_idx=from_b,
+                f_ck=self.f_ck,
+                C=self.C,
+                C_dict=self.C_dict,
             )
 
-            for j in ordered_terminals:
-                O_j = max(
-                    self.instance.C_dict[c]["Oc"]
-                    for c in assigned
-                    if self.instance.C_dict[c]["Terminal"] == j
-                )
-                D_j = min(
-                    self.instance.C_dict[c]["Dc"]
-                    for c in assigned
-                    if self.instance.C_dict[c]["Terminal"] == j
-                )
+            if len(Lcur_from) == 0:
+                # empty barge → trivial route
+                entry_from_b = self.route_dict.setdefault(from_b, {})
+                entry_from_b.setdefault("route", [0, 0])
+                entry_from_b.setdefault("repaired", False)
+                entry_from_b.setdefault("timing", {0: 0, 0: 0})
+            else:
+                entry_from_b = self.route_dict.setdefault(from_b, {})
+                route_from_b = self.get_route(Lcur_from)
+                timing_from_b = self.get_timing(route_from_b, Lcur_from)
+                entry_from_b.setdefault("route", route_from_b)
+                entry_from_b.setdefault("repaired", False)
+                entry_from_b.setdefault("timing", timing_from_b)
 
-                if O_j > D_j:
-                    print("IMPOSSIBLE TERMINAL WINDOW:", j, O_j, D_j)
+        self._fill_route_related_dictionaries(fck=self.f_ck)
 
-            new_route = repair_route(
-                assigned,
-                self.instance.C_dict,
-                self.init_solution.Barges[to_b],
-                self.instance.T_ij_matrix,
-                self.instance.Handling_time,
+        # 5) CAPACITY CHECK
+        required_capacity = [max(self.route_load_dict[k]) for k in range(self.K)]
+
+        # dominance check
+        req_sorted = sorted(required_capacity)
+        cap_sorted = sorted(self.Barge_cap)
+
+        if any(req > cap for req, cap in zip(req_sorted, cap_sorted)):
+            # impossible no matter what
+            self.f_ck[container, :] = old_row
+            if from_b != "truck":
+                self.route_dict[from_b]["route"] = old_route_from_b
+                self.route_dict[from_b]["repaired"] = old_repaired_from_b
+                self.route_dict[from_b]["timing"] = old_timing_from_b
+            if to_b != "truck":
+                self.route_dict[to_b]["route"] = old_route_to_b
+                self.route_dict[to_b]["repaired"] = old_repaired_to_b
+                self.route_dict[to_b]["timing"] = old_timing_to_b
+            self.Barge_cap = old_Barge_cap
+            self.H_b = old_H_b
+            self.T1[move] = self.tenure_move_container
+            return False
+
+        # deterministic reassignment (upgrade or tighten)
+        self.reassign_barges_by_requirements(required=required_capacity)
+
+        # update old state after reassignment
+        old_Barge_cap = self.Barge_cap.copy()
+        old_H_b = self.H_b.copy()
+
+        # 6) TIMING CHECK (only for affected barge if not truck)
+        affected_barges = set()
+
+        if from_b != "truck":
+            affected_barges.add(from_b)
+
+        if to_b != "truck":
+            affected_barges.add(to_b)
+
+        for barge_idx in affected_barges:
+            Lcur = _get_L_current_for_barge(
+                barge_idx=barge_idx,
+                f_ck=self.f_ck,
+                C=self.C,
+                C_dict=self.C_dict,
             )
 
-            # print("New route from MILP repair:", new_route)
+            route = self.route_dict[barge_idx]["route"]
 
-            self.milp_calls += 1
-            if new_route is None:
-                # unrecoverably infeasible → undo + T1‐tabu
-                self.f_ck[c] = old_row
-                self.T1[move] = self.ten_move
-                return False
-            else:  # repair succeeded, we keep the move
-                self.milp_repairs += 1
-                L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
+            timing = self.get_timing(route, Lcur)
 
-                old_route = self.get_route(L_cur_temp)
-                old_cost = sum(
-                    self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
-                    for i in range(len(old_route) - 1)
+            # 7) MILP repair if timing failed
+            if timing is None:
+                assigned = [i for i in range(self.C) if self.f_ck[i, barge_idx]]
+                new_route, new_timing = repair_route(
+                    assigned,
+                    self.C_dict,
+                    self.Barge_cap[barge_idx],
+                    self.T_ij,
+                    self.Handling_time,
                 )
+                self.milp_calls += 1
 
-                new_cost = sum(
-                    self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
-                    for i in range(len(new_route) - 1)
-                )
+                if new_route is None:
+                    # undo everything
+                    self.f_ck[container, :] = old_row
+                    if from_b != "truck":
+                        self.route_dict[from_b]["route"] = old_route_from_b
+                        self.route_dict[from_b]["repaired"] = old_repaired_from_b
+                        self.route_dict[from_b]["timing"] = old_timing_from_b
+                    if to_b != "truck":
+                        self.route_dict[to_b]["route"] = old_route_to_b
+                        self.route_dict[to_b]["repaired"] = old_repaired_to_b
+                        self.route_dict[to_b]["timing"] = old_timing_to_b
+                    self.Barge_cap = old_Barge_cap
+                    self.H_b = old_H_b
+                    self.T1[move] = self.tenure_move_container
+                    return False
+                if new_route is not None:
+                    self.milp_repairs += 1
+                    self.route_dict[barge_idx]["route"] = new_route
+                    self.route_dict[barge_idx]["timing"] = new_timing
+                    self.route_dict[barge_idx]["repaired"] = True
+                    # hard capacity gate on the repaired route
+                    Lcur = _get_L_current_for_barge(
+                        barge_idx=barge_idx,
+                        f_ck=self.f_ck,
+                        C=self.C,
+                        C_dict=self.C_dict,
+                    )
+                    if not self.check_for_cap(
+                        new_route, Lcur, barge_idx, barges=self.Barge_cap
+                    ):
+                        self.f_ck[container] = old_row
+                        if from_b != "truck":
+                            self.route_dict[from_b]["route"] = old_route_from_b
+                            self.route_dict[from_b]["repaired"] = old_repaired_from_b
+                            self.route_dict[from_b]["timing"] = old_timing_from_b
+                        if to_b != "truck":
+                            self.route_dict[to_b]["route"] = old_route_to_b
+                            self.route_dict[to_b]["repaired"] = old_repaired_to_b
+                            self.route_dict[to_b]["timing"] = old_timing_to_b
+                        self.Barge_cap = old_Barge_cap
+                        self.H_b = old_H_b
+                        self.T1[move] = self.tenure_move_container
+                        return False
 
-                if new_cost >= old_cost:
-                    print("MILP routing not better:", old_cost, "→", new_cost)
-                self.route_dict[to_b] = new_route
+        # 8) tabu bookkeeping
+        if crital_container_chosen and from_b != "truck":
+            # print("Critical container moved from barge → longer tabu on move")
+            self.T2[move] = self.tenure_critical_container
 
-        # 7) at this point move is accepted
-        #    if it was a critical→truck, tabu it in T2
-        if to_b == "truck" and c in self.critical:
-            self.T2[move] = self.ten_crit
+            self._randomized_greedy_reinsert(from_b)
 
         return True
 
+    # def barge_fully_ok(self, barge_idx, move=None):
+    #     assigned = [i for i in range(self.C) if self.f_ck[i, barge_idx]]
+    #     if not assigned:
+    #         return True
+
+    #     # one‐shift TW
+    #     # ---- time-window check (identical logic to Greedy) ----
+    #     Lcur = _get_L_current_for_barge(barge_idx=barge_idx, f_ck=self.f_ck, C=self.C, C_dict=self.C_dict,)
+
+    #     route = self.route_dict[barge_idx]
+
+    #     if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
+    #         raise RuntimeError(
+    #             "Capacity check failed in barge_ok method, for barge " + str(barge_idx),
+    #             str(move),
+    #         )
+
+    #     timing = self.get_timing(route, Lcur)
+
+    #     if result is None:
+    #         raise RuntimeError(
+    #             "Timing check failed in barge_ok method, for barge " + str(barge_idx),
+    #             str(move),
+    #         )
+
     def operator_swap(self):
-        c1, c2 = random.sample(range(self.instance.C), 2)
+        c1, c2 = rng.choice(self.C, size=2, replace=False)
         bs1 = [k for k in range(self.K) if self.f_ck[c1, k]]
         bs2 = [k for k in range(self.K) if self.f_ck[c2, k]]
         if not bs1 or not bs2 or bs1[0] == bs2[0]:
@@ -500,62 +922,87 @@ class MetaHeuristic:
         self.f_ck[c2, b2] = 0
         self.f_ck[c2, b1] = 1
 
+        old_route_b1 = self.route_dict[b1]["route"]
+        old_route_b2 = self.route_dict[b2]["route"]
+        old_timing_b1 = self.route_dict[b1]["timing"]
+        old_timing_b2 = self.route_dict[b2]["timing"]
+        old_repaired_b1 = self.route_dict[b1]["repaired"]
+        old_repaired_b2 = self.route_dict[b2]["repaired"]
+
         # invalidate routes affected by the swap
-        self.route_dict.pop(b1, None)
-        self.route_dict.pop(b2, None)
+        self.route_dict.pop(b1)
+        self.route_dict.pop(b2)
+
+        Lcur_b1 = _get_L_current_for_barge(
+            barge_idx=b1,
+            f_ck=self.f_ck,
+            C=self.C,
+            C_dict=self.C_dict,
+        )
+        Lcur_b2 = _get_L_current_for_barge(
+            barge_idx=b2,
+            f_ck=self.f_ck,
+            C=self.C,
+            C_dict=self.C_dict,
+        )
+
+        if len(Lcur_b1) == 0:
+            # empty barge → trivial route
+            entry_b1 = self.route_dict.setdefault(b1, {})
+            entry_b1.setdefault("route", [0, 0])
+            entry_b1.setdefault("repaired", False)
+            entry_b1.setdefault("timing", {0: 0, 0: 0})
+        else:
+            route_b1 = self.get_route(Lcur_b1)
+            timing_b1 = self.get_timing(route_b1, Lcur_b1)
+            entry_b1 = self.route_dict.setdefault(b1, {})
+            entry_b1.setdefault("route", route_b1)
+            entry_b1.setdefault("repaired", False)
+            entry_b1.setdefault("timing", timing_b1)
+        if len(Lcur_b2) == 0:
+            # empty barge → trivial route
+            entry_b2 = self.route_dict.setdefault(b2, {})
+            entry_b2.setdefault("route", [0, 0])
+            entry_b2.setdefault("repaired", False)
+            entry_b2.setdefault("timing", {0: 0, 0: 0})
+        else:
+            route_b2 = self.get_route(Lcur_b2)
+            timing_b2 = self.get_timing(route_b2, Lcur_b2)
+            entry_b2 = self.route_dict.setdefault(b2, {})
+            entry_b2.setdefault("route", route_b2)
+            entry_b2.setdefault("repaired", False)
+            entry_b2.setdefault("timing", timing_b2)
+
+        self._fill_route_related_dictionaries(fck=self.f_ck)
 
         def barge_ok(k):
-            assigned = [i for i in range(self.instance.C) if self.f_ck[i, k]]
+            assigned = [i for i in range(self.C) if self.f_ck[i, k]]
             if not assigned:
                 return True
-            Lcur = {i: self.instance.C_dict[i] for i in assigned}
-            route = self.route_dict.get(k, self.get_route(Lcur))
-            if not self.check_for_cap(route, Lcur, k, barges=self.init_solution.Barges):
-                return False
+
             # one‐shift TW
             # ---- time-window check (identical logic to Greedy) ----
-            delay = 0.0
+            Lcur = _get_L_current_for_barge(
+                barge_idx=k,
+                f_ck=self.f_ck,
+                C=self.C,
+                C_dict=self.C_dict,
+            )
 
-            for attempt in range(2):  # at most one shift
-                D_term, O_term = self.get_timing(route, Lcur, delay)
+            route = self.route_dict[k]["route"]
 
-                early_arrival_violations = []
-                late = False
+            if not self.check_for_cap(route, Lcur, k, barges=self.Barge_cap):
+                return False
 
-                for cont in Lcur.values():
-                    t = cont["Terminal"]
-                    arrival = O_term[route.index(t)]
+            if self.route_dict[k]["repaired"]:
+                # print("Route already repaired once by MILP, skipping timing check for barge", k)
+                return True
+            else:
+                timing = self.get_timing(route, Lcur)
 
-                    if arrival < cont["Oc"]:
-                        early_arrival_violations.append(cont)
-                    elif arrival > cont["Dc"]:
-                        late = True
-                        break
+            success = timing is not None
 
-                if late:
-                    success = False
-                    break
-
-                if not early_arrival_violations:
-                    success = True
-                    break
-
-                # apply the single allowed shift
-                if attempt == 0:
-                    delay_needed = [
-                        self.delay_window(
-                            container=v,
-                            O_terminal=O_term,
-                            route=route,
-                            terminal=v["Terminal"],
-                        )
-                        for v in early_arrival_violations
-                    ]
-                    delay += max(delay_needed)
-                else:
-                    return False
-
-            return False
+            return success
 
         ok1 = barge_ok(b1)
         ok2 = barge_ok(b2)
@@ -564,35 +1011,14 @@ class MetaHeuristic:
 
         # quick check failed on at least one barge: call repair on each
         for b in (b1, b2):
-            assigned = [i for i in range(self.instance.C) if self.f_ck[i, b]]
-            # print("Repair attempt on barge", b)
-            # print("Containers:", sorted(assigned))
+            assigned = [i for i in range(self.C) if self.f_ck[i, b]]
 
-            ordered_terminals = list(
-                dict.fromkeys(self.instance.C_dict[c]["Terminal"] for c in assigned)
-            )
-
-            for j in ordered_terminals:
-                O_j = max(
-                    self.instance.C_dict[c]["Oc"]
-                    for c in assigned
-                    if self.instance.C_dict[c]["Terminal"] == j
-                )
-                D_j = min(
-                    self.instance.C_dict[c]["Dc"]
-                    for c in assigned
-                    if self.instance.C_dict[c]["Terminal"] == j
-                )
-
-                if O_j > D_j:
-                    print("IMPOSSIBLE TERMINAL WINDOW:", j, O_j, D_j)
-
-            new_route = repair_route(
+            new_route, new_timing = repair_route(
                 assigned,
-                self.instance.C_dict,
-                self.init_solution.Barges[b],
-                self.instance.T_ij_matrix,
-                self.instance.Handling_time,
+                self.C_dict,
+                self.Barge_cap[b],
+                self.T_ij,
+                self.Handling_time,
             )
             # print("New route from MILP repair:", new_route)
             self.milp_calls += 1
@@ -601,78 +1027,92 @@ class MetaHeuristic:
                 # irreparable swap → undo + tabu
                 self.f_ck[c1] = old1
                 self.f_ck[c2] = old2
-                self.T1[move] = self.ten_move
+                self.route_dict[b1]["route"] = old_route_b1
+                self.route_dict[b1]["timing"] = old_timing_b1
+                self.route_dict[b1]["repaired"] = old_repaired_b1
+                self.route_dict[b2]["route"] = old_route_b2
+                self.route_dict[b2]["timing"] = old_timing_b2
+                self.route_dict[b2]["repaired"] = old_repaired_b2
+                self.T1[move] = self.tenure_move_container
                 return False
             else:
                 self.milp_repairs += 1
-                L_cur_temp = {i: self.instance.C_dict[i] for i in assigned}
-
-                old_route = self.get_route(L_cur_temp)
-                old_cost = sum(
-                    self.instance.T_ij_matrix[old_route[i]][old_route[i + 1]]
-                    for i in range(len(old_route) - 1)
+                self.route_dict[b]["route"] = new_route
+                self.route_dict[b]["timing"] = new_timing
+                self.route_dict[b]["repaired"] = True
+                # hard capacity gate on the repaired route
+                Lcur = _get_L_current_for_barge(
+                    barge_idx=b,
+                    f_ck=self.f_ck,
+                    C=self.C,
+                    C_dict=self.C_dict,
                 )
-
-                new_cost = sum(
-                    self.instance.T_ij_matrix[new_route[i]][new_route[i + 1]]
-                    for i in range(len(new_route) - 1)
-                )
-
-                if new_cost >= old_cost:
-                    print("MILP routing not better:", old_cost, "→", new_cost)
-                self.route_dict[b] = new_route
-
-        # both repairs succeeded
+                if not self.check_for_cap(new_route, Lcur, b, barges=self.Barge_cap):
+                    self.f_ck[c1] = old1
+                    self.f_ck[c2] = old2
+                    self.route_dict[b1]["route"] = old_route_b1
+                    self.route_dict[b2]["route"] = old_route_b2
+                    self.route_dict[b1]["timing"] = old_timing_b1
+                    self.route_dict[b1]["repaired"] = old_repaired_b1
+                    self.route_dict[b2]["timing"] = old_timing_b2
+                    self.route_dict[b2]["repaired"] = old_repaired_b2
+                    self.T1[move] = self.tenure_move_container
+                    return False
         return True
 
     def evaluate(self):
         total_cost = 0
         total_stops = 0
         utils = []
-        self.x_ijk = np.zeros(
-            (len(self.init_solution.Barges), self.instance.N, self.instance.N)
-        )
+        self.x_ijk = np.zeros((self.N, self.N, len(self.Barge_cap)))
 
         for k in range(self.K):
             assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
             if not assigned:
                 continue
-            Lcur = {c: self.instance.C_dict[c] for c in assigned}
-            route = self.route_dict.get(k, self.get_route(Lcur))
-
-            self.route_dict[k] = route
+            Lcur = {cont: self.C_dict[cont] for cont in assigned}
+            route = self.route_dict[k]["route"]
 
             for i in range(len(route) - 1):
                 if route[i] != route[i + 1]:
-                    self.x_ijk[k][route[i]][route[i + 1]] = 1
+                    self.x_ijk[route[i]][route[i + 1]][k] = 1
 
             # util
-            load = sum(c["Wc"] for c in Lcur.values() if c["In_or_Out"] == 2)
-            loads = [load]
-            for node in route[1:]:
-                for cont in Lcur.values():
-                    if cont["Terminal"] == node:
-                        load += cont["Wc"] if cont["In_or_Out"] == 1 else -cont["Wc"]
-                loads.append(load)
-            utils.append(sum(loads) / (len(loads) * self.init_solution.Barges[k]))
+
+            self.route_load_dict.setdefault(
+                k,
+                _edge_loads_along_route(
+                    route=route,
+                    L_current=Lcur,
+                ),
+            )
+            util = max(self.route_load_dict[k]) / self.Barge_cap[k]
+            assert util <= 1.0, "capacity violation detected in evaluation"
+            utils.append(util)
+            total_stops += len(route) - 2  # exclude depot visits
+
         # barge cost
         total_cost += self.calculate_objective()
 
         # truck
         unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
-        for c in unassigned:
-            total_cost += self.H_t_dict[self.instance.C_dict[c]["Wc"]]
-        return total_cost, total_stops, (sum(utils) / len(utils) if utils else 0)
+        for cont in unassigned:
+            total_cost += self.H_t_dict[self.C_dict[cont]["Wc"]]
+
+        return total_cost
 
     def local_search(self, max_iters=3000):
-        print("\nStarting Meta-Heuristic Search...\n")
-        self.best_cost, _, _ = self.evaluate()
-        best_f = self.f_ck.copy()
+        print("\n ---- Starting Meta-Heuristic Search... ----\n")
+        best_cost = self.evaluate()
+        best_fck = self.f_ck.copy()
+        best_route_dict = copy.deepcopy(self.route_dict)
+        best_Barge_cap = self.Barge_cap.copy()
+        best_H_b = self.H_b.copy()
         no_improve = 0
 
-        self.it_list = []
-        self.cost_list = []
-        self.best_cost_list = []
+        it_list = []
+        cost_list = []
+        best_cost_list = []
 
         # # Set up interactive plotting
         # plt.ion()
@@ -688,8 +1128,8 @@ class MetaHeuristic:
         for it in range(max_iters):
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
-                print(f"  Current best cost: {self.best_cost}")
-            if random.random() < 0.8:
+                print(f"  Current best cost: {best_cost}")
+            if rng.random() < self.prob_operator_move:
                 moved = self.operator_move()
                 if moved:
                     self.move_accepts += 1
@@ -702,36 +1142,53 @@ class MetaHeuristic:
             self._age_tabu()
 
             if not moved:
+                no_improve += 1
                 continue
 
-            cost, _, _ = self.evaluate()
+            cost = self.evaluate()
 
-            if cost < self.best_cost:
-                self.best_cost, best_f = cost, self.f_ck.copy()
+            if cost < best_cost:
+                best_cost, best_fck = cost, self.f_ck.copy()
+                best_route_dict = copy.deepcopy(self.route_dict)
+                best_Barge_cap = self.Barge_cap.copy()
+                best_H_b = self.H_b.copy()
                 no_improve = 0
             else:
-                # self.f_ck = best_f.copy()
                 no_improve += 1
 
-            if no_improve >= self.shake_thr:
+            if no_improve >= self.shake_threshold:
                 self._shake()
                 self.shake_count += 1
                 no_improve = 0
 
-            self.it_list.append(it)
-            self.cost_list.append(cost)
-            self.best_cost_list.append(self.best_cost)
+            it_list.append(it)
+            cost_list.append(cost)
+            best_cost_list.append(best_cost)
 
         #     # Update plot every iteration
-        #     line1.set_data(self.it_list, self.cost_list)
-        #     line2.set_data(self.it_list, self.best_cost_list)
+        #     line1.set_data(it_list, cost_list)
+        #     line2.set_data(it_list, best_cost_list)
         #     ax.relim()
         #     ax.autoscale_view()
         #     fig.canvas.draw()
         #     fig.canvas.flush_events()
 
         # plt.ioff()
-        self.f_ck = copy.deepcopy(best_f)
+        self.f_ck = copy.deepcopy(best_fck)
+        self.route_dict = copy.deepcopy(best_route_dict)
+        self.Barge_cap = best_Barge_cap
+        self.H_b = best_H_b
+
+        final_route_dict = self.route_dict.copy()
+
+        fig, file_path = timing_window_plot(
+            C=self.C,
+            K=self.K,
+            C_dict=self.C_dict,
+            f_ck=self.f_ck,
+            MH_or_Greedy="MH",
+            final_route_dict=final_route_dict,
+        )
 
         print("\nMeta-Heuristic Search Complete, search move analysis:")
         print(f"Total move accepts: {self.move_accepts}")
@@ -740,146 +1197,4 @@ class MetaHeuristic:
         print(f"Total shakes performed: {self.shake_count}")
         print(f"MILP repairs succeeded: {self.milp_repairs}\n")
 
-        return self.best_cost, self.it_list, self.cost_list, self.best_cost_list
-
-    def build_final_allocation_report(self):
-        report = {"summary": {}, "barges": [], "trucked_containers": {}}
-
-        barge_assignments = {k: [] for k in range(self.K)}
-        trucked_containers = []
-
-        for c in range(self.instance.C):
-            assigned = False
-            for k in range(self.K):
-                if self.f_ck[c, k] == 1:
-                    barge_assignments[k].append(c)
-                    assigned = True
-                    break
-            if not assigned:
-                trucked_containers.append(c)
-
-        total_containers_on_barges = 0
-
-        for k in range(self.K):
-            containers = barge_assignments[k]
-            if not containers:
-                continue
-
-            Lcur = {c: self.instance.C_dict[c] for c in containers}
-            route = self.route_dict.get(k, self.get_route(Lcur))
-
-            cap = self.init_solution.Barges[k]
-            load = sum(info["Wc"] for info in Lcur.values() if info["In_or_Out"] == 2)
-            peak = load
-
-            for node in route[1:]:
-                exports_unloaded = sum(
-                    info["Wc"]
-                    for info in Lcur.values()
-                    if info["Terminal"] == node and info["In_or_Out"] == 2
-                )
-                imports_loaded = sum(
-                    info["Wc"]
-                    for info in Lcur.values()
-                    if info["Terminal"] == node and info["In_or_Out"] == 1
-                )
-                load = load - exports_unloaded + imports_loaded
-                peak = max(peak, load)
-
-            imports = [
-                c for c in containers if self.instance.C_dict[c]["In_or_Out"] == 1
-            ]
-            exports = [
-                c for c in containers if self.instance.C_dict[c]["In_or_Out"] == 2
-            ]
-
-            report["barges"].append(
-                {
-                    "barge_id": k + 1,
-                    "capacity": cap,
-                    "fixed_cost": self.init_solution.H_b[k],
-                    "num_containers": len(containers),
-                    "peak_load": peak,
-                    "utilization_percent": round(100 * peak / cap, 1),
-                    "imports": imports,
-                    "exports": exports,
-                    "container_ids": containers,
-                }
-            )
-
-            total_containers_on_barges += len(containers)
-
-        report["trucked_containers"] = {
-            "container_ids": trucked_containers,
-            "num_20ft": sum(
-                1 for c in trucked_containers if self.instance.C_dict[c]["Wc"] == 1
-            ),
-            "num_40ft": sum(
-                1 for c in trucked_containers if self.instance.C_dict[c]["Wc"] == 2
-            ),
-        }
-
-        report["summary"] = {
-            "total_containers": self.instance.C,
-            "containers_on_barges": total_containers_on_barges,
-            "containers_trucked": len(trucked_containers),
-            "barges_used": len(report["barges"]),
-            "final_cost": self.best_cost,
-        }
-
-        return report
-
-    def display_final_allocations(
-        self, scenario_name, yaml_dir="./Storage/theo_results"
-    ):
-        import yaml
-
-        yaml_path = f"{yaml_dir}/{scenario_name}_final_allocations.yaml"
-        report = self.build_final_allocation_report()
-
-        # Pretty print (terminal)
-        print("\n" + "=" * 80)
-        print("FINAL CONTAINER-BARGE ALLOCATIONS")
-        print("=" * 80)
-
-        for b in report["barges"]:
-            print(
-                f"\nBARGE {b['barge_id']} (Capacity: {b['capacity']} TEU, Fixed cost: €{b['fixed_cost']}):"
-            )
-            print(f"  Assigned containers: {b['num_containers']}")
-            print(
-                f"  Peak onboard load: {b['peak_load']}/{b['capacity']} "
-                f"({b['utilization_percent']}% utilization)"
-            )
-            print(f"  Import containers: {len(b['imports'])}")
-            print(f"  Export containers: {len(b['exports'])}")
-
-        print("\nSUMMARY:")
-        for k, v in report["summary"].items():
-            print(f"  {k.replace('_',' ').title()}: {v}")
-
-        # Save YAML
-        report = sanitize_for_yaml(report)
-        with open(yaml_path, "w") as f:
-            yaml.safe_dump(report, f, sort_keys=False)
-
-        return report, yaml_path
-
-
-if __name__ == "__main__":
-    # usage
-    from MILP import MILP_Algo
-    from Greedy_Algo import GreedyOptimizer
-
-    milp_instance = MILP_Algo(reduced=False)
-    greedy = GreedyOptimizer(problem_instance=milp_instance)
-    init_solution = greedy.solve_greedy()
-
-    mh = MetaHeuristic(problem_instance=milp_instance, init_solution=init_solution)
-    # mh.initial_solution()
-    print("Greedy cost:", init_solution.total_cost, "\n")
-    mh.local_search()
-    print("Meta-heuristic cost:", mh.best_cost, "\n")
-
-    # Display final allocations
-    mh.display_final_allocations()
+        return best_cost, best_fck, final_route_dict, fig, file_path
