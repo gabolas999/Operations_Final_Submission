@@ -295,6 +295,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
 class MetaHeuristic:
     def __init__(
         self,
+        scenario_name,
         problem_instance,
         init_solution,
         get_route,
@@ -303,6 +304,7 @@ class MetaHeuristic:
         calculate_objective,
     ):
 
+        self.scenario_name = scenario_name
         self.get_route = get_route
         self.get_timing = get_timing
         self.check_for_cap = check_for_cap
@@ -1187,6 +1189,7 @@ class MetaHeuristic:
             C_dict=self.C_dict,
             f_ck=self.f_ck,
             MH_or_Greedy="MH",
+            scenario_name=self.scenario_name,
             final_route_dict=final_route_dict,
         )
 

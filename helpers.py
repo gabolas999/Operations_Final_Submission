@@ -215,11 +215,11 @@ def export_instance_tables(
     C_dict: dict,
     K_list: list,
     output_dir=Path("./Storage/theo_results"),
-    scenario_name=None,
+    scenario_name="A",
 ):
     """
     Export Table A (global parameters) and Table B (container distribution)
-    to CSV and LaTeX, matching the paper-style layout.
+    in camera-ready LaTeX format matching the paper tables exactly.
     """
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -253,21 +253,20 @@ def export_instance_tables(
             export_count += 1
             node_counts[term]["Export"] += 1
         else:
-            raise ValueError(f"Invalid In_Or_Out value: {io}")
+            raise ValueError(f"Invalid In_or_Out value: {io}")
 
-    K_barges = len(K_list[:-1])
-    K_trucks = len(K_list[-1:])
+    K_barges = len(K_list) - 1
+    K_trucks = 1
+    K_total = K_barges + K_trucks
 
     N = len(terminals)
     C_total = len(C_dict)
-    K_total = K_barges + K_trucks
     time_start = min(Oc_all)
     time_end = max(Dc_all)
 
     # -----------------------------
-    # Write CSV
+    # Write CSV (unchanged)
     # -----------------------------
-
     output_path_csv = output_dir / f"instance_data_{scenario_name}.csv"
     with output_path_csv.open("w", newline="") as f:
         writer = csv.writer(f)
@@ -293,66 +292,70 @@ def export_instance_tables(
             )
 
     # -----------------------------
-    # Write LaTeX (camera-ready)
+    # Write LaTeX (paper-ready)
     # -----------------------------
     output_path_tex = output_dir / f"instance_latex_table_{scenario_name}.tex"
     with output_path_tex.open("w") as f:
         f.write(
-            r"""\begin{table}[htbp]
+            rf"""\begin{{table}}[H]
 \centering
+\renewcommand{{\arraystretch}}{{1.15}}
+\setlength{{\tabcolsep}}{{4.5pt}}
+\caption{{\textit{{{scenario_name}}}: Full instance characterization}}
+\label{{tab:full_instance_characterization_{scenario_name}}}
 
-\textbf{A. Global instance parameters}
+% ======================================================
+% A. Global instance parameters
+% ======================================================
+\begin{{minipage}}{{0.9\textwidth}}
+\centering
+\textbf{{A. Global instance parameters}}
+\medskip
 
-\vspace{0.3em}
-
-\begin{tabular}{l c c c}
+\begin{{tabular*}}{{0.75\linewidth}}{{@{{\extracolsep{{\fill}}}}cccc}}
 \hline
-Parameter & Symbol & Value & Units \\
+\textbf{{Parameter}} & \textbf{{Symbol}} & \textbf{{Value}} & \textbf{{Units}} \\
 \hline
-Number of terminals & $N$ & """
-            + f"{N}"
-            + r""" & -- \\
-Total containers & $C$ & """
-            + f"{C_total} ({import_count} imp., {export_count} exp.)"
-            + r""" & -- \\
-Available vehicles & $K$ & """
-            + f"{K_total} ({K_barges} Barges + {K_trucks} Truck)"
-            + r""" & -- \\
-Total TEU & -- & """
-            + f"{total_teu} ({sum(1 for c in C_dict.values() if c['Wc']==1)} imp., {sum(1 for c in C_dict.values() if c['Wc']==2)} exp.)"
-            + r""" & TEU \\
-Global time window span & -- & [$"""
-            + f"{time_start}, {time_end}"
-            + r"""$] & h \\
+Number of terminals     & $N$ & ${N}$ & -- \\
+Total containers        & $C$ & ${C_total}$ ({import_count} imp., {export_count} exp.) & -- \\
+Available vehicles      & $K$ & ${K_total}$ ({K_barges} Barges + {K_trucks} Truck) & -- \\
+Total TEU               & --  & ${total_teu}$ & TEU \\
+Global time window span & --  & $[{time_start},\,{time_end}]$ & h \\
 \hline
-\end{tabular}
+\end{{tabular*}}
+\end{{minipage}}
 
-\vspace{0.8em}
+\vspace{{0.6em}}
 
-\textbf{B. Container distribution per node}
+% ======================================================
+% B. Container distribution per node
+% ======================================================
+\begin{{minipage}}{{0.9\textwidth}}
+\centering
+\textbf{{B. Container distribution per node}}
+\medskip
 
-\vspace{0.3em}
-
-\begin{tabular}{c l c c}
+\begin{{tabular*}}{{0.75\linewidth}}{{@{{\extracolsep{{\fill}}}}cccc}}
 \hline
-Node & Role & Import & Export \\
+\textbf{{Node}} & \textbf{{Role}} & \textbf{{Import}} & \textbf{{Export}} \\
 \hline
 """
         )
 
-        f.write(f"Node 0 & Dry port & {import_count} & {export_count} \\\\\n")
-
         for node in sorted(node_counts):
             role = "Dry port" if node == 0 else "Sea terminal"
             f.write(
-                f"{node} & {role} & {node_counts[node]['Import']} & {node_counts[node]['Export']} \\\\\n"
+                f"Node {node} & {role} & "
+                f"${node_counts[node]['Import']}$ & "
+                f"${node_counts[node]['Export']}$ \\\\\n"
             )
 
         f.write(
             r"""\hline
-\end{tabular}
-
+\end{tabular*}
+\end{minipage}
 \end{table}
+\vspace{-0.5cm}
 """
         )
 
@@ -514,15 +517,12 @@ def toml_to_input_dict(toml_path: str) -> dict:
 #     return fig, file_path
 
 
-def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict):
+def timing_window_plot(
+    C, K, C_dict, f_ck, MH_or_Greedy, scenario_name, final_route_dict: dict
+):
     """
     Plot container time windows with actual barge arrival times.
-
-    - One row per container
-    - Grouped by barge
-    - Import / Export color scheme aligned with MILP plot
-    - Square marker = export release time Rc
-    - "2" marker = actual barge arrival time
+    Fully aligned with plot_time_windows(): spacing, labels, legend stability.
     """
 
     import matplotlib.pyplot as plt
@@ -530,7 +530,7 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
     from matplotlib.lines import Line2D
 
     # --------------------------
-    # Styling (from plot_time_windows)
+    # Styling
     # --------------------------
     EXPORT_COLOR = "#FF6F00"
     EXPORT_DARK = "#B23E00"
@@ -538,7 +538,7 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
     IMPORT_DARK = "#006E28"
 
     # --------------------------------------------------
-    # 1) Collect containers per barge (final solution)
+    # 1) Collect containers per barge
     # --------------------------------------------------
     barge_to_containers = {k: [] for k in range(K)}
     trucked = []
@@ -554,91 +554,116 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
             trucked.append(c)
 
     # --------------------------------------------------
-    # 2) Compute global time horizon
+    # 2) Time horizon
     # --------------------------------------------------
     max_D = max(C_dict[c]["Dc"] for c in range(C))
     Tmax = int(math.ceil(max_D / 50.0) * 50)
 
     # --------------------------------------------------
-    # 3) Precompute arrival times per (barge, terminal)
+    # 3) Arrival times
     # --------------------------------------------------
-    arrival_time = {}  # (k, terminal) -> time
-
-    for k, info_dict in final_route_dict.items():
-        route = info_dict.get("route")
-        timing = info_dict.get("timing")
-
-        if not route or timing is None:
+    arrival_time = {}
+    for k, info in final_route_dict.items():
+        timing = info.get("timing")
+        if timing is None:
             continue
-
-        for node, arrival in timing.items():
-            arrival_time[(k, node)] = arrival
+        for node, t in timing.items():
+            arrival_time[(k, node)] = t
 
     # --------------------------------------------------
-    # 4) Build plot rows
+    # 4) Build ordered rows
     # --------------------------------------------------
     rows = []
 
-    for k in sorted(barge_to_containers.keys()):
-        containers = sorted(
+    for k in sorted(barge_to_containers):
+        conts = sorted(
             barge_to_containers[k],
             key=lambda c: (C_dict[c]["Terminal"], c),
         )
-        for c in containers:
+        for c in conts:
             rows.append((k, C_dict[c]["Terminal"], c))
 
     for c in sorted(trucked, key=lambda c: (C_dict[c]["Terminal"], c)):
         rows.append(("Truck", C_dict[c]["Terminal"], c))
 
+    n_rows = len(rows)
+
     # --------------------------------------------------
-    # 5) Figure setup
+    # 5) Absolute row spacing (INCREASED)
     # --------------------------------------------------
-    fig_height = max(3.0, min(12.0, 0.45 * len(rows)))
-    fig, ax = plt.subplots(figsize=(12, fig_height))
+    row_spacing = 1.8  # <-- main spacing control
+    y_positions = [i * row_spacing for i in range(n_rows)]
+
+    # --------------------------------------------------
+    # 6) Figure size (scaled with spacing)
+    # --------------------------------------------------
+    base_height_per_row = 0.55
+    fig_height = base_height_per_row * n_rows
+    fig_height = min(max(fig_height, 5.0), 16.0)
+
+    fig, ax = plt.subplots(figsize=(7.2, fig_height))
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
+
+    # --------------------------------------------------
+    # 7) Label widths (EXPLICIT columns)
+    # --------------------------------------------------
+    k_width = max(2, len(str(K - 1)))
+    c_width = max(2, len(str(C - 1)))
 
     yticks = []
     ylabels = []
 
     # --------------------------------------------------
-    # 6) Plot rows
+    # 8) Plot rows
     # --------------------------------------------------
-    for y, (k, terminal, c) in enumerate(rows):
+    for y, (k, terminal, c) in zip(y_positions, rows):
         info = C_dict[c]
         Oc, Dc = info["Oc"], info["Dc"]
 
-        if info["In_or_Out"] == 1:  # import
+        if info["In_or_Out"] == 1:
             face, edge = IMPORT_COLOR, IMPORT_DARK
-        else:  # export
+        else:
             face, edge = EXPORT_COLOR, EXPORT_DARK
 
-        # time window bar
-        ax.barh(
+        # time window
+        ax.hlines(y, Oc, Dc, colors=edge, linewidth=2.2, zorder=2)
+
+        ax.scatter(
+            Oc,
             y,
-            Dc - Oc,
-            left=Oc,
-            height=0.6,
-            color=face,
-            alpha=0.6,
+            marker=">",
+            s=55,
+            facecolor=face,
             edgecolor=edge,
-            linewidth=1.2,
+            linewidth=1.1,
+            zorder=3,
+        )
+        ax.scatter(
+            Dc,
+            y,
+            marker="<",
+            s=55,
+            facecolor=face,
+            edgecolor=edge,
+            linewidth=1.1,
+            zorder=3,
         )
 
-        # export release time Rc
+        # release time
         if info["In_or_Out"] == 2 and info["Rc"] > 0:
             ax.scatter(
                 info["Rc"],
                 y,
                 marker="s",
-                s=30,
+                s=34,
                 facecolor="white",
                 edgecolor="black",
-                linewidth=1.0,
-                zorder=3,
+                linewidth=1.1,
+                zorder=4,
             )
 
-        # barge arrival time
+        # arrival time
         if k != "Truck":
             t_arr = arrival_time.get((k, terminal))
             if t_arr is not None:
@@ -646,24 +671,36 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
                     t_arr,
                     y,
                     marker="2",
-                    s=80,
+                    s=95,
                     facecolor="black",
-                    linewidth=1.6,
-                    zorder=4,
+                    linewidth=1.8,
+                    zorder=5,
                 )
 
+        # LEFT COLUMN LABELS (fixed, visible)
+        if k == "Truck":
+            barge_label = "Truck".ljust(k_width + 2)
+        else:
+            barge_label = f"B{str(k).rjust(k_width)}".ljust(k_width + 2)
+
+        label = (
+            f"{barge_label}"
+            f"| T{str(terminal).rjust(2)} "
+            f"| C{str(c).rjust(c_width, '0')}"
+        )
+
         yticks.append(y)
-        ylabels.append(f"B{k} | T{terminal} | C{c}")
+        ylabels.append(label)
 
     # --------------------------------------------------
-    # 7) Axis formatting
+    # 9) Axes formatting
     # --------------------------------------------------
     ax.set_xlim(0, Tmax)
     ax.set_yticks(yticks)
-    ax.set_yticklabels(ylabels, fontsize=10)
+    ax.set_yticklabels(ylabels, fontsize=11)
     ax.invert_yaxis()
 
-    ax.set_xlabel("Time [hours]", fontsize=11)
+    ax.set_xlabel("Time [hours]", fontsize=11, labelpad=12)
     ax.set_ylabel("")
 
     ax.spines["top"].set_visible(False)
@@ -671,11 +708,11 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
     ax.grid(axis="x", linestyle="--", alpha=0.5)
 
     # --------------------------------------------------
-    # 8) Legend (MILP style)
+    # 10) Legend (INSIDE figure, above x-axis)
     # --------------------------------------------------
     legend_handles = [
-        Line2D([], [], color=EXPORT_DARK, linewidth=2),
-        Line2D([], [], color=IMPORT_DARK, linewidth=2),
+        Line2D([], [], color=EXPORT_DARK, linewidth=2.2),
+        Line2D([], [], color=IMPORT_DARK, linewidth=2.2),
         Line2D(
             [],
             [],
@@ -689,7 +726,6 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
             [],
             [],
             marker="s",
-            color="black",
             markerfacecolor="white",
             markeredgecolor="black",
             linestyle="None",
@@ -706,18 +742,29 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
     ax.legend(
         legend_handles,
         legend_labels,
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.04),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.05),
         ncol=2,
         frameon=True,
         fontsize=10,
     )
 
     # --------------------------------------------------
-    # 9) Save
+    # 11) MARGINS (CRITICAL)
     # --------------------------------------------------
-    plt.tight_layout(rect=[0, 0.06, 1, 1])
-    file_path = f"./Storage/theo_results/{MH_or_Greedy}_timing_window_plot.png"
+    plt.subplots_adjust(
+        left=0.28,  # <-- ensures barge numbers are visible
+        bottom=0.20,  # <-- ensures legend does not touch axis
+        right=0.98,
+        top=0.98,
+    )
+
+    # --------------------------------------------------
+    # 12) Save
+    # --------------------------------------------------
+    file_path = (
+        f"./Storage/theo_results/{scenario_name}_{MH_or_Greedy}_timing_window_plot.png"
+    )
     plt.savefig(file_path, dpi=600)
     plt.close()
 

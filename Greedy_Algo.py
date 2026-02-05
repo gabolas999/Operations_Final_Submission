@@ -40,9 +40,11 @@ class GreedyOptimizer:
     def __init__(
         self,
         # reduced=False,
+        scenario_name=None,
         problem_instance=None,
     ):
 
+        self.scenario_name = scenario_name
         self.C = problem_instance.C
         self.C_dict = problem_instance.C_dict
         self.N = problem_instance.N
@@ -389,6 +391,7 @@ class GreedyOptimizer:
             C_dict=self.C_dict,
             f_ck=self.f_ck,
             MH_or_Greedy="Greedy",
+            scenario_name=self.scenario_name,
             final_route_dict=self.route_dict,
         )
 
