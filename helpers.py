@@ -62,8 +62,8 @@ def yaml_to_compact_barge_table(
     def barge_block(b):
         return [
             ("Cap. (TEU)", b["capacity"]),
-            ("Cost (€)", b["fixed_cost"]),
-            ("# of Cont.", b["num_containers"]),
+            ("Cost (EUR)", b["fixed_cost"]),
+            ("\# of Cont.", b["num_containers"]),
             (
                 "Peak Util.",
                 f'{b["peak_load"]} ({b["utilization_percent"]}\\%)',
@@ -368,19 +368,174 @@ def toml_to_input_dict(toml_path: str) -> dict:
     return input_dict
 
 
+# def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict):
+#     """
+#     Plot container time windows with actual barge arrival times.
+
+#     - One row per container
+#     - Grouped by barge
+#     - Green = import, Red = export
+#     - Square marker = export release time Rc
+#     - Cross marker = actual barge arrival time at container terminal
+#     """
+
+#     import matplotlib.pyplot as plt
+#     import math
+
+#     # --------------------------------------------------
+#     # 1) Collect containers per barge (final solution)
+#     # --------------------------------------------------
+#     barge_to_containers = {k: [] for k in range(K)}
+#     trucked = []
+
+#     for c in range(C):
+#         assigned = False
+#         for k in range(K):
+#             if f_ck[c, k] == 1:
+#                 barge_to_containers[k].append(c)
+#                 assigned = True
+#                 break
+#         if not assigned:
+#             trucked.append(c)
+
+#     # --------------------------------------------------
+#     # 2) Compute global time horizon
+#     # --------------------------------------------------
+#     max_D = max(C_dict[c]["Dc"] for c in range(C))
+#     Tmax = int(math.ceil(max_D / 50.0) * 50)
+
+#     # --------------------------------------------------
+#     # 3) Precompute arrival times per (barge, terminal)
+#     #    using waiting logic
+#     # --------------------------------------------------
+#     arrival_time = {}  # (k, terminal) -> time
+
+#     for k, info_dict in final_route_dict.items():
+
+#         route = info_dict["route"]
+#         if not route or len(route) <= 1:
+#             continue
+
+#         containers = barge_to_containers[k]
+#         if not containers:
+#             continue
+
+#         Lcur = {c: C_dict[c] for c in containers}
+
+#         timing = info_dict["timing"]
+
+#         if timing is None:
+#             print(
+#                 f"Warning: could not compute arrival times for barge {k} in final plot"
+#             )
+#             print(f"Debug: route: {route}, Lcur: {Lcur}")
+#             continue  # or mark route as infeasible
+
+#         for node, arrival in timing.items():
+#             arrival_time[(k, node)] = arrival
+
+#     # --------------------------------------------------
+#     # 4) Build plot rows (barge, terminal, container)
+#     # --------------------------------------------------
+#     rows = []
+
+#     # --- barges in ascending order ---
+#     for k in sorted(barge_to_containers.keys()):
+#         containers = barge_to_containers[k]
+
+#         # sort by (terminal, container)
+#         containers_sorted = sorted(containers, key=lambda c: (C_dict[c]["Terminal"], c))
+
+#         for c in containers_sorted:
+#             rows.append((k, C_dict[c]["Terminal"], c))
+
+#     # --- trucked containers last (optional) ---
+#     trucked_sorted = sorted(trucked, key=lambda c: (C_dict[c]["Terminal"], c))
+
+#     for c in trucked_sorted:
+#         rows.append(("Truck", C_dict[c]["Terminal"], c))
+
+#     # --------------------------------------------------
+#     # 5) Plot
+#     # --------------------------------------------------
+#     fig, ax = plt.subplots(figsize=(12, 0.3 * len(rows)))
+
+#     yticks = []
+#     ylabels = []
+
+#     for y, (k, terminal, c) in enumerate(rows):
+#         info = C_dict[c]
+#         Oc, Dc = info["Oc"], info["Dc"]
+
+#         color = "green" if info["In_or_Out"] == 1 else "red"
+
+#         # time window bar
+#         ax.barh(
+#             y,
+#             Dc - Oc,
+#             left=Oc,
+#             height=0.6,
+#             color=color,
+#             alpha=0.6,
+#             edgecolor="black",
+#         )
+
+#         # export release time
+#         if info["In_or_Out"] == 2 and info["Rc"] > 0:
+#             ax.scatter(info["Rc"], y, marker="s", color="black", zorder=3)
+
+#         # barge arrival time
+#         if k != "Truck":
+#             t_arr = arrival_time[(k, terminal)]
+#             if t_arr is not None:
+#                 ax.scatter(t_arr, y, marker="x", color="black", zorder=3)
+
+#         yticks.append(y)
+#         ylabels.append(f"B{k} | T{terminal} | C{c}")
+
+#     # --------------------------------------------------
+#     # 6) Final formatting
+#     # --------------------------------------------------
+#     ax.set_xlim(0, Tmax)
+#     ax.set_yticks(yticks)
+#     ax.set_yticklabels(ylabels)
+#     ax.set_xlabel("Time [hours]")
+#     ax.set_title("Container Time Windows and Barge Arrival Times")
+
+#     ax.grid(axis="x", linestyle="--", alpha=0.5)
+
+#     plt.tight_layout()
+#     file_path = f"./Storage/theo_results/{MH_or_Greedy}_timing_window_plot.png"
+#     plt.savefig(file_path, dpi=600)
+#     plt.close()
+
+#     print("Saved timing window plot to:", file_path)
+
+#     return fig, file_path
+
+
 def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict):
     """
     Plot container time windows with actual barge arrival times.
 
     - One row per container
     - Grouped by barge
-    - Green = import, Red = export
+    - Import / Export color scheme aligned with MILP plot
     - Square marker = export release time Rc
-    - Cross marker = actual barge arrival time at container terminal
+    - "2" marker = actual barge arrival time
     """
 
     import matplotlib.pyplot as plt
     import math
+    from matplotlib.lines import Line2D
+
+    # --------------------------
+    # Styling (from plot_time_windows)
+    # --------------------------
+    EXPORT_COLOR = "#FF6F00"
+    EXPORT_DARK = "#B23E00"
+    IMPORT_COLOR = "#00A63C"
+    IMPORT_DARK = "#006E28"
 
     # --------------------------------------------------
     # 1) Collect containers per barge (final solution)
@@ -406,68 +561,57 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
 
     # --------------------------------------------------
     # 3) Precompute arrival times per (barge, terminal)
-    #    using waiting logic
     # --------------------------------------------------
     arrival_time = {}  # (k, terminal) -> time
 
     for k, info_dict in final_route_dict.items():
+        route = info_dict.get("route")
+        timing = info_dict.get("timing")
 
-        route = info_dict["route"]
-        if not route or len(route) <= 1:
+        if not route or timing is None:
             continue
-
-        containers = barge_to_containers[k]
-        if not containers:
-            continue
-
-        Lcur = {c: C_dict[c] for c in containers}
-
-        timing = info_dict["timing"]
-
-        if timing is None:
-            print(
-                f"Warning: could not compute arrival times for barge {k} in final plot"
-            )
-            print(f"Debug: route: {route}, Lcur: {Lcur}")
-            continue  # or mark route as infeasible
 
         for node, arrival in timing.items():
             arrival_time[(k, node)] = arrival
 
     # --------------------------------------------------
-    # 4) Build plot rows (barge, terminal, container)
+    # 4) Build plot rows
     # --------------------------------------------------
     rows = []
 
-    # --- barges in ascending order ---
     for k in sorted(barge_to_containers.keys()):
-        containers = barge_to_containers[k]
-
-        # sort by (terminal, container)
-        containers_sorted = sorted(containers, key=lambda c: (C_dict[c]["Terminal"], c))
-
-        for c in containers_sorted:
+        containers = sorted(
+            barge_to_containers[k],
+            key=lambda c: (C_dict[c]["Terminal"], c),
+        )
+        for c in containers:
             rows.append((k, C_dict[c]["Terminal"], c))
 
-    # --- trucked containers last (optional) ---
-    trucked_sorted = sorted(trucked, key=lambda c: (C_dict[c]["Terminal"], c))
-
-    for c in trucked_sorted:
+    for c in sorted(trucked, key=lambda c: (C_dict[c]["Terminal"], c)):
         rows.append(("Truck", C_dict[c]["Terminal"], c))
 
     # --------------------------------------------------
-    # 5) Plot
+    # 5) Figure setup
     # --------------------------------------------------
-    fig, ax = plt.subplots(figsize=(12, 0.3 * len(rows)))
+    fig_height = max(3.0, min(12.0, 0.45 * len(rows)))
+    fig, ax = plt.subplots(figsize=(12, fig_height))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
 
     yticks = []
     ylabels = []
 
+    # --------------------------------------------------
+    # 6) Plot rows
+    # --------------------------------------------------
     for y, (k, terminal, c) in enumerate(rows):
         info = C_dict[c]
         Oc, Dc = info["Oc"], info["Dc"]
 
-        color = "green" if info["In_or_Out"] == 1 else "red"
+        if info["In_or_Out"] == 1:  # import
+            face, edge = IMPORT_COLOR, IMPORT_DARK
+        else:  # export
+            face, edge = EXPORT_COLOR, EXPORT_DARK
 
         # time window bar
         ax.barh(
@@ -475,36 +619,104 @@ def timing_window_plot(C, K, C_dict, f_ck, MH_or_Greedy, final_route_dict: dict)
             Dc - Oc,
             left=Oc,
             height=0.6,
-            color=color,
+            color=face,
             alpha=0.6,
-            edgecolor="black",
+            edgecolor=edge,
+            linewidth=1.2,
         )
 
-        # export release time
+        # export release time Rc
         if info["In_or_Out"] == 2 and info["Rc"] > 0:
-            ax.scatter(info["Rc"], y, marker="s", color="black", zorder=3)
+            ax.scatter(
+                info["Rc"],
+                y,
+                marker="s",
+                s=30,
+                facecolor="white",
+                edgecolor="black",
+                linewidth=1.0,
+                zorder=3,
+            )
 
         # barge arrival time
         if k != "Truck":
-            t_arr = arrival_time[(k, terminal)]
+            t_arr = arrival_time.get((k, terminal))
             if t_arr is not None:
-                ax.scatter(t_arr, y, marker="x", color="black", zorder=3)
+                ax.scatter(
+                    t_arr,
+                    y,
+                    marker="2",
+                    s=80,
+                    facecolor="black",
+                    linewidth=1.6,
+                    zorder=4,
+                )
 
         yticks.append(y)
         ylabels.append(f"B{k} | T{terminal} | C{c}")
 
     # --------------------------------------------------
-    # 6) Final formatting
+    # 7) Axis formatting
     # --------------------------------------------------
     ax.set_xlim(0, Tmax)
     ax.set_yticks(yticks)
-    ax.set_yticklabels(ylabels)
-    ax.set_xlabel("Time [hours]")
-    ax.set_title("Container Time Windows and Barge Arrival Times")
+    ax.set_yticklabels(ylabels, fontsize=10)
+    ax.invert_yaxis()
 
+    ax.set_xlabel("Time [hours]", fontsize=11)
+    ax.set_ylabel("")
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
     ax.grid(axis="x", linestyle="--", alpha=0.5)
 
-    plt.tight_layout()
+    # --------------------------------------------------
+    # 8) Legend (MILP style)
+    # --------------------------------------------------
+    legend_handles = [
+        Line2D([], [], color=EXPORT_DARK, linewidth=2),
+        Line2D([], [], color=IMPORT_DARK, linewidth=2),
+        Line2D(
+            [],
+            [],
+            marker="2",
+            markeredgecolor="black",
+            markersize=10,
+            linestyle="None",
+            linewidth=2.0,
+        ),
+        Line2D(
+            [],
+            [],
+            marker="s",
+            color="black",
+            markerfacecolor="white",
+            markeredgecolor="black",
+            linestyle="None",
+        ),
+    ]
+
+    legend_labels = [
+        r"Export time window [$O_c,\,D_c$]",
+        r"Import time window [$O_c,\,D_c$]",
+        r"Delivery / Pickup time $t_{jk}$",
+        r"Release time $R_c$",
+    ]
+
+    ax.legend(
+        legend_handles,
+        legend_labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.04),
+        ncol=2,
+        frameon=True,
+        fontsize=10,
+    )
+
+    # --------------------------------------------------
+    # 9) Save
+    # --------------------------------------------------
+    plt.tight_layout(rect=[0, 0.06, 1, 1])
     file_path = f"./Storage/theo_results/{MH_or_Greedy}_timing_window_plot.png"
     plt.savefig(file_path, dpi=600)
     plt.close()
