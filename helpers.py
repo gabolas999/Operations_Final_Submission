@@ -301,7 +301,7 @@ def export_instance_tables(
 \centering
 \renewcommand{{\arraystretch}}{{1.15}}
 \setlength{{\tabcolsep}}{{4.5pt}}
-\caption{{\textit{{{scenario_name}}}: Full instance characterization}}
+\caption{{\textit{{{scenario_name.replace("_", " ")}}}: Full instance characterization}}
 \label{{tab:full_instance_characterization_{scenario_name}}}
 
 % ======================================================
