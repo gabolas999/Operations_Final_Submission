@@ -1198,7 +1198,15 @@ class MetaHeuristic:
                 no_improve += 1
 
             if no_improve >= self.shake_threshold:
+                old_best = self.best_cost
                 self._shake()
+
+                if self.best_cost < old_best:
+                    # restart from improved shaken solution
+                    self.f_ck = copy.deepcopy(self.best_fck)
+                    self.route_dict = copy.deepcopy(self.best_route_dict)
+                    self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
+                    self.H_b = copy.deepcopy(self.best_H_b)
                 self.shake_count += 1
                 no_improve = 0
 
@@ -1215,6 +1223,7 @@ class MetaHeuristic:
         #     fig.canvas.flush_events()
 
         # plt.ioff()
+
         self.f_ck = copy.deepcopy(self.best_fck)
         self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
         self.H_b = copy.deepcopy(self.best_H_b)
