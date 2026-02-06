@@ -78,7 +78,6 @@ def main(
         init_solution=init_solution,
         get_route=greedy.get_route,
         get_timing=greedy.get_timing,
-        calculate_objective=greedy.calculate_objective,
     )
 
     MH_best_cost, best_fck, final_route_dict, *_ = mh.local_search(max_iters=max_iters)

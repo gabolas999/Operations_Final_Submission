@@ -57,6 +57,8 @@ class GreedyOptimizer:
         self.Ht20 = problem_instance.H_t_20
         self.Ht40 = problem_instance.H_t_40
 
+        self.H_t_dict = {1: self.Ht20, 2: self.Ht40}
+
         self.generate_master_route()
         self.generate_ordered_containers()
         self._sort_barges_by_capacity_desc()
@@ -393,37 +395,39 @@ class GreedyOptimizer:
         return solution
 
     def calculate_objective(self):
-        """
-        Calculate objective function value (barge costs)
+        total_cost = 0
 
-        Returns:
-        --------
-        float : Total barge cost
-        """
-        K = len(self.H_b)  # number of barges
-        cost = 0
+        # =========================
+        # BARGE COSTS
+        # =========================
+        for k in range(self.K):
+            assigned = np.where(self.f_ck[:, k] == 1)[0]
 
-        for k in range(K):
-            # 1) fixed‐cost term: sum over j≠0 of x[0][j][k]*H_b[k]
-            for j in range(self.N):
-                if j == 0:
-                    continue
-                cost += self.x_ijk[0][j][k] * self.H_b[k]
+            # barge not used
+            if len(assigned) == 0:
+                continue
 
-            # 2) travel‐time term: sum over all i,j of T[i][j]*x[i][j][k]
-            for i in range(self.N):
-                for j in range(self.N):
-                    if i != j:
-                        cost += self.T_ij_matrix[i][j] * self.x_ijk[i][j][k]
+            route = self.route_dict[k]["route"]
 
-            # 3) stop penalty: count once per visited sea terminal
-            for i in range(self.N):
-                if i != 0:
-                    for j in range(self.N):
-                        if i != j:
-                            cost += self.Gamma * self.x_ijk[i][j][k]
+            # 1) fixed barge cost
+            total_cost += self.H_b[k]
 
-        return cost
+            # 2) travel cost
+            for i in range(len(route) - 1):
+                total_cost += self.T_ij_matrix[route[i]][route[i + 1]]
+
+            # 3) stop cost (exclude depot)
+            n_stops = len(route) - 2
+            total_cost += n_stops * self.Gamma
+
+        # =========================
+        # TRUCK COSTS
+        # =========================
+        unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
+        for c in unassigned:
+            total_cost += self.H_t_dict[self.C_dict[c]["Wc"]]
+
+        return total_cost
 
     def print_results(self):
         """Print detailed results of the optimization"""

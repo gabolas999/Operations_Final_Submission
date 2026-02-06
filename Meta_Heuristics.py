@@ -300,14 +300,12 @@ class MetaHeuristic:
         init_solution,
         get_route,
         get_timing,
-        calculate_objective,
     ):
 
         self.cost_list = []
         self.scenario_name = scenario_name
         self.get_route = get_route
         self.get_timing = get_timing
-        self.calculate_objective = calculate_objective
 
         self.H_t_dict = {1: problem_instance.H_t_20, 2: problem_instance.H_t_40}
 
@@ -315,9 +313,10 @@ class MetaHeuristic:
 
         self.C = problem_instance.C
         self.C_dict = problem_instance.C_dict
-        self.T_ij = problem_instance.T_ij_matrix
+        self.T_ij_matrix = problem_instance.T_ij_matrix
         self.Handling_time = problem_instance.Handling_time
         self.N = problem_instance.N
+        self.Gamma = problem_instance.Gamma
 
         self.full_choice_list = list(range(self.K)) + ["truck"]
 
@@ -378,6 +377,41 @@ class MetaHeuristic:
             entry.setdefault("route", route)
             entry.setdefault("repaired", False)
             entry.setdefault("timing", timing)
+
+    def calculate_objective(self):
+        total_cost = 0
+
+        # =========================
+        # BARGE COSTS
+        # =========================
+        for k in range(self.K):
+            assigned = np.where(self.f_ck[:, k] == 1)[0]
+
+            # barge not used
+            if len(assigned) == 0:
+                continue
+
+            route = self.route_dict[k]["route"]
+
+            # 1) fixed barge cost
+            total_cost += self.H_b[k]
+
+            # 2) travel cost
+            for i in range(len(route) - 1):
+                total_cost += self.T_ij_matrix[route[i]][route[i + 1]]
+
+            # 3) stop cost (exclude depot)
+            n_stops = len(route) - 2
+            total_cost += n_stops * self.Gamma
+
+        # =========================
+        # TRUCK COSTS
+        # =========================
+        unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
+        for c in unassigned:
+            total_cost += self.H_t_dict[self.C_dict[c]["Wc"]]
+
+        return total_cost
 
     def _compute_critical_containers(self):
         """
@@ -560,6 +594,29 @@ class MetaHeuristic:
                 cont for cont in range(self.C) if self.f_ck[cont, best_k] == 1
             ]
 
+            # cost_before = self.calculate_objective()
+
+            # print(f"Cost before shake: {cost_before}")
+
+            # # compute barge cost explicitly
+            # route_k = self.route_dict[best_k]["route"]
+            # travel = sum(
+            #     self.T_ij_matrix[route_k[i]][route_k[i + 1]]
+            #     for i in range(len(route_k) - 1)
+            # )
+            # stops = max(0, len(route_k) - 2) * self.Gamma
+            # fixed = self.H_b[best_k]
+
+            # print("Barge cost removed =", fixed + travel + stops)
+
+            # # compute truck cost added
+            # truck = sum(self.H_t_dict[self.C_dict[c]["Wc"]] for c in dumped_containers)
+            # print("Truck cost added =", truck)
+
+            # print(
+            #     f"Expected difference due to shake: {truck - (fixed + travel + stops)}"
+            # )
+
             self.f_ck[:, best_k] = 0
             self.route_dict[best_k]["route"] = [0, 0]  # empty barge → trivial routes
             self.route_dict[best_k]["repaired"] = False
@@ -568,7 +625,11 @@ class MetaHeuristic:
 
             self._released_container_tabu_reset(dumped_containers)
 
-            cost = self.evaluate()
+            cost = self.calculate_objective()
+
+            # print(f"Cost after shake: {cost}")
+
+            # print(f"Actual cost difference due to shake: {cost - cost_before} \n")
 
             self.cost_list.append(cost)
 
@@ -658,7 +719,7 @@ class MetaHeuristic:
                 self.route_dict[barge_idx]["repaired"] = False
 
                 # 🔴 EVALUATE INTERMEDIATE STATE
-                cost = self.evaluate()
+                cost = self.calculate_objective()
 
                 self.cost_list.append(cost)
 
@@ -884,7 +945,7 @@ class MetaHeuristic:
                     assigned,
                     self.C_dict,
                     self.Barge_cap[barge_idx],
-                    self.T_ij,
+                    self.T_ij_matrix,
                     self.Handling_time,
                 )
                 self.milp_calls += 1
@@ -1061,7 +1122,7 @@ class MetaHeuristic:
                 assigned,
                 self.C_dict,
                 self.Barge_cap[b],
-                self.T_ij,
+                self.T_ij_matrix,
                 self.Handling_time,
             )
             # print("New route from MILP repair:", new_route)
@@ -1109,47 +1170,9 @@ class MetaHeuristic:
                     return False
         return True
 
-    def evaluate(self):
-        total_cost = 0
-        total_stops = 0
-        utils = []
-        self.x_ijk = np.zeros((self.N, self.N, len(self.Barge_cap)))
-
-        for k in range(self.K):
-            assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
-            if not assigned:
-                continue
-            Lcur_k = {cont: self.C_dict[cont] for cont in assigned}
-            route_k = self.route_dict[k]["route"]
-
-            for i in range(len(route_k) - 1):
-                if route_k[i] != route_k[i + 1]:
-                    self.x_ijk[route_k[i]][route_k[i + 1]][k] = 1
-
-            # util
-
-            edge_loads_k = _edge_loads_along_route(
-                route=route_k,
-                L_current=Lcur_k,
-            )
-            util = max(edge_loads_k) / self.Barge_cap[k]
-            assert util <= 1.0, "capacity violation detected in evaluation"
-            utils.append(util)
-            total_stops += len(route_k) - 2  # exclude depot visits
-
-        # barge cost
-        total_cost += self.calculate_objective()
-
-        # truck
-        unassigned = np.where(self.f_ck.sum(axis=1) == 0)[0]
-        for cont in unassigned:
-            total_cost += self.H_t_dict[self.C_dict[cont]["Wc"]]
-
-        return total_cost
-
     def local_search(self, max_iters=3000):
         print("\n ---- Starting Meta-Heuristic Search... ----\n")
-        self.best_cost = self.evaluate()
+        self.best_cost = self.calculate_objective()
         self.cost_list.append(self.best_cost)
         self.best_fck = copy.deepcopy(self.f_ck)
         self.best_route_dict = copy.deepcopy(self.route_dict)
@@ -1192,7 +1215,7 @@ class MetaHeuristic:
                 no_improve += 1
                 continue
 
-            cost = self.evaluate()
+            cost = self.calculate_objective()
             self.cost_list.append(cost)
 
             if cost < self.best_cost:
