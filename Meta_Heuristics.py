@@ -567,6 +567,15 @@ class MetaHeuristic:
 
             self._released_container_tabu_reset(dumped_containers)
 
+            cost = self.evaluate()
+
+            if cost < self.best_cost:
+                self.best_cost = cost
+                self.best_fck = copy.deepcopy(self.f_ck)
+                self.best_route_dict = copy.deepcopy(self.route_dict)
+                self.best_Barge_cap = copy.deepcopy(self.Barge_cap)
+                self.best_H_b = copy.deepcopy(self.H_b)
+
             # greedy reassignment after shake
             for k in range(self.K):
                 if k in self.T3:
@@ -641,10 +650,20 @@ class MetaHeuristic:
             timing = self.get_timing(route, Lcur)
 
             if timing is not None:
-                # print("Successfully reinserted container from truck to barge")
                 self.route_dict[barge_idx]["route"] = route
                 self.route_dict[barge_idx]["timing"] = timing
                 self.route_dict[barge_idx]["repaired"] = False
+
+                # 🔴 EVALUATE INTERMEDIATE STATE
+                cost = self.evaluate()
+
+                if cost < self.best_cost:
+                    self.best_cost = cost
+                    self.best_fck = copy.deepcopy(self.f_ck)
+                    self.best_route_dict = copy.deepcopy(self.route_dict)
+                    self.best_Barge_cap = copy.deepcopy(self.Barge_cap)
+                    self.best_H_b = copy.deepcopy(self.H_b)
+
             else:
                 # print("Failed to reinsert container from truck to barge")
                 # revert
@@ -712,9 +731,9 @@ class MetaHeuristic:
         ), "invalid route in route_dict before move"
 
         # Save old state
-        old_row = self.f_ck[container, :].copy()
-        old_Barge_cap = self.Barge_cap.copy()
-        old_H_b = self.H_b.copy()
+        old_row = copy.deepcopy(self.f_ck[container, :])
+        old_Barge_cap = copy.deepcopy(self.Barge_cap)
+        old_H_b = copy.deepcopy(self.H_b)
         old_route_from_b = (
             self.route_dict[from_b]["route"] if from_b != "truck" else None
         )
@@ -829,8 +848,8 @@ class MetaHeuristic:
                 return False
 
         # update old state after reassignment
-        old_Barge_cap = self.Barge_cap.copy()
-        old_H_b = self.H_b.copy()
+        old_Barge_cap = copy.deepcopy(self.Barge_cap)
+        old_H_b = copy.deepcopy(self.H_b)
 
         # 6) TIMING CHECK (only for affected barge if not truck)
         affected_barges = set()
@@ -933,8 +952,8 @@ class MetaHeuristic:
             return False
 
         # tentatively swap
-        old1 = self.f_ck[c1].copy()
-        old2 = self.f_ck[c2].copy()
+        old1 = copy.deepcopy(self.f_ck[c1])
+        old2 = copy.deepcopy(self.f_ck[c2])
         self.f_ck[c1, b1] = 0
         self.f_ck[c1, b2] = 1
         self.f_ck[c2, b2] = 0
@@ -1125,11 +1144,11 @@ class MetaHeuristic:
 
     def local_search(self, max_iters=3000):
         print("\n ---- Starting Meta-Heuristic Search... ----\n")
-        best_cost = self.evaluate()
-        best_fck = self.f_ck.copy()
-        best_route_dict = copy.deepcopy(self.route_dict)
-        best_Barge_cap = self.Barge_cap.copy()
-        best_H_b = self.H_b.copy()
+        self.best_cost = self.evaluate()
+        self.best_fck = copy.deepcopy(self.f_ck)
+        self.best_route_dict = copy.deepcopy(self.route_dict)
+        self.best_Barge_cap = copy.deepcopy(self.Barge_cap)
+        self.best_H_b = copy.deepcopy(self.H_b)
         no_improve = 0
 
         it_list = []
@@ -1150,7 +1169,7 @@ class MetaHeuristic:
         for it in range(max_iters):
             if it % 100 == 0:
                 print(f"Iteration {it}, Percent Complete: {100*it/max_iters:.1f}%")
-                print(f"  Current best cost: {best_cost}")
+                print(f"  Current best cost: {self.best_cost}")
             if rng.random() < self.prob_operator_move:
                 moved = self.operator_move()
                 if moved:
@@ -1169,11 +1188,11 @@ class MetaHeuristic:
 
             cost = self.evaluate()
 
-            if cost < best_cost:
-                best_cost, best_fck = cost, self.f_ck.copy()
-                best_route_dict = copy.deepcopy(self.route_dict)
-                best_Barge_cap = self.Barge_cap.copy()
-                best_H_b = self.H_b.copy()
+            if cost < self.best_cost:
+                self.best_cost, self.best_fck = cost, copy.deepcopy(self.f_ck)
+                self.best_route_dict = copy.deepcopy(self.route_dict)
+                self.best_Barge_cap = copy.deepcopy(self.Barge_cap)
+                self.best_H_b = copy.deepcopy(self.H_b)
                 no_improve = 0
             else:
                 no_improve += 1
@@ -1185,7 +1204,7 @@ class MetaHeuristic:
 
             it_list.append(it)
             cost_list.append(cost)
-            best_cost_list.append(best_cost)
+            best_cost_list.append(self.best_cost)
 
         #     # Update plot every iteration
         #     line1.set_data(it_list, cost_list)
@@ -1196,14 +1215,12 @@ class MetaHeuristic:
         #     fig.canvas.flush_events()
 
         # plt.ioff()
-        self.f_ck = copy.deepcopy(best_fck)
-        self.route_dict = copy.deepcopy(best_route_dict)
-        self.Barge_cap = best_Barge_cap
-        self.H_b = best_H_b
+        self.f_ck = copy.deepcopy(self.best_fck)
+        self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
+        self.H_b = copy.deepcopy(self.best_H_b)
+        self.route_dict = copy.deepcopy(self.best_route_dict)
 
-        final_route_dict = self.route_dict.copy()
-
-        print("\nFinal route dictionary:", final_route_dict, "\n")
+        print("\nFinal route dictionary:", self.route_dict, "\n")
 
         fig, file_path = timing_window_plot(
             C=self.C,
@@ -1212,7 +1229,7 @@ class MetaHeuristic:
             f_ck=self.f_ck,
             MH_or_Greedy="MH",
             scenario_name=self.scenario_name,
-            final_route_dict=final_route_dict,
+            final_route_dict=self.route_dict,
         )
 
         print("\nMeta-Heuristic Search Complete, search move analysis:")
@@ -1222,4 +1239,4 @@ class MetaHeuristic:
         print(f"Total shakes performed: {self.shake_count}")
         print(f"MILP repairs succeeded: {self.milp_repairs}\n")
 
-        return best_cost, best_fck, final_route_dict, fig, file_path
+        return self.best_cost, self.best_fck, self.best_route_dict, fig, file_path
