@@ -1220,7 +1220,7 @@ class MetaHeuristic:
         self.H_b = copy.deepcopy(self.best_H_b)
         self.route_dict = copy.deepcopy(self.best_route_dict)
 
-        print("\nFinal route dictionary:", self.route_dict, "\n")
+        print("\nFinal route dictionary:", self.best_route_dict, "\n")
 
         fig, file_path = timing_window_plot(
             C=self.C,

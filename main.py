@@ -86,9 +86,9 @@ def main(
     MH_result_dict, MH_result_yaml_path = display_final_allocations(
         K=mh.K,
         C=mh.C,
-        f_ck=best_fck,
+        f_ck=mh.f_ck,
         C_dict=mh.C_dict,
-        route_dict=final_route_dict,
+        route_dict=mh.route_dict,
         Barge_cap=mh.Barge_cap,
         H_b=mh.H_b,
         best_cost=MH_best_cost,
