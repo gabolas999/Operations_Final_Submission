@@ -303,6 +303,7 @@ class MetaHeuristic:
         calculate_objective,
     ):
 
+        self.cost_list = []
         self.scenario_name = scenario_name
         self.get_route = get_route
         self.get_timing = get_timing
@@ -569,6 +570,8 @@ class MetaHeuristic:
 
             cost = self.evaluate()
 
+            self.cost_list.append(cost)
+
             if cost < self.best_cost:
                 self.best_cost = cost
                 self.best_fck = copy.deepcopy(self.f_ck)
@@ -656,6 +659,8 @@ class MetaHeuristic:
 
                 # 🔴 EVALUATE INTERMEDIATE STATE
                 cost = self.evaluate()
+
+                self.cost_list.append(cost)
 
                 if cost < self.best_cost:
                     self.best_cost = cost
@@ -1145,6 +1150,7 @@ class MetaHeuristic:
     def local_search(self, max_iters=3000):
         print("\n ---- Starting Meta-Heuristic Search... ----\n")
         self.best_cost = self.evaluate()
+        self.cost_list.append(self.best_cost)
         self.best_fck = copy.deepcopy(self.f_ck)
         self.best_route_dict = copy.deepcopy(self.route_dict)
         self.best_Barge_cap = copy.deepcopy(self.Barge_cap)
@@ -1187,6 +1193,7 @@ class MetaHeuristic:
                 continue
 
             cost = self.evaluate()
+            self.cost_list.append(cost)
 
             if cost < self.best_cost:
                 self.best_cost, self.best_fck = cost, copy.deepcopy(self.f_ck)
@@ -1223,6 +1230,10 @@ class MetaHeuristic:
         #     fig.canvas.flush_events()
 
         # plt.ioff()
+
+        plt.figure()
+        plt.plot(it_list, cost_list, label="Cost")
+        plt.show()
 
         self.f_ck = copy.deepcopy(self.best_fck)
         self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
