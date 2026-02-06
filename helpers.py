@@ -8,9 +8,12 @@ import numpy as np
 def _edge_loads_along_route(
     route,
     L_current,
+    verbose=False,
 ):
 
     edge_load_list = []
+    exports_unloaded_list = []
+    imports_loaded_list = []
 
     # Start at depot: all exports are loaded
     load = sum(cont["Wc"] for cont in L_current.values() if cont["In_or_Out"] == 2)
@@ -26,15 +29,32 @@ def _edge_loads_along_route(
             for cont in L_current.values()
             if cont["Terminal"] == terminal and cont["In_or_Out"] == 2
         )
+        exports_unloaded_list.append(exports_unloaded)
+
         imports_loaded = sum(
             cont["Wc"]
             for cont in L_current.values()
             if cont["Terminal"] == terminal and cont["In_or_Out"] == 1
         )
+        imports_loaded_list.append(imports_loaded)
 
         load -= exports_unloaded
         load += imports_loaded
         edge_load_list.append(load)
+
+    if verbose:
+        print("\n--- Debug: Edge loads along route ---")
+        print(f"Route: {route}")
+        print(f"L_current: {L_current}")
+        print(f"Edge loads along route: {edge_load_list}")
+        print(
+            f"Total TEU for imports: {sum(cont['Wc'] for cont in L_current.values() if cont['In_or_Out'] == 1)}"
+        )
+        print(
+            f"Total TEU for exports: {sum(cont['Wc'] for cont in L_current.values() if cont['In_or_Out'] == 2)}"
+        )
+        print(f"Exports unloaded per terminal: {exports_unloaded_list}")
+        print(f"Imports loaded per terminal: {imports_loaded_list}")
 
     return edge_load_list
 
@@ -807,11 +827,11 @@ def build_final_allocation_report(
             continue
 
         Lcur = {cont: C_dict[cont] for cont in containers}
-        route = route_dict[k]
+        route = route_dict[k]["route"]
 
         cap = Barge_cap[k]
 
-        edge_loads = edge_loads_along_route(route, Lcur)
+        edge_loads = edge_loads_along_route(route, Lcur, verbose=True)
         peak = max(edge_loads)
 
         imports = [cont for cont in containers if C_dict[cont]["In_or_Out"] == 1]

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from MILP import MILP_Algo
 
-from helpers import timing_window_plot
+from helpers import timing_window_plot, _edge_loads_along_route
 
 
 @dataclass
@@ -224,38 +224,6 @@ class GreedyOptimizer:
 
         return timing
 
-    def check_for_cap(self, route, L_current, barge_idx, barges=None):
-        cap = barges[barge_idx] if barges is not None else self.Barges[barge_idx]
-
-        # Start at depot: all exports are loaded
-        load = sum(c["Wc"] for c in L_current.values() if c["In_or_Out"] == 2)
-        if load > cap or load < 0:
-            return False
-
-        # Visit terminals once in the given route
-        for terminal in route:
-            if terminal == 0:
-                continue
-
-            exports_unloaded = sum(
-                c["Wc"]
-                for c in L_current.values()
-                if c["Terminal"] == terminal and c["In_or_Out"] == 2
-            )
-            imports_loaded = sum(
-                c["Wc"]
-                for c in L_current.values()
-                if c["Terminal"] == terminal and c["In_or_Out"] == 1
-            )
-
-            load -= exports_unloaded
-            load += imports_loaded
-
-            if load > cap or load < 0:
-                return False
-
-        return True
-
     # def delay_window(self, container, O_terminal, route, terminal):
     #     """
     #     Calculate delay needed for container to fit in time window if the arrival is too early.
@@ -315,7 +283,9 @@ class GreedyOptimizer:
                 route = self.get_route(L_current)
 
                 # 3) Capacity check
-                if not self.check_for_cap(route, L_current, barge_idx):
+                edge_list = _edge_loads_along_route(route, L_current)
+
+                if self.Barges[barge_idx] < max(edge_list):
                     self.f_ck[c, barge_idx] = 0
                     continue
 

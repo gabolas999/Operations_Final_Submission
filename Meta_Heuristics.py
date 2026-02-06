@@ -300,14 +300,12 @@ class MetaHeuristic:
         init_solution,
         get_route,
         get_timing,
-        check_for_cap,
         calculate_objective,
     ):
 
         self.scenario_name = scenario_name
         self.get_route = get_route
         self.get_timing = get_timing
-        self.check_for_cap = check_for_cap
         self.calculate_objective = calculate_objective
 
         self.H_t_dict = {1: problem_instance.H_t_20, 2: problem_instance.H_t_40}
@@ -342,8 +340,6 @@ class MetaHeuristic:
         self.route_dict = {}
 
         self.fill_initial_routes()
-
-        self.route_load_dict = {}
 
         self.move_accepts = 0
         self.swap_accepts = 0
@@ -431,51 +427,80 @@ class MetaHeuristic:
 
         return critical
 
-    def _fill_route_related_dictionaries(self, fck):
-        for k in range(self.K):
-            L_current = _get_L_current_for_barge(
-                barge_idx=k,
-                f_ck=fck,
-                C=self.C,
-                C_dict=self.C_dict,
-            )
-
-            route = self.route_dict[k]["route"]
-
-            self.route_load_dict.setdefault(
-                k,
-                _edge_loads_along_route(
-                    route=route,
-                    L_current=L_current,
-                ),
-            )  # this fills self.route_load_dict
-
-        assert (
-            len(self.route_dict[k]["route"]) >= 2
-        ), "route must at least start and end at depot after filling route_dict"
-
-        assert (
-            len(self.route_load_dict) == self.K
-        ), "route_load_dict incomplete, missing barges or too many barges after filling route_load_dict"
-
-    def reassign_barges_by_requirements(self, required):
+    def reassign_barges_by_cost_requirements(self, req_cap_per_route):
         """
-        Deterministically assign barges to routes by sorted requirements.
-        Assumes global dominance check has already passed.
+        Cost-first reassignment of barges to routes, with capacity feasibility check.
+
+        - Routes with higher utilization get cheaper barges
+        - Capacity feasibility is enforced locally
+        - Global feasibility assumed but not blindly trusted
         """
 
-        req_sorted_idx = sorted(range(self.K), key=lambda k: required[k])
-        cap_cost_sorted = sorted(zip(self.Barge_cap, self.H_b), key=lambda x: x[0])
+        # Routes sorted by descending importance
+        routes_sorted = sorted(
+            range(self.K), key=lambda k: req_cap_per_route[k], reverse=True
+        )
+
+        # Barges sorted by ascending cost
+        barges = sorted(
+            [
+                (cap, cost, i)
+                for i, (cap, cost) in enumerate(zip(self.Barge_cap, self.H_b))
+            ],
+            key=lambda x: x[1],
+        )
 
         new_Barge_cap = [None] * self.K
         new_H_b = [None] * self.K
+        assigned_barges = set()
 
-        for r_idx, (cap, cost) in zip(req_sorted_idx, cap_cost_sorted):
-            new_Barge_cap[r_idx] = cap
-            new_H_b[r_idx] = cost
+        for r in routes_sorted:
+            req = req_cap_per_route[r]
 
-        self.Barge_cap = new_Barge_cap
-        self.H_b = new_H_b
+            # find cheapest feasible unused barge
+            for cap, cost, b_idx in barges:
+                if b_idx in assigned_barges:
+                    continue
+                if cap >= req:
+                    new_Barge_cap[r] = cap
+                    new_H_b[r] = cost
+                    assigned_barges.add(b_idx)
+                    break
+            else:
+                raise RuntimeError(
+                    f"No feasible barge found for route {r} with requirement {req}"
+                )
+
+        return new_Barge_cap, new_H_b
+
+    def reassign_barges_by_capacity(self, req_cap_per_route):
+        """
+        Reassign barges to routes by global capacity matching.
+
+        - Route order is preserved
+        - self.Barge_cap and self.H_b are reordered in-place
+        - Returns None if no feasible assignment exists
+        """
+
+        K = self.K
+
+        # Routes sorted by increasing required capacity
+        routes_sorted = sorted(range(K), key=lambda k: req_cap_per_route[k])
+
+        # Barges sorted by increasing capacity
+        barges_sorted = sorted(zip(self.Barge_cap, self.H_b), key=lambda x: x[0])
+
+        new_Barge_cap = [None] * K
+        new_H_b = [None] * K
+
+        for r, (cap, cost) in zip(routes_sorted, barges_sorted):
+            if cap < req_cap_per_route[r]:
+                return None, None  # globally infeasible
+
+            new_Barge_cap[r] = cap
+            new_H_b[r] = cost
+
+        return new_Barge_cap, new_H_b
 
     def _age_tabu(self):
         # decrement and purge expired tenures from T1, T2, T3
@@ -520,16 +545,13 @@ class MetaHeuristic:
             assigned = [cont for cont in range(self.C) if self.f_ck[cont, k] == 1]
             if not assigned:
                 continue
-            Lcur = {cont: self.C_dict[cont] for cont in assigned}
-            route = self.route_dict[k]["route"]
-            self.route_load_dict.setdefault(
-                k,
-                _edge_loads_along_route(
-                    route=route,
-                    L_current=Lcur,
-                ),
+            Lcur_k = {cont: self.C_dict[cont] for cont in assigned}
+            route_k = self.route_dict[k]["route"]
+            edge_loads = _edge_loads_along_route(
+                route=route_k,
+                L_current=Lcur_k,
             )
-            util = max(self.route_load_dict[k]) / self.Barge_cap[k]
+            util = max(edge_loads) / self.Barge_cap[k]
             if util < worst:
                 worst, best_k = util, k
         if best_k is not None:
@@ -598,15 +620,17 @@ class MetaHeuristic:
                 entry.setdefault("repaired", False)
                 entry.setdefault("timing", timing)
 
-            self._fill_route_related_dictionaries(fck=self.f_ck)
-
             route = self.route_dict[barge_idx]["route"]
             assert (
                 route is not None
             ), "Route missing for barge after fill method when trying to reinsert container from truck to barge"
 
             # capacity check
-            if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
+            edge_list_barge_idx = _edge_loads_along_route(
+                route=route,
+                L_current=Lcur,
+            )
+            if self.Barge_cap[barge_idx] < max(edge_list_barge_idx):
                 self.f_ck[cont, barge_idx] = 0
                 self.route_dict[barge_idx]["route"] = old_route
                 self.route_dict[barge_idx]["timing"] = old_timing
@@ -761,33 +785,48 @@ class MetaHeuristic:
                 entry_from_b.setdefault("repaired", False)
                 entry_from_b.setdefault("timing", timing_from_b)
 
-        self._fill_route_related_dictionaries(fck=self.f_ck)
-
         # 5) CAPACITY CHECK
-        required_capacity = [max(self.route_load_dict[k]) for k in range(self.K)]
+        req_cap_per_route = []
 
-        # dominance check
-        req_sorted = sorted(required_capacity)
-        cap_sorted = sorted(self.Barge_cap)
+        for k in range(self.K):
+            edge_loads_k = _edge_loads_along_route(
+                route=self.route_dict[k]["route"],
+                L_current=_get_L_current_for_barge(
+                    barge_idx=k,
+                    f_ck=self.f_ck,
+                    C=self.C,
+                    C_dict=self.C_dict,
+                ),
+            )
 
-        if any(req > cap for req, cap in zip(req_sorted, cap_sorted)):
-            # impossible no matter what
-            self.f_ck[container, :] = old_row
-            if from_b != "truck":
-                self.route_dict[from_b]["route"] = old_route_from_b
-                self.route_dict[from_b]["repaired"] = old_repaired_from_b
-                self.route_dict[from_b]["timing"] = old_timing_from_b
-            if to_b != "truck":
-                self.route_dict[to_b]["route"] = old_route_to_b
-                self.route_dict[to_b]["repaired"] = old_repaired_to_b
-                self.route_dict[to_b]["timing"] = old_timing_to_b
-            self.Barge_cap = old_Barge_cap
-            self.H_b = old_H_b
-            self.T1[move] = self.tenure_move_container
-            return False
+            req_cap_per_route.append(max(edge_loads_k))
 
-        # deterministic reassignment (upgrade or tighten)
-        self.reassign_barges_by_requirements(required=required_capacity)
+        has_violation = any(
+            self.Barge_cap[k] < req_cap_per_route[k] for k in range(self.K)
+        )
+
+        if has_violation:
+            result = self.reassign_barges_by_capacity(req_cap_per_route)
+            if result != (None, None):
+                self.Barge_cap, self.H_b = result
+                self.Barge_cap, self.H_b = self.reassign_barges_by_cost_requirements(
+                    req_cap_per_route
+                )
+            else:
+                self.f_ck[container, :] = old_row
+                if from_b != "truck":
+                    self.route_dict[from_b]["route"] = old_route_from_b
+                    self.route_dict[from_b]["repaired"] = old_repaired_from_b
+                    self.route_dict[from_b]["timing"] = old_timing_from_b
+                if to_b != "truck":
+                    self.route_dict[to_b]["route"] = old_route_to_b
+                    self.route_dict[to_b]["repaired"] = old_repaired_to_b
+                    self.route_dict[to_b]["timing"] = old_timing_to_b
+                self.Barge_cap = old_Barge_cap
+                self.H_b = old_H_b
+                self.T1[move] = self.tenure_move_container
+
+                return False
 
         # update old state after reassignment
         old_Barge_cap = self.Barge_cap.copy()
@@ -853,9 +892,11 @@ class MetaHeuristic:
                         C=self.C,
                         C_dict=self.C_dict,
                     )
-                    if not self.check_for_cap(
-                        new_route, Lcur, barge_idx, barges=self.Barge_cap
-                    ):
+                    edge_list_barge_idx = _edge_loads_along_route(
+                        route=new_route,
+                        L_current=Lcur,
+                    )
+                    if self.Barge_cap[barge_idx] < max(edge_list_barge_idx):
                         self.f_ck[container] = old_row
                         if from_b != "truck":
                             self.route_dict[from_b]["route"] = old_route_from_b
@@ -878,31 +919,6 @@ class MetaHeuristic:
             self._randomized_greedy_reinsert(from_b)
 
         return True
-
-    # def barge_fully_ok(self, barge_idx, move=None):
-    #     assigned = [i for i in range(self.C) if self.f_ck[i, barge_idx]]
-    #     if not assigned:
-    #         return True
-
-    #     # one‐shift TW
-    #     # ---- time-window check (identical logic to Greedy) ----
-    #     Lcur = _get_L_current_for_barge(barge_idx=barge_idx, f_ck=self.f_ck, C=self.C, C_dict=self.C_dict,)
-
-    #     route = self.route_dict[barge_idx]
-
-    #     if not self.check_for_cap(route, Lcur, barge_idx, barges=self.Barge_cap):
-    #         raise RuntimeError(
-    #             "Capacity check failed in barge_ok method, for barge " + str(barge_idx),
-    #             str(move),
-    #         )
-
-    #     timing = self.get_timing(route, Lcur)
-
-    #     if result is None:
-    #         raise RuntimeError(
-    #             "Timing check failed in barge_ok method, for barge " + str(barge_idx),
-    #             str(move),
-    #         )
 
     def operator_swap(self):
         c1, c2 = rng.choice(self.C, size=2, replace=False)
@@ -975,8 +991,6 @@ class MetaHeuristic:
             entry_b2.setdefault("repaired", False)
             entry_b2.setdefault("timing", timing_b2)
 
-        self._fill_route_related_dictionaries(fck=self.f_ck)
-
         def barge_ok(k):
             assigned = [i for i in range(self.C) if self.f_ck[i, k]]
             if not assigned:
@@ -993,7 +1007,11 @@ class MetaHeuristic:
 
             route = self.route_dict[k]["route"]
 
-            if not self.check_for_cap(route, Lcur, k, barges=self.Barge_cap):
+            edge_list_barge_k = _edge_loads_along_route(
+                route=route,
+                L_current=Lcur,
+            )
+            if self.Barge_cap[k] < max(edge_list_barge_k):
                 return False
 
             if self.route_dict[k]["repaired"]:
@@ -1049,7 +1067,12 @@ class MetaHeuristic:
                     C=self.C,
                     C_dict=self.C_dict,
                 )
-                if not self.check_for_cap(new_route, Lcur, b, barges=self.Barge_cap):
+                edge_list_barge_b = _edge_loads_along_route(
+                    route=new_route,
+                    L_current=Lcur,
+                )
+
+                if self.Barge_cap[b] < max(edge_list_barge_b):
                     self.f_ck[c1] = old1
                     self.f_ck[c2] = old2
                     self.route_dict[b1]["route"] = old_route_b1
@@ -1072,26 +1095,23 @@ class MetaHeuristic:
             assigned = np.where(self.f_ck[:, k] == 1)[0].tolist()
             if not assigned:
                 continue
-            Lcur = {cont: self.C_dict[cont] for cont in assigned}
-            route = self.route_dict[k]["route"]
+            Lcur_k = {cont: self.C_dict[cont] for cont in assigned}
+            route_k = self.route_dict[k]["route"]
 
-            for i in range(len(route) - 1):
-                if route[i] != route[i + 1]:
-                    self.x_ijk[route[i]][route[i + 1]][k] = 1
+            for i in range(len(route_k) - 1):
+                if route_k[i] != route_k[i + 1]:
+                    self.x_ijk[route_k[i]][route_k[i + 1]][k] = 1
 
             # util
 
-            self.route_load_dict.setdefault(
-                k,
-                _edge_loads_along_route(
-                    route=route,
-                    L_current=Lcur,
-                ),
+            edge_loads_k = _edge_loads_along_route(
+                route=route_k,
+                L_current=Lcur_k,
             )
-            util = max(self.route_load_dict[k]) / self.Barge_cap[k]
+            util = max(edge_loads_k) / self.Barge_cap[k]
             assert util <= 1.0, "capacity violation detected in evaluation"
             utils.append(util)
-            total_stops += len(route) - 2  # exclude depot visits
+            total_stops += len(route_k) - 2  # exclude depot visits
 
         # barge cost
         total_cost += self.calculate_objective()
@@ -1182,6 +1202,8 @@ class MetaHeuristic:
         self.H_b = best_H_b
 
         final_route_dict = self.route_dict.copy()
+
+        print("\nFinal route dictionary:", final_route_dict, "\n")
 
         fig, file_path = timing_window_plot(
             C=self.C,
