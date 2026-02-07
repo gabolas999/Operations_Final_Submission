@@ -67,9 +67,10 @@ def run_sensitivity_analysis(
                 assert "handling_time" in modified_scenario.keys()
                 modified_scenario["handling_time"] *= 1 + change_percentage / 100
 
-            _, _, result_dict = main(
+            _, _, result_dict, _ = main(
                 input_scenario_dict=modified_scenario,
                 scenario_name=f"Sensitivity Analysis - {variable} {change_percentage_str}%",
+                max_iters=10000,
             )
 
             result_summary = result_dict["summary"]

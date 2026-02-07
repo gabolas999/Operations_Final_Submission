@@ -23,7 +23,7 @@ def main(
     scenario_info_toml_file_path=None,
     input_scenario_dict=None,
     scenario_name=None,
-    max_iters=2000,
+    max_iters=10000,
 ):
 
     if input_scenario_dict is None and scenario_info_toml_file_path is not None:
