@@ -79,8 +79,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # STEP 0 — Terminal set and demands
     # --------------------------------------------------
 
-    # print("\nRepairing route with MILP...")
-
     terminals = sorted({C_dict[cont]["Terminal"] for cont in assigned_containers})
     if 0 not in terminals:
         terminals = [0] + terminals
@@ -99,9 +97,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
             p[j] += C_dict[cont]["Wc"]
         else:
             d[j] += C_dict[cont]["Wc"]
-
-    # print("Import pickups per terminal:", p)
-    # print("Export deliveries per terminal:", d)
 
     # Terminal time windows (start-of-service)
     O = {}
@@ -218,9 +213,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     # --------------------------------------------------
     # STEP 6 — Solve
     # --------------------------------------------------
-    # prob.writeLP("repair_debug.lp")
-
-    # status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
 
     status = prob.solve(
         pulp.PULP_CBC_CMD(
@@ -232,15 +224,7 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     )
 
     if pulp.LpStatus[status] != "Optimal":
-        # print("No feasible MILP route found")
         return None, None
-        # raise RuntimeError("No feasible MILP route found")
-    # else:
-    #     print("Status:", pulp.LpStatus[prob.status])
-
-    #     for v in prob.variables():
-    #         if abs(v.varValue) > 1e-6:  # only nonzero vars
-    #             print(f"{v.name} = {v.varValue}")
 
     # --------------------------------------------------
     # STEP 7 — Extract route
@@ -249,10 +233,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
     for j in N:
         if j == 0:
             continue
-        # print(
-        #     f"Opening time at terminal: {O[j]}, Arrival time at terminal {j}: {pulp.value(t[j])}, Closing time at terminal: {D[j]}"
-        # )
-
         if not (O[j] <= pulp.value(t[j]) <= D[j]):
             print("Timing violation at terminal", j)
             print(
@@ -282,10 +262,6 @@ def repair_route(assigned_containers, C_dict, Qk, T_ij, Handling_time=1 / 6):
         current = nxt
         if nxt == 0:
             break
-
-    # print("route", route)
-
-    # print("Repaired route with MILP!!!")
 
     timing = dict(zip(route, [pulp.value(t[j]) for j in route]))
 
@@ -594,29 +570,6 @@ class MetaHeuristic:
                 cont for cont in range(self.C) if self.f_ck[cont, best_k] == 1
             ]
 
-            # cost_before = self.calculate_objective()
-
-            # print(f"Cost before shake: {cost_before}")
-
-            # # compute barge cost explicitly
-            # route_k = self.route_dict[best_k]["route"]
-            # travel = sum(
-            #     self.T_ij_matrix[route_k[i]][route_k[i + 1]]
-            #     for i in range(len(route_k) - 1)
-            # )
-            # stops = max(0, len(route_k) - 2) * self.Gamma
-            # fixed = self.H_b[best_k]
-
-            # print("Barge cost removed =", fixed + travel + stops)
-
-            # # compute truck cost added
-            # truck = sum(self.H_t_dict[self.C_dict[c]["Wc"]] for c in dumped_containers)
-            # print("Truck cost added =", truck)
-
-            # print(
-            #     f"Expected difference due to shake: {truck - (fixed + travel + stops)}"
-            # )
-
             self.f_ck[:, best_k] = 0
             self.route_dict[best_k]["route"] = [0, 0]  # empty barge → trivial routes
             self.route_dict[best_k]["repaired"] = False
@@ -626,10 +579,6 @@ class MetaHeuristic:
             self._released_container_tabu_reset(dumped_containers)
 
             cost = self.calculate_objective()
-
-            # print(f"Cost after shake: {cost}")
-
-            # print(f"Actual cost difference due to shake: {cost - cost_before} \n")
 
             self.cost_list.append(cost)
 
@@ -894,9 +843,6 @@ class MetaHeuristic:
             result = self.reassign_barges_by_capacity(req_cap_per_route)
             if result != (None, None):
                 self.Barge_cap, self.H_b = result
-                self.Barge_cap, self.H_b = self.reassign_barges_by_cost_requirements(
-                    req_cap_per_route
-                )
             else:
                 self.f_ck[container, :] = old_row
                 if from_b != "truck":
@@ -1254,16 +1200,34 @@ class MetaHeuristic:
 
         # plt.ioff()
 
-        plt.figure()
-        plt.plot(it_list, cost_list, label="Cost")
-        plt.show()
+        # plt.figure()
+        # plt.plot(it_list, cost_list, label="Cost")
+        # plt.show()
+        req_cap_per_route = []
+
+        for k in range(self.K):
+            edge_loads_k = _edge_loads_along_route(
+                route=self.route_dict[k]["route"],
+                L_current=_get_L_current_for_barge(
+                    barge_idx=k,
+                    f_ck=self.best_fck,
+                    C=self.C,
+                    C_dict=self.C_dict,
+                ),
+            )
+
+            req_cap_per_route.append(max(edge_loads_k))
+
+        self.best_Barge_cap, self.best_H_b = self.reassign_barges_by_cost_requirements(
+            req_cap_per_route
+        )
 
         self.f_ck = copy.deepcopy(self.best_fck)
         self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
         self.H_b = copy.deepcopy(self.best_H_b)
         self.route_dict = copy.deepcopy(self.best_route_dict)
 
-        print("\nFinal route dictionary:", self.best_route_dict, "\n")
+        self.best_cost = self.calculate_objective()
 
         fig, file_path = timing_window_plot(
             C=self.C,

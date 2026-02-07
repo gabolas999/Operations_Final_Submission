@@ -1070,7 +1070,7 @@ def build_final_allocation_report(
 
         cap = Barge_cap[k]
 
-        edge_loads = edge_loads_along_route(route, Lcur, verbose=True)
+        edge_loads = edge_loads_along_route(route, Lcur)
         peak = max(edge_loads)
 
         imports = [cont for cont in containers if C_dict[cont]["In_or_Out"] == 1]
