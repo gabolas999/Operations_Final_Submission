@@ -162,8 +162,10 @@ if __name__ == "__main__":
     from pathlib import Path
 
     # Load results
-    results_path = Path("./Storage/theo_results/sensitivity_analysis_results.json")
-    with open(results_path, "r") as f:
+    results_path = Path(
+        "./Storage/theo_results/sensitivity_analysis/sensitivity_analysis_results.json"
+    )
+    with results_path.open("r") as f:
         results = json.load(f)
 
     # Generate pie charts
@@ -171,6 +173,6 @@ if __name__ == "__main__":
         results=results,
         n_rows=7,
         n_cols=3,
-        output_path="./Storage/theo_results/sensitivity_pies.png",
+        output_path="./Storage/theo_results/sensitivity_analysis/sensitivity_pies.png",
         dpi=600,
     )

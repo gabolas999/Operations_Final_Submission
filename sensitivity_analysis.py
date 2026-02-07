@@ -4,6 +4,8 @@ from scenarios import SCENARIO_II, SCENARIO_III
 from pathlib import Path
 import json
 
+from pie_chart import generate_sensitivity_pie_charts
+
 
 VARIABLE_CHANGE_RESULT_SUMMARY_MAP = {
     "gamma": {
@@ -136,10 +138,18 @@ def analyse_sensitivity_analysis_results(
     with results_json_path.open("r") as f:
         results_data = json.load(f)
 
-    pass  # Further analysis can be implemented here
+    generate_sensitivity_pie_charts(
+        results=results_data,
+        n_rows=7,
+        n_cols=3,
+        output_path="./Storage/theo_results/sensitivity_analysis/sensitivity_pies.png",
+        dpi=1200,
+    )
 
 
 if __name__ == "__main__":
     final_variable_change_result_summary_map = run_sensitivity_analysis(
         base_scenario=SCENARIO_II
     )
+
+    analyse_sensitivity_analysis_results()
