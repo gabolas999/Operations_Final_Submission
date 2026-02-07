@@ -38,7 +38,9 @@ VARIABLE_CHANGE_RESULT_SUMMARY_MAP = {
 
 def run_sensitivity_analysis(
     base_scenario=SCENARIO_III,
-    output_path=Path("./Storage/theo_results/sensitivity_analysis_results.json"),
+    output_path=Path(
+        "./Storage/theo_results/sensitivity_analysis/sensitivity_analysis_results.json"
+    ),
 ):
 
     for variable in VARIABLE_CHANGE_RESULT_SUMMARY_MAP.keys():
@@ -126,7 +128,9 @@ def run_sensitivity_analysis(
 
 
 def analyse_sensitivity_analysis_results(
-    results_json_path=Path("./Storage/sensitivity_analysis_results.json"),
+    results_json_path=Path(
+        "./Storage/theo_results/sensitivity_analysis/sensitivity_analysis_results.json"
+    ),
 ):
     with results_json_path.open("r") as f:
         results_data = json.load(f)

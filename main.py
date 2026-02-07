@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     for scenario, scenario_name in [
         (SCENARIO_II, "Scenario_II"),
-        # (SCENARIO_III, "Scenario_III"),
+        (SCENARIO_III, "Scenario_III"),
     ]:
         final_cost_mh, final_cost_greedy, mh_result_dict, greedy_result_dict = main(
             input_scenario_dict=scenario,
