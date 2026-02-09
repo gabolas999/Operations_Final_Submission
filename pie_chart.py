@@ -50,6 +50,7 @@ def plot_sensitivity_pie_grid(
         # Subplot title (compact but informative)
         title = (
             f'{data["variable"]} ({data["variation"]:+.0f}%)\n'
+            f'Value: {data["modified_value"]}\n'
             f'Cost: €{data["total_cost"]:,}\n'
             f'ΔBarge: {data["delta_barge"]:+.1f} pp, '
             f'ΔTruck: {data["delta_truck"]:+.1f} pp'
@@ -98,12 +99,12 @@ def parse_sensitivity_results(results: dict):
 
     dataset = []
 
-    for variable, variations in results.items():
-        for variation_label, summary in variations.items():
+    for variable, variations_result_dict in results.items():
+        for variation_label, summary in variations_result_dict.items():
 
-            # Skip baseline entries
-            if "barge_share_change_pp" not in summary:
-                continue
+            # # Skip baseline entries
+            # if "barge_share_change_pp" not in summary:
+            #     continue
 
             entry = {
                 "barge_pct": summary["barge_share_%"],
@@ -112,16 +113,13 @@ def parse_sensitivity_results(results: dict):
                 "delta_barge": summary["barge_share_change_pp"],
                 "delta_truck": summary["truck_share_change_pp"],
                 "variable": variable,
-                "variation": _parse_variation_label(variation_label),
+                "variation": float(variation_label),
+                "modified_value": summary["modified_value"],
             }
 
             dataset.append(entry)
 
     return dataset
-
-
-def _parse_variation_label(label: str) -> float:
-    return float(label)
 
 
 def generate_sensitivity_pie_charts(
