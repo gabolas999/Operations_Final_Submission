@@ -64,10 +64,6 @@ def run_sensitivity_analysis(
     baseline_total_cost = result_summary["final_cost"]
 
     for variable in VARIABLE_CHANGE_RESULT_SUMMARY_MAP.keys():
-        baseline_result_dict = None
-        baseline_barge_share = None
-        baseline_truck_share = None
-        baseline_total_cost = None
 
         for change_percentage_str in VARIABLE_CHANGE_RESULT_SUMMARY_MAP[
             variable
