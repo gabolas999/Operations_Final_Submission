@@ -75,25 +75,35 @@ def run_sensitivity_analysis(
 
             if variable == "gamma":
                 assert "gamma" in modified_scenario.keys()
-                modified_var_value = modified_scenario["gamma"] * (
-                    1 + change_percentage / 100
+                modified_var_value = float(
+                    np.round(
+                        modified_scenario["gamma"] * (1 + change_percentage / 100), 2
+                    )
                 )
                 modified_scenario["gamma"] = modified_var_value
             elif variable == "h_t":
                 assert "h_t_20" in modified_scenario.keys()
                 assert "h_t_40" in modified_scenario.keys()
-                modified_var_value_20 = modified_scenario["h_t_20"] * (
-                    1 + change_percentage / 100
+                modified_var_value_20 = float(
+                    np.round(
+                        (modified_scenario["h_t_20"] * (1 + change_percentage / 100)), 2
+                    )
                 )
-                modified_var_value_40 = modified_scenario["h_t_40"] * (
-                    1 + change_percentage / 100
+                modified_var_value_40 = float(
+                    np.round(
+                        (modified_scenario["h_t_40"] * (1 + change_percentage / 100)), 2
+                    )
                 )
                 modified_scenario["h_t_20"] = modified_var_value_20
                 modified_scenario["h_t_40"] = modified_var_value_40
             elif variable == "handling_time":
                 assert "handling_time" in modified_scenario.keys()
-                modified_var_value = modified_scenario["handling_time"] * (
-                    1 + change_percentage / 100
+                modified_var_value = float(
+                    np.round(
+                        modified_scenario["handling_time"]
+                        * (1 + change_percentage / 100),
+                        2,
+                    )
                 )
                 modified_scenario["handling_time"] = modified_var_value
 
