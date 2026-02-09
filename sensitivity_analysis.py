@@ -11,28 +11,28 @@ from pie_chart import generate_sensitivity_pie_charts
 
 VARIABLE_CHANGE_RESULT_SUMMARY_MAP = {
     "gamma": {
-        "-60": None,
-        "-40": None,
-        "-20": None,
-        "20": None,
-        "40": None,
-        "60": None,
+        "-90": None,
+        "-70": None,
+        "-50": None,
+        "50": None,
+        "70": None,
+        "90": None,
     },
     "h_t": {
-        "-60": None,
-        "-40": None,
-        "-20": None,
-        "20": None,
-        "40": None,
-        "60": None,
+        "-90": None,
+        "-70": None,
+        "-50": None,
+        "50": None,
+        "70": None,
+        "90": None,
     },
     "handling_time": {
-        "-60": None,
-        "-40": None,
-        "-20": None,
-        "20": None,
-        "40": None,
-        "60": None,
+        "-90": None,
+        "-70": None,
+        "-50": None,
+        "50": None,
+        "70": None,
+        "90": None,
     },
 }
 
@@ -111,6 +111,7 @@ def run_sensitivity_analysis(
                 input_scenario_dict=modified_scenario,
                 scenario_name=f"Sensitivity Analysis - {variable} {change_percentage_str}%",
                 max_iters=10000,
+                tenure_for_sensitivity_analysis=120,
             )
 
             result_summary = result_dict["summary"]
