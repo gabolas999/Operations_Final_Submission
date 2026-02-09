@@ -1203,6 +1203,12 @@ class MetaHeuristic:
         # plt.figure()
         # plt.plot(it_list, cost_list, label="Cost")
         # plt.show()
+
+        self.route_dict = copy.deepcopy(self.best_route_dict)
+        self.f_ck = copy.deepcopy(self.best_fck)
+        self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
+        self.H_b = copy.deepcopy(self.best_H_b)
+
         req_cap_per_route = []
 
         for k in range(self.K):
@@ -1210,7 +1216,7 @@ class MetaHeuristic:
                 route=self.route_dict[k]["route"],
                 L_current=_get_L_current_for_barge(
                     barge_idx=k,
-                    f_ck=self.best_fck,
+                    f_ck=self.f_ck,
                     C=self.C,
                     C_dict=self.C_dict,
                 ),
@@ -1222,10 +1228,8 @@ class MetaHeuristic:
             req_cap_per_route
         )
 
-        self.f_ck = copy.deepcopy(self.best_fck)
         self.Barge_cap = copy.deepcopy(self.best_Barge_cap)
         self.H_b = copy.deepcopy(self.best_H_b)
-        self.route_dict = copy.deepcopy(self.best_route_dict)
 
         self.best_cost = self.calculate_objective()
 

@@ -96,10 +96,10 @@ def run_sensitivity_analysis(
                 # pp = percentage points
                 result_summary["barge_share_change_pp"] = (
                     result_summary["barge_share_%"] - baseline_barge_share
-                ) * 100
+                )
                 result_summary["truck_share_change_pp"] = (
                     result_summary["truck_share_%"] - baseline_truck_share
-                ) * 100
+                )
 
                 # percentage change (+ means increase, - means decrease)
                 result_summary["total_cost_change_%"] = (
@@ -108,7 +108,7 @@ def run_sensitivity_analysis(
                     * 100
                 )
 
-            print(result_summary)
+            # print(result_summary)
 
             VARIABLE_CHANGE_RESULT_SUMMARY_MAP[variable][change_percentage_str] = (
                 result_dict["summary"]

@@ -7,7 +7,7 @@ def plot_sensitivity_pie_grid(
     n_rows: int = 7,
     n_cols: int = 3,
     output_path: str = "./Storage/theo_results/sensitivity_pies.png",
-    dpi: int = 300,
+    dpi: int = 1200,
 ):
     """
     Plot a grid of pie charts for sensitivity analysis.
@@ -51,8 +51,8 @@ def plot_sensitivity_pie_grid(
         title = (
             f'{data["variable"]} ({data["variation"]:+.0f}%)\n'
             f'Cost: €{data["total_cost"]:,}\n'
-            f'ΔBarge: {data["delta_barge"]:+.1f}%, '
-            f'ΔTruck: {data["delta_truck"]:+.1f}%'
+            f'ΔBarge: {data["delta_barge"]:+.1f} pp, '
+            f'ΔTruck: {data["delta_truck"]:+.1f} pp'
         )
         ax.set_title(title, fontsize=7)
 
@@ -129,7 +129,7 @@ def generate_sensitivity_pie_charts(
     n_rows: int = 7,
     n_cols: int = 3,
     output_path: str = "./Storage/theo_results/sensitivity_pies.png",
-    dpi: int = 600,
+    dpi: int = 1200,
 ):
     """
     Generate and save sensitivity analysis pie charts grid.
@@ -174,5 +174,5 @@ if __name__ == "__main__":
         n_rows=7,
         n_cols=3,
         output_path="./Storage/theo_results/sensitivity_analysis/sensitivity_pies.png",
-        dpi=600,
+        dpi=1200,
     )
