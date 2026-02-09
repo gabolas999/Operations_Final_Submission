@@ -60,9 +60,9 @@ def run_sensitivity_analysis(
     ) * 100
 
     baseline_result_dict = result_dict
-    baseline_barge_share = np.round(result_summary["barge_share_%"], 2)
-    baseline_truck_share = np.round(result_summary["truck_share_%"], 2)
-    baseline_total_cost = np.round(result_summary["final_cost"], 2)
+    baseline_barge_share = float(np.round(result_summary["barge_share_%"], 2))
+    baseline_truck_share = float(np.round(result_summary["truck_share_%"], 2))
+    baseline_total_cost = float(np.round(result_summary["final_cost"], 2))
 
     for variable in VARIABLE_CHANGE_RESULT_SUMMARY_MAP.keys():
 
@@ -105,51 +105,60 @@ def run_sensitivity_analysis(
 
             result_summary = result_dict["summary"]
 
-            result_dict["modified_value"] = (
+            result_summary["modified_value"] = (
                 modified_var_value
                 if variable != "h_t"
                 else (modified_var_value_20, modified_var_value_40)
             )
 
-            result_summary["barge_share_%"] = np.round(
-                (
+            result_summary["barge_share_%"] = float(
+                np.round(
                     (
-                        result_summary["containers_on_barges"]
-                        / result_summary["total_containers"]
-                    )
-                    * 100
-                ),
-                2,
+                        (
+                            result_summary["containers_on_barges"]
+                            / result_summary["total_containers"]
+                        )
+                        * 100
+                    ),
+                    2,
+                )
             )
-            result_summary["truck_share_%"] = np.round(
-                (
+            result_summary["truck_share_%"] = float(
+                np.round(
                     (
-                        result_summary["containers_trucked"]
-                        / result_summary["total_containers"]
-                    )
-                    * 100
-                ),
-                2,
+                        (
+                            result_summary["containers_trucked"]
+                            / result_summary["total_containers"]
+                        )
+                        * 100
+                    ),
+                    2,
+                )
             )
 
             # pp = percentage points
-            result_summary["barge_share_change_pp"] = np.round(
-                result_summary["barge_share_%"] - baseline_barge_share,
-                2,
+            result_summary["barge_share_change_pp"] = float(
+                np.round(
+                    result_summary["barge_share_%"] - baseline_barge_share,
+                    2,
+                )
             )
-            result_summary["truck_share_change_pp"] = np.round(
-                result_summary["truck_share_%"] - baseline_truck_share,
-                2,
+            result_summary["truck_share_change_pp"] = float(
+                np.round(
+                    result_summary["truck_share_%"] - baseline_truck_share,
+                    2,
+                )
             )
-
             # percentage change (+ means increase, - means decrease)
-            result_summary["total_cost_change_%"] = np.round(
-                (
-                    (result_summary["final_cost"] - baseline_total_cost)
-                    / baseline_total_cost
-                    * 100
-                ),
-                2,
+            result_summary["total_cost_change_%"] = float(
+                np.round(
+                    (
+                        (result_summary["final_cost"] - baseline_total_cost)
+                        / baseline_total_cost
+                        * 100
+                    ),
+                    2,
+                )
             )
 
             # print(result_summary)
