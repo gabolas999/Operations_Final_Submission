@@ -38,7 +38,7 @@ VARIABLE_CHANGE_RESULT_SUMMARY_MAP = {
 
 
 def run_sensitivity_analysis(
-    base_scenario=SCENARIO_II,
+    base_scenario=SCENARIO_IV,
     output_path=Path(
         "./Storage/theo_results/sensitivity_analysis/sensitivity_analysis_results.json"
     ),
