@@ -88,3 +88,49 @@ SCENARIO_III = config = {
     "gamma": 100,  # penalty per sea terminal visit [euros]
     "big_m": 1000,
 }
+
+
+SCENARIO_IV = config = {
+    "run_name": "______",
+    # Barge capacities in TEU
+    "qk": [
+        73,  # Barge 0
+        67,  # Barge 1
+        54,  # Barge 2
+        36,  # Barge 3
+        20,  # Barge 4
+    ],
+    # Barge fixed costs in euros
+    "h_b": [
+        2500,  # Barge 0
+        2400,  # Barge 1
+        2270,  # Barge 2
+        1900,  # Barge 3
+        1280,  # Barge 4
+    ],
+    "seed": 0,
+    "reduced": False,
+    # Trucking costs
+    "h_t_40": 200,  # 40ft container trucking cost in euros
+    "h_t_20": 140,  # 20ft container trucking cost in euros
+    # Time parameters
+    "handling_time": 1 / 6,  # hours
+    # Container / terminal ranges
+    "C_range": (100, 600),  # when reduced=False
+    "N_range": (10, 20),  # when reduced=False
+    "Oc_range": (24, 190),  # opening time in hours
+    "Oc_offset_range": (110, 350),
+    # Travel parameters
+    "travel_time_long_range": (84, 140),  # hours
+    "travel_angle": math.pi,
+    "travel_time_scale": 21,
+    # Probabilities
+    "P40_range": (0.2, 0.22),
+    "PExport_range": (0.05, 0.75),
+    # Reduced instance ranges
+    "C_range_reduced": (65, 75),
+    "N_range_reduced": (5, 5),
+    # MILP parameters
+    "gamma": 100,  # penalty per sea terminal visit [euros]
+    "big_m": 1000,
+}
