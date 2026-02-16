@@ -335,8 +335,17 @@ class MetaHeuristic:
     def fill_initial_routes(self):
         for k in range(self.K):
             assigned = [cont for cont in range(self.C) if self.f_ck[cont, k] == 1]
-            if not assigned:
+            if len(assigned) == 0:
+                entry = self.route_dict.setdefault(k, {})
+                route = [0, 0]
+                timing = {0: 0, 0: 0}
+
+                entry.setdefault("route", route)
+                entry.setdefault("repaired", False)
+                entry.setdefault("timing", timing)
+
                 continue
+
             L_current = _get_L_current_for_barge(
                 barge_idx=k,
                 f_ck=self.f_ck,
@@ -353,6 +362,10 @@ class MetaHeuristic:
             entry.setdefault("route", route)
             entry.setdefault("repaired", False)
             entry.setdefault("timing", timing)
+
+        assert (
+            len(self.route_dict) == self.K
+        ), "route_dict incomplete after initial fill"
 
     def calculate_objective(self):
         total_cost = 0
