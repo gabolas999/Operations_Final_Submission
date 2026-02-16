@@ -105,10 +105,10 @@ SCENARIO_IV = config = {
         2500,  # Barge 0
         2400,  # Barge 1
         2270,  # Barge 2
-        1900,  # Barge 3
+        19000,  # Barge 3
         1280,  # Barge 4
     ],
-    "seed": 0,
+    "seed": 26852,
     "reduced": False,
     # Trucking costs
     "h_t_40": 200,  # 40ft container trucking cost in euros

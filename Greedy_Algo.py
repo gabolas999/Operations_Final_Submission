@@ -28,7 +28,6 @@ class GreedySolution:
     f_ck: np.ndarray
     route_dict: dict
     trucked_containers: dict
-    xijk: np.ndarray
     C_ordered: list
     H_b: list
     Barges: list
@@ -320,6 +319,8 @@ class GreedyOptimizer:
 
         # Calculate trucked containers
 
+        assert len(self.route_dict) == self.K, "More barges used than available"
+
         sum_of_rows = np.sum(self.f_ck, axis=1)
 
         assert len(sum_of_rows) == self.C, "Mismatch in container count"
@@ -328,28 +329,18 @@ class GreedyOptimizer:
 
         if len(index_to_be_trucked) == 0:
             print("All containers assigned to barges.")
+            self.trucked_containers = {}
         else:
             print(f"{len(index_to_be_trucked)} containers will be trucked.")
             self.trucked_containers = {i: self.C_dict[i] for i in index_to_be_trucked}
 
         # Calculate trucking cost
         self.truck_cost = 0
-        for i in self.trucked_containers:
+        for i in self.trucked_containers.keys():
             if self.C_dict[i]["Wc"] == 1:  # 20ft container
                 self.truck_cost += self.Ht20
             else:  # 40ft container
                 self.truck_cost += self.Ht40
-
-        # Calculate barge routing matrix
-        self.x_ijk = np.zeros(
-            (self.N, self.N, len(self.Barges))
-        )  # xijk[i][j][k] = 1 if barge k goes from terminal i to terminal j
-
-        for barge_idx, route_info in self.route_dict.items():
-            route = route_info["route"]
-            for i in range(len(route) - 1):
-                if route[i] != route[i + 1]:
-                    self.x_ijk[route[i]][route[i + 1]][barge_idx] = 1
 
         # Calculate barge cost
         self.barge_cost = self.calculate_objective()
@@ -374,7 +365,6 @@ class GreedyOptimizer:
             f_ck=self.f_ck,
             route_dict=self.route_dict,
             trucked_containers=self.trucked_containers,
-            xijk=self.x_ijk,
             C_ordered=self.C_ordered,
             H_b=self.H_b,
             Barges=self.Barges,
