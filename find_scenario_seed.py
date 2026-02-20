@@ -31,7 +31,9 @@ for seed in range(10000000000000000000000):
         and milp.C <= 200
     )
 
-    stopping_criterion = (milp.C <= 300) and (milp.C >= 280) and (milp.N <= 13)
+    stopping_criterion = (
+        (milp.C <= 300) and (milp.C >= 280) and (milp.N <= 13) and (milp.N >= 10)
+    )
 
     if stopping_criterion:
         print(f"Found seed: {seed}")

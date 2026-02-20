@@ -25,6 +25,7 @@ def main(
     scenario_name=None,
     max_iters=10000,
     tenure_for_sensitivity_analysis=80,
+    shake_thresh=100,
 ):
 
     if input_scenario_dict is None and scenario_info_toml_file_path is not None:
@@ -82,6 +83,7 @@ def main(
     )
 
     mh.tenure_barge_shake_ban = tenure_for_sensitivity_analysis
+    mh.shake_threshold = shake_thresh
 
     MH_best_cost, best_fck, final_route_dict, *_ = mh.local_search(max_iters=max_iters)
 

@@ -47,7 +47,9 @@ def run_sensitivity_analysis(
     _, _, result_dict, _ = main(
         input_scenario_dict=base_scenario,
         scenario_name=f"Base_Scenario",
-        max_iters=10000,
+        max_iters=30000,
+        tenure_for_sensitivity_analysis=60,
+        shake_thresh=70,
     )
 
     result_summary = result_dict["summary"]
@@ -110,7 +112,7 @@ def run_sensitivity_analysis(
             _, _, result_dict, _ = main(
                 input_scenario_dict=modified_scenario,
                 scenario_name=f"Sensitivity Analysis - {variable} {change_percentage_str}%",
-                max_iters=10000,
+                max_iters=15000,
                 tenure_for_sensitivity_analysis=120,
             )
 

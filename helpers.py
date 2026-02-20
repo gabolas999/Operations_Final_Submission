@@ -286,7 +286,7 @@ def export_instance_tables(
     K_trucks = 1
     K_total = K_barges + K_trucks
 
-    N = len(terminals)
+    N = len(terminals) + 1  # +1 to include the dry port (node 0)
     C_total = len(C_dict)
     time_start = min(Oc_all)
     time_end = max(Dc_all)
