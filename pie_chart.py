@@ -39,6 +39,9 @@ def plot_sensitivity_pie_grid(
     axes = axes.flatten()
 
     for ax, data in zip(axes, dataset):
+        if data is None:
+            ax.axis("off")
+            continue
         values = [data["barge_pct"], data["truck_pct"]]
 
         ax.pie(values, autopct="%1.0f%%", startangle=90, textprops={"fontsize": 7})

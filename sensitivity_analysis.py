@@ -10,29 +10,18 @@ from pie_chart import generate_sensitivity_pie_charts
 
 
 VARIABLE_CHANGE_RESULT_SUMMARY_MAP = {
-    "gamma": {
-        "-90": None,
-        "-55": None,
-        "-20": None,
-        "20": None,
-        "55": None,
-        "90": None,
-    },
-    "h_t": {
-        "-90": None,
-        "-55": None,
-        "-20": None,
-        "20": None,
-        "55": None,
-        "90": None,
-    },
     "handling_time": {
-        "-90": None,
-        "-55": None,
-        "-20": None,
-        "20": None,
-        "55": None,
-        "90": None,
+        "500": None,  # 60.0 min
+        "-100": None,  # 0.0 min
+        "400": None,  # 50.0 min
+        "-75": None,  # 2.5 min
+        "300": None,  # 40.0 min
+        "-50": None,  # 5 min
+        "200": None,  # 30.0 min
+        "-25": None,  # 7.5 min
+        "100": None,  # 20.0 min
+        "25": None,  # 12.5 min
+        "50": None,  # 15.0 min
     },
 }
 
@@ -206,7 +195,7 @@ def analyse_sensitivity_analysis_results(
 
     generate_sensitivity_pie_charts(
         results=results_data,
-        n_rows=6,
+        n_rows=4,
         n_cols=3,
         output_path="./Storage/theo_results/sensitivity_analysis/sensitivity_pies.png",
         dpi=1200,
