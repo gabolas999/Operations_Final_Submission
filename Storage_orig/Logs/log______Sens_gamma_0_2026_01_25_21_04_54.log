@@ -1,0 +1,62 @@
+
+Gurobi 12.0.0 (win64) logging started Sun Jan 25 21:04:54 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_gamma_0_2026_01_25_21_04_54.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Read solution from file Storage_orig/Solutions/solved________2026_01_13_21_11_16.sol
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11.0 (26100.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+MIPGap  0.01
+MIPFocus  1
+
+Optimize a model with 206 rows, 136 columns and 610 nonzeros
+Model fingerprint: 0xdd294c10
+Variable types: 8 continuous, 128 integer (48 binary)
+Coefficient statistics:
+  Matrix range     [2e-01, 1e+03]
+  Objective range  [4e+00, 1e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 1e+03]
+
+Loaded user MIP start with objective 1300
+
+Presolve removed 76 rows and 40 columns
+Presolve time: 0.00s
+Presolved: 130 rows, 96 columns, 510 nonzeros
+Variable types: 8 continuous, 88 integer (40 binary)
+
+Root relaxation: objective 3.372000e+02, 60 iterations, 0.00 seconds (0.00 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  337.20000    0    7 1300.00000  337.20000  74.1%     -    0s
+     0     0  360.30000    0    9 1300.00000  360.30000  72.3%     -    0s
+     0     0  433.20000    0   25 1300.00000  433.20000  66.7%     -    0s
+     0     0  597.00000    0   25 1300.00000  597.00000  54.1%     -    0s
+     0     0 1124.40000    0   28 1300.00000 1124.40000  13.5%     -    0s
+H    0     0                    1144.0000000 1137.00000  0.61%     -    0s
+     0     0 1141.00000    0   14 1144.00000 1141.00000  0.26%     -    0s
+
+Cutting planes:
+  Learned: 2
+  Gomory: 4
+  Cover: 11
+  MIR: 13
+  StrongCG: 3
+  Flow cover: 11
+  RLT: 3
+  Relax-and-lift: 1
+
+Explored 1 nodes (134 simplex iterations) in 0.02 seconds (0.00 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 2: 1144 1300 
+
+Optimal solution found (tolerance 1.00e-02)
+Best objective 1.144000000000e+03, best bound 1.141000000000e+03, gap 0.2622%

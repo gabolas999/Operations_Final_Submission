@@ -1,0 +1,97 @@
+
+Gurobi 12.0.0 (win64) logging started Thu Feb 26 23:30:56 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log_____________2026_02_26_23_30_56.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Set parameter TimeLimit to value 1000
+Read solution from file Storage_orig/Solutions\solved_Sens_gamma_0_2026_02_26_00_09_54.sol
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11+.0 (26200.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+TimeLimit  1000
+MIPGap  0.01
+MIPFocus  2
+
+Optimize a model with 5540 rows, 1032 columns and 14852 nonzeros
+Model fingerprint: 0xb6a5f124
+Variable types: 24 continuous, 1008 integer (720 binary)
+Coefficient statistics:
+  Matrix range     [2e-01, 1e+02]
+  Objective range  [1e+00, 2e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 2e+02]
+
+Loaded user MIP start with objective 4895
+
+Presolve removed 3940 rows and 168 columns
+Presolve time: 0.03s
+Presolved: 1600 rows, 864 columns, 8604 nonzeros
+Variable types: 24 continuous, 840 integer (600 binary)
+Root relaxation presolve removed 4 rows and 0 columns
+Root relaxation presolved: 1596 rows, 864 columns, 8564 nonzeros
+
+
+Root relaxation: objective 4.637000e+03, 813 iterations, 0.04 seconds (0.03 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0 4637.00027    0   36 4895.00000 4637.00027  5.27%     -    0s
+     0     0 4637.83425    0   79 4895.00000 4637.83425  5.25%     -    0s
+     0     0 4637.83425    0   57 4895.00000 4637.83425  5.25%     -    0s
+     0     0 4640.34120    0   96 4895.00000 4640.34120  5.20%     -    0s
+     0     0 4640.35447    0  109 4895.00000 4640.35447  5.20%     -    0s
+     0     0 4640.45736    0   89 4895.00000 4640.45736  5.20%     -    0s
+     0     0 4640.51551    0  111 4895.00000 4640.51551  5.20%     -    0s
+     0     0 4640.52423    0  118 4895.00000 4640.52423  5.20%     -    0s
+     0     0 4640.52423    0  120 4895.00000 4640.52423  5.20%     -    0s
+     0     0 4641.33694    0  157 4895.00000 4641.33694  5.18%     -    0s
+     0     0 4641.39237    0  184 4895.00000 4641.39237  5.18%     -    0s
+     0     0 4641.43773    0  185 4895.00000 4641.43773  5.18%     -    0s
+     0     0 4641.43780    0  200 4895.00000 4641.43780  5.18%     -    0s
+     0     0 4642.04976    0  232 4895.00000 4642.04976  5.17%     -    1s
+     0     0 4642.41895    0  246 4895.00000 4642.41895  5.16%     -    1s
+     0     0 4643.06035    0  253 4895.00000 4643.06035  5.15%     -    1s
+     0     0 4643.06941    0  262 4895.00000 4643.06941  5.15%     -    1s
+     0     0 4643.06941    0  275 4895.00000 4643.06941  5.15%     -    1s
+     0     0 4644.16570    0  277 4895.00000 4644.16570  5.12%     -    1s
+     0     0 4644.95970    0  286 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  302 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  304 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  297 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  314 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  318 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  318 4895.00000 4644.95970  5.11%     -    1s
+     0     0 4644.95970    0  337 4895.00000 4644.95970  5.11%     -    2s
+     0     0 4644.95970    0  271 4895.00000 4644.95970  5.11%     -    2s
+     0     2 4644.95970    0  241 4895.00000 4644.95970  5.11%     -    2s
+   553   245     cutoff   13      4895.00000 4652.39924  4.96%   168    5s
+  1622   310 4894.00000   17   46 4895.00000 4700.72830  3.97%   177   11s
+
+Cutting planes:
+  Learned: 2
+  Gomory: 20
+  Lift-and-project: 3
+  Cover: 449
+  Implied bound: 433
+  Projected implied bound: 3
+  Clique: 1
+  MIR: 572
+  StrongCG: 81
+  Flow cover: 1007
+  Zero half: 113
+  Network: 2
+  RLT: 32
+  Relax-and-lift: 91
+
+Explored 2037 nodes (362822 simplex iterations) in 12.96 seconds (9.69 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 1: 4895 
+
+Solve interrupted
+Best objective 4.895000000000e+03, best bound 4.712000000000e+03, gap 3.7385%

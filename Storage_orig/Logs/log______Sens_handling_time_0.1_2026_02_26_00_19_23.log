@@ -1,0 +1,150 @@
+
+Gurobi 12.0.0 (win64) logging started Thu Feb 26 00:19:23 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_handling_time_0.1_2026_02_26_00_19_23.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Set parameter TimeLimit to value 1000
+Unknown variable 'y_ijk[0,0,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,3]' in MIP start 0 - ignored
+Read solution from file Storage_orig/Solutions/solved________2026_02_24_22_53_13.sol
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11+.0 (26200.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+TimeLimit  1000
+MIPGap  0.01
+MIPFocus  2
+
+Optimize a model with 5540 rows, 1032 columns and 14852 nonzeros
+Model fingerprint: 0xc811caca
+Variable types: 24 continuous, 1008 integer (720 binary)
+Coefficient statistics:
+  Matrix range     [1e-01, 1e+02]
+  Objective range  [1e+01, 2e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 2e+02]
+
+User MIP start did not produce a new incumbent solution
+User MIP start violates constraint R575 by 1.400000000
+
+Found heuristic solution: objective 18900.000000
+Presolve removed 3940 rows and 168 columns
+Presolve time: 0.03s
+Presolved: 1600 rows, 864 columns, 8604 nonzeros
+Variable types: 24 continuous, 840 integer (600 binary)
+Root relaxation presolve removed 4 rows and 0 columns
+Root relaxation presolved: 1596 rows, 864 columns, 8564 nonzeros
+
+
+Root relaxation: objective 4.977000e+03, 678 iterations, 0.04 seconds (0.03 work units)
+Another try with MIP start
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                    5532.0000000 4977.00027  10.0%     -    0s
+     0     0 4977.00027    0   34 5532.00000 4977.00027  10.0%     -    0s
+     0     0 4977.77143    0   87 5532.00000 4977.77143  10.0%     -    0s
+     0     0 4977.77143    0   82 5532.00000 4977.77143  10.0%     -    0s
+     0     0 5042.63534    0  133 5532.00000 5042.63534  8.85%     -    0s
+     0     0 5063.58387    0  151 5532.00000 5063.58387  8.47%     -    0s
+     0     0 5063.58387    0  153 5532.00000 5063.58387  8.47%     -    0s
+     0     0 5063.58387    0  145 5532.00000 5063.58387  8.47%     -    0s
+     0     0 5063.58387    0  149 5532.00000 5063.58387  8.47%     -    0s
+     0     0 5110.39495    0  208 5532.00000 5110.39495  7.62%     -    0s
+     0     0 5121.25131    0  215 5532.00000 5121.25131  7.42%     -    0s
+     0     0 5123.80657    0  202 5532.00000 5123.80657  7.38%     -    1s
+     0     0 5125.03031    0  233 5532.00000 5125.03031  7.36%     -    1s
+     0     0 5125.89664    0  220 5532.00000 5125.89664  7.34%     -    1s
+     0     0 5126.19661    0  246 5532.00000 5126.19661  7.34%     -    1s
+     0     0 5129.75996    0  224 5532.00000 5129.75996  7.27%     -    1s
+     0     0 5130.88285    0  233 5532.00000 5130.88285  7.25%     -    1s
+     0     0 5130.88285    0  234 5532.00000 5130.88285  7.25%     -    1s
+     0     0 5172.28148    0  171 5532.00000 5172.28148  6.50%     -    1s
+     0     0 5172.37340    0  200 5532.00000 5172.37340  6.50%     -    1s
+     0     0 5181.51579    0   60 5532.00000 5181.51579  6.34%     -    2s
+     0     0 5181.54401    0   68 5532.00000 5181.54401  6.34%     -    2s
+     0     0 5181.79750    0  222 5532.00000 5181.79750  6.33%     -    2s
+     0     0 5181.85347    0  261 5532.00000 5181.85347  6.33%     -    2s
+     0     0 5181.89765    0  313 5532.00000 5181.89765  6.33%     -    2s
+     0     0 5181.89765    0  121 5532.00000 5181.89765  6.33%     -    2s
+     0     2 5181.90152    0  112 5532.00000 5181.90152  6.33%     -    3s
+   321   290 5278.68697   31  184 5532.00000 5190.86667  6.17%   127    5s
+  1543   940 5307.58001   10  180 5532.00000 5209.42172  5.83%   129   10s
+  2500  1189 5379.58990   14  278 5532.00000 5239.04074  5.30%   135   15s
+  2518  1201 5410.59959   13  382 5532.00000 5239.22650  5.29%   134   20s
+  2828  1277 5393.58750   23  128 5532.00000 5248.38665  5.13%   153   25s
+  3739  1108 5318.03182   22  336 5532.00000 5301.77318  4.16%   154   30s
+  5810   467 5516.44828   23  162 5532.00000 5436.01470  1.74%   135   35s
+
+Cutting planes:
+  Learned: 2
+  Gomory: 17
+  Cover: 370
+  Implied bound: 17
+  Projected implied bound: 2
+  MIR: 337
+  StrongCG: 55
+  Flow cover: 476
+  Inf proof: 1
+  Zero half: 22
+  Mod-K: 2
+  Network: 5
+  Relax-and-lift: 44
+
+Explored 7864 nodes (969596 simplex iterations) in 38.77 seconds (22.85 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 2: 5532 18900 
+
+Optimal solution found (tolerance 1.00e-02)
+Best objective 5.532000000000e+03, best bound 5.504000000000e+03, gap 0.5061%

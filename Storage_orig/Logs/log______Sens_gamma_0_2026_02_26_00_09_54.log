@@ -1,0 +1,160 @@
+
+Gurobi 12.0.0 (win64) logging started Thu Feb 26 00:09:54 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_gamma_0_2026_02_26_00_09_54.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Set parameter TimeLimit to value 1000
+Unknown variable 'y_ijk[0,0,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,3]' in MIP start 0 - ignored
+Read solution from file Storage_orig/Solutions/solved________2026_02_24_22_53_13.sol
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11+.0 (26200.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+TimeLimit  1000
+MIPGap  0.01
+MIPFocus  2
+
+Optimize a model with 5540 rows, 1032 columns and 14852 nonzeros
+Model fingerprint: 0x8a58b2ba
+Variable types: 24 continuous, 1008 integer (720 binary)
+Coefficient statistics:
+  Matrix range     [2e-01, 1e+02]
+  Objective range  [1e+00, 2e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 2e+02]
+
+Loaded user MIP start with objective 5032
+
+Presolve removed 3940 rows and 168 columns
+Presolve time: 0.02s
+Presolved: 1600 rows, 864 columns, 8604 nonzeros
+Variable types: 24 continuous, 840 integer (600 binary)
+Root relaxation presolve removed 4 rows and 0 columns
+Root relaxation presolved: 1596 rows, 864 columns, 8564 nonzeros
+
+
+Root relaxation: objective 4.637000e+03, 813 iterations, 0.03 seconds (0.03 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0 4637.00027    0   36 5032.00000 4637.00027  7.85%     -    0s
+     0     0 4637.83425    0   69 5032.00000 4637.83425  7.83%     -    0s
+     0     0 4637.92949    0   63 5032.00000 4637.92949  7.83%     -    0s
+     0     0 4640.32381    0   89 5032.00000 4640.32381  7.78%     -    0s
+     0     0 4640.33909    0   88 5032.00000 4640.33909  7.78%     -    0s
+     0     0 4640.46668    0   84 5032.00000 4640.46668  7.78%     -    0s
+     0     0 4640.50264    0   85 5032.00000 4640.50264  7.78%     -    0s
+     0     0 4640.50506    0   92 5032.00000 4640.50506  7.78%     -    0s
+     0     0 4641.34805    0  172 5032.00000 4641.34805  7.76%     -    0s
+     0     0 4641.45285    0  176 5032.00000 4641.45285  7.76%     -    0s
+     0     0 4641.50439    0  189 5032.00000 4641.50439  7.76%     -    0s
+     0     0 4641.55183    0  219 5032.00000 4641.55183  7.76%     -    0s
+     0     0 4641.55670    0  227 5032.00000 4641.55670  7.76%     -    0s
+     0     0 4641.55814    0  233 5032.00000 4641.55814  7.76%     -    0s
+H    0     0                    4956.0000000 4641.55814  6.34%     -    1s
+     0     0 4642.81281    0  227 4956.00000 4642.81281  6.32%     -    1s
+     0     0 4642.89616    0  245 4956.00000 4642.89616  6.32%     -    1s
+     0     0 4642.89616    0  248 4956.00000 4642.89616  6.32%     -    1s
+     0     0 4644.32813    0  295 4956.00000 4644.32813  6.29%     -    1s
+     0     0 4644.36095    0  310 4956.00000 4644.36095  6.29%     -    1s
+     0     0 4644.37927    0  325 4956.00000 4644.37927  6.29%     -    1s
+     0     0 4644.38297    0  361 4956.00000 4644.38297  6.29%     -    1s
+     0     0 4644.38906    0  368 4956.00000 4644.38906  6.29%     -    1s
+     0     0 4644.39164    0  372 4956.00000 4644.39164  6.29%     -    1s
+     0     0 4649.14029    0  284 4956.00000 4649.14029  6.19%     -    2s
+     0     0 4651.31043    0  263 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  285 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  310 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  302 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  302 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  316 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  306 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  321 4956.00000 4651.31043  6.15%     -    2s
+     0     0 4651.31043    0  345 4956.00000 4651.31043  6.15%     -    3s
+     0     0 4651.31043    0  364 4956.00000 4651.31043  6.15%     -    3s
+     0     0 4651.31043    0  374 4956.00000 4651.31043  6.15%     -    3s
+     0     0 4651.31043    0  226 4956.00000 4651.31043  6.15%     -    3s
+     0     2 4651.31043    0  187 4956.00000 4651.31043  6.15%     -    3s
+   153   122 4668.39586   14  185 4956.00000 4652.50512  6.12%   205    5s
+  1345   756 4949.00000   20   51 4956.00000 4656.85000  6.04%   141   10s
+  1878   993 4905.53291   16  294 4956.00000 4658.60000  6.00%   140   15s
+  2004  1004 4890.10832   21  218 4956.00000 4719.55000  4.77%   147   20s
+H 2164   997                    4899.0000000 4719.55000  3.66%   149   21s
+* 2269   889              39    4895.0000000 4719.61750  3.58%   147   21s
+
+Cutting planes:
+  Learned: 3
+  Gomory: 15
+  Lift-and-project: 1
+  Cover: 325
+  Implied bound: 7
+  Projected implied bound: 1
+  MIR: 331
+  StrongCG: 66
+  Flow cover: 462
+  GUB cover: 2
+  Inf proof: 4
+  Zero half: 28
+  Mod-K: 3
+  Network: 4
+  RLT: 11
+  Relax-and-lift: 43
+
+Explored 2688 nodes (405396 simplex iterations) in 23.79 seconds (15.22 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 4: 4895 4899 4956 5032 
+
+Optimal solution found (tolerance 1.00e-02)
+Best objective 4.895000000000e+03, best bound 4.891000000000e+03, gap 0.0817%

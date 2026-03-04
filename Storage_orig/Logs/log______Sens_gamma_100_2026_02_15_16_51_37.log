@@ -1,0 +1,77 @@
+
+Gurobi 12.0.0 (win64) logging started Sun Feb 15 16:51:37 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_gamma_100_2026_02_15_16_51_37.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11+.0 (26200.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+MIPGap  0.01
+MIPFocus  1
+
+Optimize a model with 3870 rows, 843 columns and 10455 nonzeros
+Model fingerprint: 0xab3c1125
+Variable types: 21 continuous, 822 integer (486 binary)
+Coefficient statistics:
+  Matrix range     [2e-01, 1e+03]
+  Objective range  [1e+01, 2e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 1e+03]
+
+User MIP start produced solution with objective 3719 (0.01s)
+Loaded user MIP start with objective 3719
+
+Presolve removed 2760 rows and 174 columns
+Presolve time: 0.04s
+Presolved: 1110 rows, 669 columns, 6204 nonzeros
+Variable types: 21 continuous, 648 integer (396 binary)
+
+Root relaxation: objective 3.147433e+03, 509 iterations, 0.03 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0 3147.43333    0   14 3719.00000 3147.43333  15.4%     -    0s
+     0     0 3176.45994    0   51 3719.00000 3176.45994  14.6%     -    0s
+     0     0 3228.70614    0   37 3719.00000 3228.70614  13.2%     -    0s
+     0     0 3228.70614    0   40 3719.00000 3228.70614  13.2%     -    0s
+     0     0 3485.23655    0   80 3719.00000 3485.23655  6.29%     -    0s
+     0     0 3485.23655    0  105 3719.00000 3485.23655  6.29%     -    0s
+     0     0 3511.27247    0  150 3719.00000 3511.27247  5.59%     -    0s
+     0     0 3537.43435    0  141 3719.00000 3537.43435  4.88%     -    0s
+     0     0 3549.76784    0  153 3719.00000 3549.76784  4.55%     -    0s
+     0     0 3556.72286    0  125 3719.00000 3556.72286  4.36%     -    0s
+     0     0 3557.47812    0  156 3719.00000 3557.47812  4.34%     -    0s
+     0     0 3557.47812    0  156 3719.00000 3557.47812  4.34%     -    1s
+     0     0 3559.96863    0  118 3719.00000 3559.96863  4.28%     -    1s
+     0     0 3561.13177    0  154 3719.00000 3561.13177  4.24%     -    1s
+     0     0 3561.13177    0  168 3719.00000 3561.13177  4.24%     -    1s
+     0     0 3561.13611    0  163 3719.00000 3561.13611  4.24%     -    1s
+     0     2 3561.13611    0  112 3719.00000 3561.13611  4.24%     -    1s
+   799   401     cutoff   26      3719.00000 3570.55255  3.99%  36.1    5s
+  2675  1043 3683.30480   20  102 3719.00000 3609.60690  2.94%  34.3   10s
+  5024   968     cutoff   23      3719.00000 3609.60690  2.94%  43.4   15s
+  9491  1248     cutoff   31      3719.00000 3631.75909  2.35%  45.0   20s
+ 11793  1111     cutoff   25      3719.00000 3639.63333  2.13%  45.2   25s
+
+Cutting planes:
+  Learned: 197
+  Gomory: 6
+  Cover: 142
+  MIR: 116
+  StrongCG: 5
+  Flow cover: 150
+  Network: 1
+  RLT: 12
+
+Explored 15312 nodes (660992 simplex iterations) in 28.41 seconds (8.31 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 1: 3719 
+
+Optimal solution found (tolerance 1.00e-02)
+Best objective 3.719000000000e+03, best bound 3.719000000000e+03, gap 0.0000%

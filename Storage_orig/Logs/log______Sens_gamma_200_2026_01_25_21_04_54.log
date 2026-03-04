@@ -1,0 +1,47 @@
+
+Gurobi 12.0.0 (win64) logging started Sun Jan 25 21:04:54 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_gamma_200_2026_01_25_21_04_54.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11.0 (26100.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+MIPGap  0.01
+MIPFocus  1
+
+Optimize a model with 206 rows, 136 columns and 610 nonzeros
+Model fingerprint: 0xf49c998b
+Variable types: 8 continuous, 128 integer (48 binary)
+Coefficient statistics:
+  Matrix range     [2e-01, 1e+03]
+  Objective range  [1e+01, 1e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 1e+03]
+
+Warning: Completing partial solution with 120 unfixed non-continuous variables out of 128
+User MIP start produced solution with objective 1300 (0.00s)
+Loaded user MIP start with objective 1300
+
+Presolve removed 76 rows and 40 columns
+Presolve time: 0.00s
+Presolved: 130 rows, 96 columns, 510 nonzeros
+Variable types: 8 continuous, 88 integer (40 binary)
+
+Root relaxation: cutoff, 60 iterations, 0.00 seconds (0.00 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0     cutoff    0      1300.00000 1300.00000  0.00%     -    0s
+
+Explored 1 nodes (60 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 1: 1300 
+
+Optimal solution found (tolerance 1.00e-02)
+Best objective 1.300000000000e+03, best bound 1.300000000000e+03, gap 0.0000%

@@ -1,0 +1,6 @@
+
+Gurobi 12.0.0 (win64) logging started Thu Feb 26 00:07:02 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_gamma_50_2026_02_26_00_07_02.log"
+Set parameter MIPGap to value 0
+Set parameter OutputFlag to value 1

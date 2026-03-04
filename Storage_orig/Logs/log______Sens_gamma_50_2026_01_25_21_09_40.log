@@ -1,0 +1,39 @@
+
+Gurobi 12.0.0 (win64) logging started Sun Jan 25 21:09:40 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_gamma_50_2026_01_25_21_09_40.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11.0 (26100.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+MIPGap  0.01
+MIPFocus  1
+
+Optimize a model with 16136 rows, 2280 columns and 42876 nonzeros
+Model fingerprint: 0xe84ded10
+Variable types: 40 continuous, 2240 integer (1360 binary)
+Coefficient statistics:
+  Matrix range     [2e-01, 1e+03]
+  Objective range  [1e+01, 4e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 1e+03]
+Found heuristic solution: objective 31120.000000
+Presolve removed 12932 rows and 356 columns
+Presolve time: 0.04s
+Presolved: 3204 rows, 1924 columns, 21376 nonzeros
+Variable types: 40 continuous, 1884 integer (1160 binary)
+
+Root relaxation: objective 6.116030e+03, 2216 iterations, 0.06 seconds (0.07 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0 6116.03000    0   40 31120.0000 6116.03000  80.3%     -    0s
+H    0     0                    20656.000000 6116.03000  70.4%     -    0s
+H    0     0                    19916.000000 6116.03000  69.3%     -    0s
+H    0     0                    19772.000000 6116.03000  69.1%     -    0s
+H    0     0                    19232.000000 6116.03000  68.2%     -    0s

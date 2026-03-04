@@ -1,0 +1,7 @@
+
+Gurobi 12.0.0 (win64) logging started Thu Feb 26 23:33:09 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log_____________2026_02_26_23_33_09.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Set parameter TimeLimit to value 1000

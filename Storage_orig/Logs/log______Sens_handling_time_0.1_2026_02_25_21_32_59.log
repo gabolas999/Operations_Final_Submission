@@ -1,0 +1,183 @@
+
+Gurobi 12.0.0 (win64) logging started Wed Feb 25 21:32:59 2026
+
+Set parameter LogFile to value "Storage_orig/Logs/log______Sens_handling_time_0.1_2026_02_25_21_32_59.log"
+Set parameter MIPGap to value 0.01
+Set parameter OutputFlag to value 1
+Unknown variable 'y_ijk[0,0,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[0,0,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[1,1,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[2,2,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[3,3,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[4,4,3]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,0]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,1]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,2]' in MIP start 0 - ignored
+Unknown variable 'y_ijk[5,5,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[0,0,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[1,1,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[2,2,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[3,3,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[4,4,3]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,0]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,1]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,2]' in MIP start 0 - ignored
+Unknown variable 'z_ijk[5,5,3]' in MIP start 0 - ignored
+Read solution from file Storage_orig/Solutions/solved________2026_02_24_22_53_13.sol
+Gurobi Optimizer version 12.0.0 build v12.0.0rc1 (win64 - Windows 11+.0 (26200.2))
+
+CPU model: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, instruction set [SSE2|AVX|AVX2]
+Thread count: 6 physical cores, 12 logical processors, using up to 12 threads
+
+Non-default parameters:
+MIPGap  0.01
+MIPFocus  1
+
+Optimize a model with 5540 rows, 1032 columns and 14852 nonzeros
+Model fingerprint: 0xc811caca
+Variable types: 24 continuous, 1008 integer (720 binary)
+Coefficient statistics:
+  Matrix range     [1e-01, 1e+02]
+  Objective range  [1e+01, 2e+03]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 2e+02]
+
+User MIP start did not produce a new incumbent solution
+User MIP start violates constraint R575 by 1.400000000
+
+Found heuristic solution: objective 18900.000000
+Presolve removed 3940 rows and 168 columns
+Presolve time: 0.04s
+Presolved: 1600 rows, 864 columns, 8604 nonzeros
+Variable types: 24 continuous, 840 integer (600 binary)
+
+Root relaxation: objective 4.977000e+03, 767 iterations, 0.03 seconds (0.02 work units)
+Another try with MIP start
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                    5532.0000000 4977.00027  10.0%     -    0s
+     0     0 4977.00027    0   34 5532.00000 4977.00027  10.0%     -    0s
+     0     0 4977.77143    0  108 5532.00000 4977.77143  10.0%     -    0s
+     0     0 4977.77143    0   67 5532.00000 4977.77143  10.0%     -    0s
+     0     0 5021.93387    0   96 5532.00000 5021.93387  9.22%     -    0s
+     0     0 5029.73387    0  116 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  135 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  150 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  145 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  149 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  156 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  153 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  160 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5029.73387    0  158 5532.00000 5029.73387  9.08%     -    0s
+     0     0 5108.36165    0  164 5532.00000 5108.36165  7.66%     -    0s
+     0     0 5124.01862    0  140 5532.00000 5124.01862  7.37%     -    0s
+     0     0 5124.88546    0  171 5532.00000 5124.88546  7.36%     -    0s
+     0     0 5126.12318    0  173 5532.00000 5126.12318  7.34%     -    0s
+     0     0 5126.69032    0  177 5532.00000 5126.69032  7.33%     -    0s
+     0     0 5126.90377    0  182 5532.00000 5126.90377  7.32%     -    0s
+     0     0 5126.96313    0  199 5532.00000 5126.96313  7.32%     -    0s
+     0     0 5127.00150    0  216 5532.00000 5127.00150  7.32%     -    0s
+     0     0 5127.24671    0  228 5532.00000 5127.24671  7.32%     -    0s
+     0     0 5127.56153    0  247 5532.00000 5127.56153  7.31%     -    0s
+     0     0 5127.90685    0  240 5532.00000 5127.90685  7.30%     -    0s
+     0     0 5128.22880    0  216 5532.00000 5128.22880  7.30%     -    0s
+     0     0 5129.24745    0  237 5532.00000 5129.24745  7.28%     -    0s
+     0     0 5129.55603    0  242 5532.00000 5129.55603  7.27%     -    0s
+     0     0 5129.79978    0  239 5532.00000 5129.79978  7.27%     -    0s
+     0     0 5129.84648    0  257 5532.00000 5129.84648  7.27%     -    0s
+     0     0 5129.84648    0  270 5532.00000 5129.84648  7.27%     -    0s
+     0     0 5169.78186    0  137 5532.00000 5169.78186  6.55%     -    1s
+     0     0 5181.33333    0  158 5532.00000 5181.33333  6.34%     -    1s
+     0     0 5181.33333    0  137 5532.00000 5181.33333  6.34%     -    1s
+     0     0 5181.34359    0   34 5532.00000 5181.34359  6.34%     -    1s
+     0     2 5181.34359    0   33 5532.00000 5181.34359  6.34%     -    1s
+   832   536 infeasible   19      5532.00000 5188.07273  6.22%  83.5    5s
+  2021  1131 5193.14833   15  145 5532.00000 5193.14833  6.13%  83.4   10s
+  3033  1299 5303.81756   21  145 5532.00000 5193.14833  6.13%   101   15s
+  4957  1306 5276.65188   17  137 5532.00000 5238.65101  5.30%   115   20s
+  7529  1794 5344.06597   19  135 5532.00000 5261.91103  4.88%   118   25s
+ 10183  2123 5427.99542   27  124 5532.00000 5280.84130  4.54%   122   30s
+ 12542  2256     cutoff   27      5532.00000 5302.99633  4.14%   123   35s
+ 15525  2360 5415.80000   26   91 5532.00000 5314.49170  3.93%   122   40s
+ 18949  2265 5357.19642   24  146 5532.00000 5333.20142  3.59%   122   46s
+ 21279  2026 5441.83478   27  127 5532.00000 5355.01946  3.20%   121   50s
+ 23299  1703 5415.27011   28   83 5532.00000 5363.60807  3.04%   122   55s
+ 26375  1694 infeasible   37      5532.00000 5402.89013  2.33%   120   60s
+ 33017  3624 5447.15139   42   67 5532.00000 5416.66175  2.08%   107   65s
+ 37226  4868     cutoff   45      5532.00000 5418.28585  2.06%   101   70s
+ 42820  6273 5491.00000   38   45 5532.00000 5420.08714  2.02%  94.1   75s
+ 46842  7270     cutoff   44      5532.00000 5421.96256  1.99%  90.0   80s
+ 54126  8369 5440.89468   44   54 5532.00000 5424.25432  1.95%  83.2   85s
+ 59874  9184 infeasible   40      5532.00000 5425.87019  1.92%  78.9   90s
+ 64774 10119 5441.76555   38   75 5532.00000 5426.77777  1.90%  75.8   95s
+ 70421 10981 5478.66787   54   79 5532.00000 5427.93215  1.88%  73.3  100s
+ 75691 11744     cutoff   37      5532.00000 5429.72509  1.85%  71.1  105s
+ 81462 12272 5443.97573   31  119 5532.00000 5431.23799  1.82%  69.4  110s
+ 85455 12522     cutoff   42      5532.00000 5432.83519  1.79%  68.7  115s
+ 90862 13050     cutoff   58      5532.00000 5434.43337  1.76%  67.3  120s
+ 96265 13507     cutoff   36      5532.00000 5435.93756  1.74%  66.0  126s
+ 99603 13176     cutoff   37      5532.00000 5437.63494  1.71%  65.6  130s
+ 105060 13150     cutoff   37      5532.00000 5439.92667  1.66%  64.6  135s
+ 111830 13093 5442.68937   47   78 5532.00000 5441.82274  1.63%  63.0  140s
+ 117385 13258     cutoff   39      5532.00000 5443.16923  1.61%  61.6  145s
+ 122563 12722 5476.91071   40   69 5532.00000 5445.47667  1.56%  60.6  150s
+ 127431 11865 infeasible   46      5532.00000 5447.60000  1.53%  59.9  155s
+ 132885 11588     cutoff   35      5532.00000 5451.28188  1.46%  58.6  160s
+ 141136 10654     cutoff   42      5532.00000 5455.77658  1.38%  56.8  165s
+ 148490 10059     cutoff   50      5532.00000 5459.72590  1.31%  55.3  170s
+ 155109  9252 infeasible   56      5532.00000 5461.43909  1.28%  53.8  175s
+ 163057  6965 infeasible   42      5532.00000 5468.47337  1.15%  52.4  180s
+ 169689  6125 5481.86105   55  102 5532.00000 5474.91147  1.03%  51.3  185s
+
+Cutting planes:
+  Learned: 176
+  Gomory: 10
+  Cover: 341
+  Implied bound: 1
+  MIR: 310
+  StrongCG: 48
+  Flow cover: 309
+  GUB cover: 1
+  Inf proof: 10
+  Zero half: 21
+  RLT: 2
+  Relax-and-lift: 36
+
+Explored 172162 nodes (8767547 simplex iterations) in 186.76 seconds (92.28 work units)
+Thread count was 12 (of 12 available processors)
+
+Solution count 2: 5532 18900 
+
+Optimal solution found (tolerance 1.00e-02)
+Best objective 5.532000000000e+03, best bound 5.479000000000e+03, gap 0.9581%
